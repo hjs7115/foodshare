@@ -1,0 +1,59 @@
+import { ImgHTMLAttributes, useEffect, useState } from 'react';
+import { API_BASE_URL, resolveImageUrl } from '../../api/config';
+
+const imageCache = new Map<string, string>();
+
+type BackendImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
+  src?: string | null;
+};
+
+export default function BackendImage({ src, ...props }: BackendImageProps) {
+  const [displaySrc, setDisplaySrc] = useState(() => resolveImageUrl(src));
+
+  useEffect(() => {
+    const resolvedSrc = resolveImageUrl(src);
+    setDisplaySrc(resolvedSrc);
+
+    if (!resolvedSrc.startsWith(`${API_BASE_URL}/uploads/`)) {
+      return;
+    }
+
+    if (imageCache.has(resolvedSrc)) {
+      setDisplaySrc(imageCache.get(resolvedSrc)!);
+      return;
+    }
+
+    let isMounted = true;
+
+    fetch(resolvedSrc, {
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+      },
+      mode: 'cors',
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Image request failed: ${response.status}`);
+        }
+        return response.blob();
+      })
+      .then((blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        imageCache.set(resolvedSrc, objectUrl);
+        if (isMounted) {
+          setDisplaySrc(objectUrl);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setDisplaySrc('/assets/food-placeholder.png');
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [src]);
+
+  return <img src={displaySrc} {...props} />;
+}

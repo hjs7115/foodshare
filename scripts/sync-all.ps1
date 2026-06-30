@@ -1,5 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-git subtree pull --prefix=backend backend main --squash
-git subtree pull --prefix=frontend frontend main --squash
+& "$PSScriptRoot\sync-backend.ps1"
+& "$PSScriptRoot\sync-frontend.ps1"
+
+Write-Host "All sync complete. Review changes with: git status"

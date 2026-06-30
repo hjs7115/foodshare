@@ -1,0 +1,43 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### Java / IDE ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+.vscode/
+
+### Frontend ###
+node_modules/
+dist/
+docx_render_check/
+.env
+**/.env
+
+### Local secrets ###
+application-local.properties
+
+### Runtime / generated ###
+uploads/
+screenshot.png
+.codex_deps/
+.codex_python_root/
+.frontend-review/

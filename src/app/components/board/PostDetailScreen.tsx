@@ -1,0 +1,734 @@
+import { useState, useEffect } from 'react';
+import { X, Heart, MessageCircle, Send, User, Leaf, MoreVertical, Edit2, Trash2 } from 'lucide-react';
+import { API_ENDPOINTS, apiRequest, resolveImageUrl } from '../../api/config';
+import BackendImage from '../common/BackendImage';
+
+interface Post {
+  id: number;
+  title: string;
+  content: string;
+  price: string;
+  amount: string;
+  postType: 'SHARE' | 'SALE' | 'GROUP_BUY';
+  image: string;
+  emoji?: string;
+  createdAt: string;
+  expiry?: string;
+  deadline?: string;
+  currentCount?: number;
+  targetCount?: number;
+  tradeLocation?: string;
+  address?: string;
+  location?: string;
+  latitude?: number;
+  longitude?: number;
+  author?: string;
+  authorId?: number;
+  nickname?: string;
+  authorNickname?: string;
+  writerNickname?: string;
+  memberNickname?: string;
+  writerProfileImage?: string;
+  authorProfileImage?: string;
+  profileImage?: string;
+  user?: any;
+  writer?: any;
+  member?: any;
+  rating?: number;
+  freshness?: number;
+}
+
+interface Comment {
+  id: number;
+  postId: number;
+  author: string;
+  authorId?: number;
+  rating?: number;
+  freshness?: number;
+  authorImage?: string;
+  isMine?: boolean;
+  content: string;
+  createdAt: string;
+}
+
+interface PostDetailScreenProps {
+  postId: number;
+  onClose: () => void;
+}
+
+export default function PostDetailScreen({ postId, onClose }: PostDetailScreenProps) {
+  const [post, setPost] = useState<Post | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [showMenuForComment, setShowMenuForComment] = useState<number | null>(null);
+  const [isCommentSubmitting, setIsCommentSubmitting] = useState(false);
+
+  useEffect(() => {
+    loadPost();
+    loadComments();
+    checkFavorite();
+  }, [postId]);
+
+  const extractPost = (response: any): Post | null => {
+    const rawPost =
+      response.post ||
+      response.data?.post ||
+      response.data ||
+      response;
+
+    return rawPost?.id ? rawPost : null;
+  };
+
+  const normalizePostDetail = (serverPost: Post): Post => ({
+    ...serverPost,
+    image: resolveImageUrl(
+      (serverPost as any).image ||
+      (serverPost as any).imageUrl ||
+      (Array.isArray((serverPost as any).images) ? (serverPost as any).images[0] : '')
+    ),
+  });
+
+  const loadPost = async () => {
+    try {
+      const response = await apiRequest(API_ENDPOINTS.getPost(postId), { method: 'GET' });
+      const serverPost = extractPost(response);
+
+      if (serverPost) {
+        setPost(normalizePostDetail(serverPost));
+      } else {
+        setPost(null);
+      }
+    } catch (error) {
+      console.warn('게시글 상세 서버 조회에 실패했습니다.', error);
+      setPost(null);
+    }
+  };
+  const getCurrentUser = () => JSON.parse(localStorage.getItem('userInfo') || '{}');
+
+  const getUserId = (user: any): number | undefined => {
+    const id = user?.id ?? user?.userId ?? user?.memberId;
+    return id == null ? undefined : Number(id);
+  };
+
+  const getUserNickname = (user: any): string => (
+    user?.nickname ||
+    user?.name ||
+    user?.username ||
+    user?.email ||
+    ''
+  );
+
+  const getPostAuthor = (postData: any): string => (
+    postData.authorNickname ||
+    postData.writerNickname ||
+    postData.memberNickname ||
+    postData.nickname ||
+    postData.user?.nickname ||
+    postData.author?.nickname ||
+    postData.writer?.nickname ||
+    postData.member?.nickname ||
+    postData.createdBy ||
+    postData.author ||
+    '작성자'
+  );
+
+  const getCommentAuthor = (comment: any, fallbackToCurrentUser = false): string => {
+    const currentUser = getCurrentUser();
+    const currentUserId = getUserId(currentUser);
+    const commentAuthorId = getUserId(comment.user || comment.author || comment.writer || comment.member) ??
+      getUserId({ id: comment.userId ?? comment.authorId ?? comment.writerId ?? comment.memberId });
+
+    return (
+      comment.authorNickname ||
+      comment.writerNickname ||
+      comment.memberNickname ||
+      comment.nickname ||
+      comment.user?.nickname ||
+      comment.author?.nickname ||
+      comment.writer?.nickname ||
+      comment.member?.nickname ||
+      comment.createdBy ||
+      (commentAuthorId && currentUserId && commentAuthorId === currentUserId ? getUserNickname(currentUser) : '') ||
+      (comment.isMine || comment.mine || comment.owner || comment.editable || fallbackToCurrentUser ? getUserNickname(currentUser) : '') ||
+      '?듬챸'
+    );
+  };
+
+  const getRatingValue = (source: any, fallback?: number): number => {
+    const rating =
+      source?.freshness ??
+      source?.rating ??
+      source?.freshnessScore ??
+      source?.ratingScore ??
+      source?.trustScore ??
+      source?.mannerScore ??
+      source?.freshnessRating ??
+      source?.mannerTemperature ??
+      source?.user?.freshness ??
+      source?.user?.rating ??
+      source?.user?.freshnessScore ??
+      source?.user?.ratingScore ??
+      source?.user?.trustScore ??
+      source?.user?.mannerScore ??
+      source?.user?.freshnessRating ??
+      source?.user?.mannerTemperature ??
+      source?.author?.freshness ??
+      source?.author?.rating ??
+      source?.author?.freshnessScore ??
+      source?.author?.ratingScore ??
+      source?.author?.trustScore ??
+      source?.author?.mannerScore ??
+      source?.author?.freshnessRating ??
+      source?.author?.mannerTemperature ??
+      source?.writer?.freshness ??
+      source?.writer?.rating ??
+      source?.writer?.freshnessScore ??
+      source?.writer?.ratingScore ??
+      source?.writer?.trustScore ??
+      source?.writer?.mannerScore ??
+      source?.writer?.freshnessRating ??
+      source?.writer?.mannerTemperature ??
+      source?.member?.freshness ??
+      source?.member?.rating ??
+      source?.member?.freshnessScore ??
+      source?.member?.ratingScore ??
+      source?.member?.trustScore ??
+      source?.member?.mannerScore ??
+      source?.member?.freshnessRating ??
+      source?.member?.mannerTemperature ??
+      fallback ??
+      0;
+
+    return Number(rating) || 0;
+  };
+
+  const getCurrentUserRating = (): number => getRatingValue(getCurrentUser(), 4.5);
+
+  const getProfileImage = (source: any): string => {
+    const image =
+      source?.writerProfileImage ||
+      source?.authorProfileImage ||
+      source?.memberProfileImage ||
+      source?.profileImage ||
+      source?.profileImageUrl ||
+      source?.avatar ||
+      source?.avatarUrl ||
+      source?.user?.profileImage ||
+      source?.user?.profileImageUrl ||
+      source?.author?.profileImage ||
+      source?.author?.profileImageUrl ||
+      source?.writer?.profileImage ||
+      source?.writer?.profileImageUrl ||
+      source?.member?.profileImage ||
+      source?.member?.profileImageUrl ||
+      '';
+
+    return image ? resolveImageUrl(image) : '';
+  };
+
+  const formatFreshness = (rating?: number): string => {
+    const value = Number(rating) || 0;
+    const percent = value <= 5 ? Math.round(value * 20) : Math.round(value);
+    return `${Math.max(0, Math.min(100, percent))}%`;
+  };
+
+  const formatKoreanDate = (value?: string): string => {
+    if (!value) return '';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return date.toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  const formatExpiry = (value?: string): string => {
+    if (!value) return '';
+
+    const expiresInDays = value.match(/expires?\s+in\s+(\d+)\s+days?/i);
+    if (expiresInDays) {
+      return `${expiresInDays[1]}일 남음`;
+    }
+
+    const daysLeft = value.match(/(\d+)\s*days?\s+left/i);
+    if (daysLeft) {
+      return `${daysLeft[1]}일 남음`;
+    }
+
+    return formatKoreanDate(value);
+  };
+
+  const getPostLocation = (postData: any): string => (
+    postData.tradeLocation ||
+    postData.address ||
+    postData.location ||
+    postData.user?.address ||
+    postData.author?.address ||
+    postData.writer?.address ||
+    postData.member?.address ||
+    ''
+  );
+
+  const normalizeComment = (comment: any, fallbackToCurrentUser = false): Comment => ({
+    id: Number(comment.id ?? comment.commentId ?? Date.now()),
+    postId: comment.postId || postId,
+    author: getCommentAuthor(comment, fallbackToCurrentUser),
+    authorId: getUserId(comment.user || comment.author || comment.writer || comment.member) ??
+      getUserId({ id: comment.userId ?? comment.authorId ?? comment.writerId ?? comment.memberId }),
+    authorImage: getProfileImage(comment),
+    rating: getRatingValue(comment, fallbackToCurrentUser ? getCurrentUserRating() : 0),
+    freshness: getRatingValue(comment, fallbackToCurrentUser ? getCurrentUserRating() : 0),
+    isMine: Boolean(comment.isMine || comment.mine || comment.owner || comment.editable),
+    content: comment.content || comment.comment || '',
+    createdAt: comment.createdAt || comment.createdDate || comment.updatedAt || new Date().toISOString(),
+  });
+
+  const extractComments = (response: any): Comment[] => {
+    const rawComments =
+      response.comments ||
+      response.data?.comments ||
+      response.data ||
+      response;
+
+    return Array.isArray(rawComments) ? rawComments.map(normalizeComment) : [];
+  };
+
+  const extractComment = (response: any): Comment => {
+    const rawComment =
+      response.comment ||
+      response.data?.comment ||
+      response.data ||
+      response;
+
+    return normalizeComment(rawComment, true);
+  };
+
+  const loadComments = async () => {
+    try {
+      const response = await apiRequest(API_ENDPOINTS.getComments(postId), { method: 'GET' });
+      setComments(extractComments(response));
+    } catch (error: any) {
+      console.error('댓글 조회 실패:', error);
+      alert(error.message || '댓글을 불러오지 못했습니다.');
+      setComments([]);
+    }
+  };
+
+  const checkFavorite = async () => {
+    try {
+      const response = await apiRequest(API_ENDPOINTS.favoriteStatus(postId), { method: 'GET' });
+      const status = response.data || response.favorite || response;
+      setIsFavorite(Boolean(status.favorite ?? status.isFavorite));
+    } catch (error) {
+      console.warn('관심 상태 조회에 실패했습니다.', error);
+      setIsFavorite(false);
+    }
+  };
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+
+    setIsCommentSubmitting(true);
+    try {
+      const response = await apiRequest(API_ENDPOINTS.createComment(postId), {
+        method: 'POST',
+        body: JSON.stringify({ content: newComment.trim() }),
+      });
+      const comment = extractComment(response);
+      setComments((prevComments) => [...prevComments, comment]);
+      setNewComment('');
+    } catch (error: any) {
+      alert(error.message || '댓글 작성에 실패했습니다.');
+    } finally {
+      setIsCommentSubmitting(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!confirm('댓글을 삭제하시겠습니까?')) return;
+
+    try {
+      await apiRequest(API_ENDPOINTS.deleteComment(commentId), { method: 'DELETE' });
+      setComments((prevComments) => prevComments.filter((c) => c.id !== commentId));
+      setShowMenuForComment(null);
+    } catch (error: any) {
+      alert(error.message || '댓글 삭제에 실패했습니다.');
+    }
+  };
+
+  const handleStartEdit = (comment: Comment) => {
+    setEditingCommentId(comment.id);
+    setEditingContent(comment.content);
+    setShowMenuForComment(null);
+  };
+
+  const handleSaveEdit = async (commentId: number) => {
+    if (!editingContent.trim()) return;
+
+    try {
+      const response = await apiRequest(API_ENDPOINTS.updateComment(commentId), {
+        method: 'PUT',
+        body: JSON.stringify({ content: editingContent.trim() }),
+      });
+      const updatedComment = extractComment(response);
+
+      setComments(
+        comments.map((c) =>
+          c.id === commentId ? { ...c, ...updatedComment } : c
+        )
+      );
+      setEditingCommentId(null);
+      setEditingContent('');
+    } catch (error: any) {
+      alert(error.message || '댓글 수정에 실패했습니다.');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingContent('');
+  };
+
+  const handleToggleFavorite = async () => {
+    try {
+      if (isFavorite) {
+        await apiRequest(API_ENDPOINTS.removeFavorite(postId), { method: 'DELETE' });
+        setIsFavorite(false);
+      } else {
+        await apiRequest(API_ENDPOINTS.addFavorite(postId), { method: 'POST' });
+        setIsFavorite(true);
+      }
+    } catch (error: any) {
+      alert(error.message || '관심 목록 처리에 실패했습니다.');
+    }
+  };
+  const handleTradeRequest = async () => {
+    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+
+    if (!userInfo.nickname) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
+    const typeLabel = post?.postType === 'SHARE' ? '나눔' : post?.postType === 'SALE' ? '구매' : '공동구매 참여';
+
+    if (!confirm(`${typeLabel} 요청을 보내시겠습니까?`)) return;
+
+    try {
+      await apiRequest(API_ENDPOINTS.createTradeRequest(postId), { method: 'POST' });
+      alert(`${typeLabel} 요청이 전송되었습니다.\n게시글 작성자가 확인 후 연락드릴 예정입니다.`);
+    } catch (error: any) {
+      alert(error.message || `${typeLabel} 요청에 실패했습니다.`);
+    }
+  };
+
+  const getPostTypeBadge = () => {
+    switch (post?.postType) {
+      case 'SHARE':
+        return <span className="bg-[#dcfce7] text-[#166534] px-3 py-1 rounded-full text-sm" style={{ fontWeight: 500 }}>나눔</span>;
+      case 'SALE':
+        return <span className="bg-[#dbeafe] text-[#1e40af] px-3 py-1 rounded-full text-sm" style={{ fontWeight: 500 }}>판매</span>;
+      case 'GROUP_BUY':
+        return <span className="bg-[#fef3c7] text-[#92400e] px-3 py-1 rounded-full text-sm" style={{ fontWeight: 500 }}>공동구매</span>;
+      default:
+        return null;
+    }
+  };
+
+  if (!post) {
+    return (
+      <div className="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <p className="text-[#718096]">게시글을 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  const currentUser = getCurrentUser();
+  const currentUserId = getUserId(currentUser);
+  const currentUserNickname = getUserNickname(currentUser);
+  const postAuthor = getPostAuthor(post);
+  const postAuthorId = getUserId(post.user || post.author || post.writer || post.member) ??
+    getUserId({ id: post.authorId ?? (post as any).userId ?? (post as any).writerId ?? (post as any).memberId });
+  const isMyPost =
+    Boolean((post as any).isMine || (post as any).mine || (post as any).owner || (post as any).editable) ||
+    (postAuthorId != null && currentUserId != null && postAuthorId === currentUserId) ||
+    (!!currentUserNickname && postAuthor === currentUserNickname);
+  const postRating = getRatingValue(post, isMyPost ? getCurrentUserRating() : 0);
+  const postLocation = getPostLocation(post);
+  const postAuthorImage = getProfileImage(post) || (isMyPost ? getProfileImage(currentUser) : '');
+
+  return (
+    <div className="fixed inset-0 bg-white z-50 flex flex-col">
+      {/* Header */}
+      <div className="bg-white border-b border-[#e2e8f0] px-5 py-4 flex items-center justify-between">
+        <button onClick={onClose} className="text-[#2d3748]">
+          <X size={24} />
+        </button>
+        <h1 className="text-lg text-[#2d3748]" style={{ fontWeight: 600 }}>
+          게시글
+        </h1>
+        <button onClick={handleToggleFavorite} className="text-[#2d3748]">
+          <Heart size={24} fill={isFavorite ? '#e53e3e' : 'none'} className={isFavorite ? 'text-[#e53e3e]' : ''} />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto bg-[#f7fafc]">
+        {/* Image */}
+        <div className="bg-white">
+          <BackendImage
+            src={resolveImageUrl(post.image)}
+            alt={post.title}
+            className="w-full h-80 object-cover"
+          />
+        </div>
+
+        {/* Post Info */}
+        <div className="bg-white px-5 py-6 mb-2">
+          <div className="flex items-center gap-3 mb-4">
+            {getPostTypeBadge()}
+            <span className="text-xs text-[#a0aec0]">
+              {formatKoreanDate(post.createdAt)}
+            </span>
+          </div>
+
+          <h2 className="text-2xl text-[#2d3748] mb-3" style={{ fontWeight: 600 }}>
+            {post.emoji} {post.title}
+          </h2>
+
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden">
+                {postAuthorImage ? (
+                  <BackendImage
+                    src={postAuthorImage}
+                    alt={postAuthor}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User size={16} className="text-[#718096]" />
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[#2d3748]" style={{ fontWeight: 500 }}>
+                  {postAuthor}
+                </span>
+                <div className="flex items-center gap-1 bg-[#dcfce7] px-2 py-0.5 rounded-full">
+                  <Leaf size={12} className="text-[#16a34a] fill-[#16a34a]" />
+                  <span className="text-xs text-[#16a34a]" style={{ fontWeight: 600 }}>
+                    {formatFreshness(postRating)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2 mb-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-[#718096]">가격</span>
+              <span className="text-[#2d3748]" style={{ fontWeight: 600 }}>{post.price}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[#718096]">수량</span>
+              <span className="text-[#2d3748]" style={{ fontWeight: 500 }}>{post.amount}</span>
+            </div>
+            {postLocation && (
+              <div className="flex justify-between text-sm gap-4">
+                <span className="text-[#718096] shrink-0">거래 기준 위치</span>
+                <span className="text-[#2d3748] text-right" style={{ fontWeight: 500 }}>
+                  {postLocation}
+                </span>
+              </div>
+            )}
+            {post.postType !== 'GROUP_BUY' && post.expiry && (
+              <div className="flex justify-between text-sm">
+                <span className="text-[#718096]">유통기한</span>
+                <span className="text-[#2d3748]" style={{ fontWeight: 500 }}>{formatExpiry(post.expiry)}</span>
+              </div>
+            )}
+            {post.deadline && (
+              <div className="flex justify-between text-sm">
+                <span className="text-[#718096]">마감일</span>
+                <span className="text-[#2d3748]" style={{ fontWeight: 500 }}>{post.deadline}</span>
+              </div>
+            )}
+            {post.postType === 'GROUP_BUY' && (
+              <div className="flex justify-between text-sm">
+                <span className="text-[#718096]">참여 인원</span>
+                <span className="text-[#2d3748]" style={{ fontWeight: 500 }}>
+                  {post.currentCount || 1} / {post.targetCount || 5}명
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-4 border-t border-[#e2e8f0]">
+            <p className="text-[#2d3748] whitespace-pre-wrap">
+              {post.content || '내용이 없습니다.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Comments Section */}
+        <div className="bg-white px-5 py-6">
+          <h3 className="text-lg text-[#2d3748] mb-4 flex items-center gap-2" style={{ fontWeight: 600 }}>
+            <MessageCircle size={20} />
+            댓글 {comments.length}
+          </h3>
+
+          <div className="space-y-4 mb-4">
+            {comments.length === 0 ? (
+              <p className="text-sm text-[#a0aec0] text-center py-8">
+                첫 댓글을 남겨보세요
+              </p>
+            ) : (
+              comments.map((comment) => {
+                const isMyComment =
+                  comment.isMine ||
+                  (comment.authorId != null && currentUserId != null && comment.authorId === currentUserId) ||
+                  (!!currentUserNickname && comment.author === currentUserNickname);
+                const isEditing = editingCommentId === comment.id;
+                const commentFreshness = getRatingValue(comment, postAuthor === comment.author ? postRating : 0);
+
+                return (
+                  <div key={comment.id} className="flex gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#e2e8f0] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {comment.authorImage ? (
+                        <BackendImage
+                          src={comment.authorImage}
+                          alt={comment.author}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User size={16} className="text-[#718096]" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm text-[#2d3748]" style={{ fontWeight: 600 }}>
+                          {comment.author}
+                        </span>
+                        <div className="flex items-center gap-1 bg-[#dcfce7] px-1.5 py-0.5 rounded-full">
+                          <Leaf size={10} className="text-[#16a34a] fill-[#16a34a]" />
+                          <span className="text-xs text-[#16a34a]" style={{ fontWeight: 600 }}>
+                            {formatFreshness(commentFreshness)}
+                          </span>
+                        </div>
+                        <span className="text-xs text-[#a0aec0]">
+                          {formatKoreanDate(comment.createdAt)}
+                        </span>
+                        {isMyComment && !isEditing && (
+                          <div className="ml-auto relative">
+                            <button
+                              onClick={() => setShowMenuForComment(showMenuForComment === comment.id ? null : comment.id)}
+                              className="text-[#718096] hover:text-[#2d3748] p-1"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+                            {showMenuForComment === comment.id && (
+                              <div className="absolute right-0 top-full mt-1 bg-white border border-[#e2e8f0] rounded-xl shadow-lg py-1 z-10 min-w-[100px]">
+                                <button
+                                  onClick={() => handleStartEdit(comment)}
+                                  className="w-full px-4 py-2 text-sm text-left text-[#2d3748] hover:bg-[#f7fafc] flex items-center gap-2"
+                                >
+                                  <Edit2 size={14} />
+                                  수정
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                  className="w-full px-4 py-2 text-sm text-left text-[#e53e3e] hover:bg-[#fff5f5] flex items-center gap-2"
+                                >
+                                  <Trash2 size={14} />
+                                  삭제
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {isEditing ? (
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="text"
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleSaveEdit(comment.id);
+                              }
+                            }}
+                            className="flex-1 px-3 py-2 rounded-xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc] text-sm"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => handleSaveEdit(comment.id)}
+                            className="px-3 py-2 rounded-xl bg-[#bef264] text-[#0a0a0a] hover:bg-[#a3e635] text-sm"
+                            style={{ fontWeight: 500 }}
+                          >
+                            저장
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="px-3 py-2 rounded-xl bg-[#e2e8f0] text-[#2d3748] hover:bg-[#cbd5e0] text-sm"
+                            style={{ fontWeight: 500 }}
+                          >
+                            취소
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-[#2d3748]">{comment.content}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Comment Input */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleAddComment();
+                }
+              }}
+              placeholder="댓글을 입력하세요"
+              className="flex-1 px-4 py-3 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
+            />
+            <button
+              onClick={handleAddComment}
+              disabled={!newComment.trim() || isCommentSubmitting}
+              className="px-4 py-3 rounded-2xl bg-[#bef264] text-[#0a0a0a] hover:bg-[#a3e635] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Send size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Action Button */}
+      <div className="bg-white border-t border-[#e2e8f0] px-5 py-4">
+        <button
+          onClick={handleTradeRequest}
+          className="w-full bg-[#bef264] text-[#0a0a0a] py-4 rounded-2xl hover:bg-[#a3e635] transition-colors shadow-sm"
+          style={{ fontWeight: 600 }}
+        >
+          {post.postType === 'SHARE' && '나눔 요청하기'}
+          {post.postType === 'SALE' && '구매 요청하기'}
+          {post.postType === 'GROUP_BUY' && '공동구매 참여하기'}
+        </button>
+      </div>
+    </div>
+  );
+}

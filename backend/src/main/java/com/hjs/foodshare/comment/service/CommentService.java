@@ -1,0 +1,79 @@
+package com.hjs.foodshare.comment.service;
+
+import com.hjs.foodshare.comment.domain.Comment;
+import com.hjs.foodshare.comment.dto.CommentCreateRequest;
+import com.hjs.foodshare.comment.dto.CommentResponse;
+import com.hjs.foodshare.comment.dto.CommentUpdateRequest;
+import com.hjs.foodshare.comment.repository.CommentRepository;
+import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.post.domain.Post;
+import com.hjs.foodshare.post.repository.PostRepository;
+import com.hjs.foodshare.user.domain.User;
+import com.hjs.foodshare.user.repository.UserRepository;
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@Transactional(readOnly = true)
+public class CommentService {
+
+    private final CommentRepository commentRepository;
+    private final PostRepository postRepository;
+    private final UserRepository userRepository;
+
+    public CommentService(CommentRepository commentRepository, PostRepository postRepository, UserRepository userRepository) {
+        this.commentRepository = commentRepository;
+        this.postRepository = postRepository;
+        this.userRepository = userRepository;
+    }
+
+    @Transactional
+    public CommentResponse createComment(Long postId, Long userId, CommentCreateRequest request) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Post not found."));
+        User writer = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+
+        Comment comment = Comment.create(post, writer, request.content());
+        return CommentResponse.from(commentRepository.save(comment));
+    }
+
+    public List<CommentResponse> getComments(Long postId, Long currentUserId) {
+        if (!postRepository.existsById(postId)) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "Post not found.");
+        }
+
+        return commentRepository.findAllByPostIdOrderByCreatedAtAsc(postId)
+                .stream()
+                .map(comment -> CommentResponse.from(comment, currentUserId))
+                .toList();
+    }
+
+    @Transactional
+    public CommentResponse updateComment(Long commentId, Long userId, CommentUpdateRequest request) {
+        Comment comment = getComment(commentId);
+        validateWriter(comment, userId);
+        comment.updateContent(request.content());
+        return CommentResponse.from(comment);
+    }
+
+    @Transactional
+    public void deleteComment(Long commentId, Long userId) {
+        Comment comment = getComment(commentId);
+        validateWriter(comment, userId);
+        commentRepository.delete(comment);
+    }
+
+    private Comment getComment(Long commentId) {
+        return commentRepository.findById(commentId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Comment not found."));
+    }
+
+    private void validateWriter(Comment comment, Long userId) {
+        if (!comment.getWriter().getId().equals(userId)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Only the writer can change this comment.");
+        }
+    }
+}

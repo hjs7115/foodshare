@@ -1,0 +1,111 @@
+package com.hjs.foodshare.review.service;
+
+import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.review.domain.Review;
+import com.hjs.foodshare.review.dto.RatingSummaryResponse;
+import com.hjs.foodshare.review.dto.ReviewCreateRequest;
+import com.hjs.foodshare.review.dto.ReviewResponse;
+import com.hjs.foodshare.review.repository.ReviewRepository;
+import com.hjs.foodshare.trade.domain.TradeRequest;
+import com.hjs.foodshare.trade.domain.TradeRequestStatus;
+import com.hjs.foodshare.trade.repository.TradeRequestRepository;
+import com.hjs.foodshare.user.domain.User;
+import com.hjs.foodshare.user.repository.UserRepository;
+import java.util.List;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@Transactional(readOnly = true)
+public class ReviewService {
+
+    private final ReviewRepository reviewRepository;
+    private final TradeRequestRepository tradeRequestRepository;
+    private final UserRepository userRepository;
+
+    public ReviewService(ReviewRepository reviewRepository, TradeRequestRepository tradeRequestRepository, UserRepository userRepository) {
+        this.reviewRepository = reviewRepository;
+        this.tradeRequestRepository = tradeRequestRepository;
+        this.userRepository = userRepository;
+    }
+
+    @Transactional
+    public ReviewResponse createReview(Long tradeRequestId, Long reviewerId, ReviewCreateRequest request) {
+        TradeRequest tradeRequest = tradeRequestRepository.findById(tradeRequestId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Trade request not found."));
+        if (tradeRequest.getStatus() != TradeRequestStatus.COMPLETED) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Only completed trades can be reviewed.");
+        }
+        if (reviewRepository.existsByTradeRequestIdAndReviewerId(tradeRequestId, reviewerId)) {
+            throw new BusinessException(HttpStatus.CONFLICT, "You already reviewed this trade.");
+        }
+
+        User reviewer = userRepository.findById(reviewerId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        User writer = tradeRequest.getPost().getWriter();
+        User requester = tradeRequest.getRequester();
+
+        User targetUser;
+        if (writer.getId().equals(reviewerId)) {
+            targetUser = requester;
+        } else if (requester.getId().equals(reviewerId)) {
+            targetUser = writer;
+        } else {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Only trade participants can review this trade.");
+        }
+
+        Review review = Review.create(tradeRequest, reviewer, targetUser, request.rating(), request.content());
+        return ReviewResponse.from(reviewRepository.save(review));
+    }
+
+    @Transactional
+    public ReviewResponse createReviewForUser(Long targetUserId, Long reviewerId, ReviewCreateRequest request) {
+        if (targetUserId.equals(reviewerId)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "You cannot review yourself.");
+        }
+
+        TradeRequest tradeRequest = tradeRequestRepository
+                .findCompletedTradesBetweenUsers(
+                        reviewerId,
+                        targetUserId,
+                        TradeRequestStatus.COMPLETED,
+                        PageRequest.of(0, 1)
+                )
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(
+                        HttpStatus.NOT_FOUND,
+                        "Completed trade with this user not found."
+                ));
+
+        return createReview(tradeRequest.getId(), reviewerId, request);
+    }
+
+    public List<ReviewResponse> getReviewsForUser(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "User not found.");
+        }
+        return reviewRepository.findAllByTargetUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(ReviewResponse::from)
+                .toList();
+    }
+
+    public List<ReviewResponse> getMyWrittenReviews(Long userId) {
+        return reviewRepository.findAllByReviewerIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(ReviewResponse::from)
+                .toList();
+    }
+
+    public RatingSummaryResponse getRatingSummary(Long userId) {
+        List<Review> reviews = reviewRepository.findAllByTargetUserIdOrderByCreatedAtDesc(userId);
+        double average = reviews.stream()
+                .mapToInt(Review::getRating)
+                .average()
+                .orElse(0.0);
+        return new RatingSummaryResponse(userId, Math.round(average * 10.0) / 10.0, reviews.size());
+    }
+}

@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: foodshare
+  config:
+    import: optional:file:./application-local.properties
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/foodshare?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+    auth-code-expiration-millis: 1800000
+
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:change-this-local-development-secret}
+    expiration-seconds: 86400
+  upload:
+    dir: uploads
+  mail:
+    from: ${MAIL_FROM:${MAIL_USERNAME:}}
+    auth-code-expiration-millis: ${spring.mail.auth-code-expiration-millis}

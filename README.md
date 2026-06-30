@@ -450,12 +450,12 @@ Content-Type: application/json
 
 ```json
 {
-  "name": "허준서",
-  "nickname": "junseo",
+  "name": "홍길동",
+  "nickname": "gildong",
   "email": "test@email.com",
   "password": "password123",
   "phoneNumber": "01012345678",
-  "location": "충북 충주시"
+  "location": "경기도 서울특별시"
 }
 ```
 

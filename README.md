@@ -1,4 +1,7 @@
 # 반띵
+<p align="center">
+  <img width="254" height="254" alt="image" src="https://github.com/user-attachments/assets/36fba8d8-fe6c-49f8-bd4d-34c25b1736cd" />
+</p>
 
 <p align="center">
   <strong>위치 기반 식재료 공유 플랫폼</strong><br/>
@@ -17,6 +20,7 @@
 </p>
 
 ---
+<img width="1491" height="1055" alt="image" src="https://github.com/user-attachments/assets/e7c69210-546d-4df7-abca-4ff181a77505" />
 
 ## 📖 소개
 

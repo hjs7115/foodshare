@@ -459,7 +459,7 @@ Content-Type: application/json
   "email": "test@email.com",
   "password": "password123",
   "phoneNumber": "01012345678",
-  "location": "경기도 서울특별시"
+  "location": "경기도 수원시"
 }
 ```
 

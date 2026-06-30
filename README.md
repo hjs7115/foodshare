@@ -78,7 +78,7 @@ sequenceDiagram
 
 ## 🏗️ 아키텍처
 
-![System Architecture](docs/images/system_architecture.png)
+![System Architecture](docs/images/system_architecture_diagram.png)
 
 ```mermaid
 graph TB
@@ -157,7 +157,7 @@ graph TB
 
 ## 📊 데이터 설계
 
-![ERD](docs/images/erd.png)
+![ERD](docs/images/erd_diagram.png)
 
 | 데이터 | 설명 |
 |------|------|
@@ -520,9 +520,9 @@ file
 |------|------|
 | `docs/API.md` | API 명세 |
 | `docs/design/` | 소프트웨어 설계서 |
-| `docs/images/system_architecture.png` | 시스템 아키텍처 |
-| `docs/images/erd.png` | ERD |
-| `docs/images/trade_sequence.png` | 거래 요청 시퀀스 |
+| `docs/images/system_architecture_diagram.png` | 시스템 아키텍처 |
+| `docs/images/erd_diagram.png` | ERD |
+| `docs/images/trade_sequence_diagram.png` | 거래 요청 시퀀스 |
 
 ---
 

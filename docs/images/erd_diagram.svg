@@ -1,218 +1,198 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1210" viewBox="0 90 1800 1210">
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1700" viewBox="0 0 1800 1700">
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
-      <path d="M1,1 L9,5 L1,9 Z" fill="#344054"/>
+      <path d="M1,1 L9,5 L1,9 Z" fill="#667085"/>
     </marker>
     <filter id="shadow" x="-8%" y="-8%" width="116%" height="125%">
-      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.14"/>
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.12"/>
     </filter>
     <style>
       .bg { fill: #fbfcfe; }
-      .title { font: 800 36px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #17202a; }
-      .subtitle { font: 500 16px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #667085; }
-      .entity { fill: #ffffff; stroke: #98a2b3; stroke-width: 2; rx: 12; filter: url(#shadow); }
-      .head { fill: #eef4ff; stroke: #98a2b3; stroke-width: 2; rx: 12; }
-      .headText { font: 800 27px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #1d2939; }
-      .field { font: 500 19px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
-      .pk { font: 800 19px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #101828; }
-      .note { fill: #fff8db; stroke: #eaaa08; stroke-width: 1.5; rx: 12; }
-      .noteText { font: 600 18px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #7a4d00; }
       .rel { stroke: #667085; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
-      .rel2 { stroke: #667085; stroke-width: 2.2; fill: none; stroke-dasharray: 8 6; marker-end: url(#arrow); }
-      .label { font: 800 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
-      .legend { font: 500 18px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #475467; }
+      .rel2 { stroke: #98a2b3; stroke-width: 2; fill: none; stroke-dasharray: 8 7; marker-end: url(#arrow); }
+      .label { font: 800 15px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
+      .entity { fill: #ffffff; stroke: #98a2b3; stroke-width: 2; rx: 12; filter: url(#shadow); }
+      .headBox { fill: #eaf1ff; stroke: #98a2b3; stroke-width: 2; rx: 12; }
+      .headText { font: 800 23px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #101828; }
+      .field { font: 500 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
+      .pk { font: 800 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #101828; }
+      .note { fill: #fff8db; stroke: #eaaa08; stroke-width: 1.6; rx: 12; }
+      .noteText { font: 600 16px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #7a4d00; }
+      .legend { font: 500 16px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #475467; }
     </style>
   </defs>
 
-  <rect class="bg" width="1800" height="1300"/>
+  <rect class="bg" width="1800" height="1700"/>
+
+  <!-- Relationship lines are drawn first so table boxes stay readable. -->
+  <path d="M900 310 V420" class="rel"/>
+  <text x="920" y="372" class="label">1:N 작성</text>
+
+  <path d="M1050 165 H1220" class="rel"/>
+  <text x="1090" y="142" class="label">1:N 토큰</text>
+
+  <path d="M1050 250 C1125 250 1140 390 1220 390" class="rel"/>
+  <text x="1110" y="322" class="label">1:N 알림</text>
+
+  <path d="M900 860 V1035" class="rel"/>
+  <text x="920" y="955" class="label">1:N 댓글</text>
+
+  <path d="M965 860 C1060 930 1125 1045 1220 1150" class="rel"/>
+  <text x="1045" y="1010" class="label">1:N 관심</text>
+
+  <path d="M760 640 H570" class="rel"/>
+  <text x="610" y="615" class="label">1:N 거래</text>
+
+  <path d="M455 805 V960" class="rel"/>
+  <text x="480" y="892" class="label">후기 대상</text>
+
+  <path d="M750 240 C610 320 520 450 455 550" class="rel"/>
+  <text x="515" y="440" class="label">요청자</text>
+
+  <path d="M750 170 C560 185 400 220 285 270" class="rel"/>
+  <text x="430" y="210" class="label">email 인증</text>
+
+  <path d="M750 260 C565 350 430 520 285 720" class="rel"/>
+  <text x="420" y="590" class="label">신고자/대상</text>
+
+  <path d="M750 295 C560 455 410 760 285 1010" class="rel"/>
+  <text x="420" y="890" class="label">차단자/대상</text>
+
+  <path d="M760 780 C680 1020 645 1260 640 1450" class="rel2"/>
+  <text x="650" y="1365" class="label">활동 집계</text>
+
+  <path d="M760 250 C690 520 650 1120 580 1280" class="rel2"/>
+  <text x="585" y="1230" class="label">후기 작성자/평가 대상</text>
+
+  <!-- email_verifications -->
+  <rect x="70" y="80" width="430" height="250" class="entity"/>
+  <path d="M70 92 Q70 80 82 80 H488 Q500 80 500 92 V132 H70 Z" class="headBox"/>
+  <text x="95" y="113" class="headText">email_verifications</text>
+  <text x="95" y="160" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="95" y="188" class="field">email : VARCHAR(100)</text>
+  <text x="95" y="216" class="field">code : VARCHAR(6)</text>
+  <text x="95" y="244" class="field">expires_at : DATETIME</text>
+  <text x="95" y="272" class="field">verified / used : BIT</text>
+  <text x="95" y="300" class="field">created_at : DATETIME</text>
+
+  <rect x="70" y="360" width="430" height="105" class="note"/>
+  <text x="95" y="395" class="noteText">회원가입/비밀번호 재설정 이메일 코드 관리</text>
+  <text x="95" y="425" class="noteText">users와 FK 없이 email 값으로 검증</text>
 
   <!-- users -->
-  <rect x="720" y="130" width="360" height="330" class="entity"/>
-  <path d="M720 142 Q720 130 732 130 H1068 Q1080 130 1080 142 V182 H720 Z" class="head"/>
-  <text x="745" y="163" class="headText">users</text>
-  <text x="745" y="205" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="745" y="229" class="field">name : VARCHAR(50)</text>
-  <text x="745" y="253" class="field">nickname : VARCHAR(50) &lt;UQ&gt;</text>
-  <text x="745" y="277" class="field">email : VARCHAR(100) &lt;UQ&gt;</text>
-  <text x="745" y="301" class="field">password : VARCHAR(255)</text>
-  <text x="745" y="325" class="field">phone_number : VARCHAR(20) &lt;UQ&gt;</text>
-  <text x="745" y="349" class="field">location : VARCHAR(100)</text>
-  <text x="745" y="373" class="field">latitude / longitude : DOUBLE</text>
-  <text x="745" y="397" class="field">profile_image : TEXT</text>
-  <text x="745" y="421" class="field">fcm_token, notification flags</text>
-  <text x="745" y="445" class="field">created_at : DATETIME</text>
-
-  <!-- posts -->
-  <rect x="670" y="555" width="460" height="430" class="entity"/>
-  <path d="M670 567 Q670 555 682 555 H1118 Q1130 555 1130 567 V607 H670 Z" class="head"/>
-  <text x="695" y="588" class="headText">posts</text>
-  <text x="695" y="630" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="695" y="654" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="695" y="678" class="field">title : VARCHAR(100), content : TEXT</text>
-  <text x="695" y="702" class="field">post_type : ENUM, status : ENUM</text>
-  <text x="695" y="726" class="field">ingredient_name : VARCHAR(100)</text>
-  <text x="695" y="750" class="field">quantity : VARCHAR(50), price : INT</text>
-  <text x="695" y="774" class="field">trade_location : VARCHAR(100)</text>
-  <text x="695" y="798" class="field">latitude / longitude : DOUBLE</text>
-  <text x="695" y="822" class="field">distance_km : DOUBLE</text>
-  <text x="695" y="846" class="field">expiration_date : DATE</text>
-  <text x="695" y="870" class="field">image_url : VARCHAR(500)</text>
-  <text x="695" y="894" class="field">current_participant_count : INT</text>
-  <text x="695" y="918" class="field">target_participant_count : INT</text>
-  <text x="695" y="942" class="field">deadline_date : DATE</text>
-  <text x="695" y="966" class="field">deleted : BIT, created_at : DATETIME</text>
-
-  <!-- email verifications -->
-  <rect x="70" y="135" width="355" height="210" class="entity"/>
-  <path d="M70 147 Q70 135 82 135 H413 Q425 135 425 147 V187 H70 Z" class="head"/>
-  <text x="95" y="168" class="headText">email_verifications</text>
-  <text x="95" y="210" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="95" y="234" class="field">email : VARCHAR(100)</text>
-  <text x="95" y="258" class="field">code : VARCHAR(6)</text>
-  <text x="95" y="282" class="field">expires_at : DATETIME</text>
-  <text x="95" y="306" class="field">verified / used : BIT</text>
-  <text x="95" y="330" class="field">created_at : DATETIME</text>
-
-  <rect x="70" y="365" width="355" height="86" class="note"/>
-  <text x="92" y="394" class="noteText">회원가입/비밀번호 재설정 이메일 코드 관리</text>
-  <text x="92" y="421" class="noteText">users와 직접 FK 없이 email 값으로 검증</text>
+  <rect x="750" y="55" width="300" height="255" class="entity"/>
+  <path d="M750 67 Q750 55 762 55 H1038 Q1050 55 1050 67 V107 H750 Z" class="headBox"/>
+  <text x="775" y="88" class="headText">users</text>
+  <text x="775" y="135" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="775" y="160" class="field">name, nickname &lt;UQ&gt;</text>
+  <text x="775" y="185" class="field">email &lt;UQ&gt;, password</text>
+  <text x="775" y="210" class="field">phone_number &lt;UQ&gt;</text>
+  <text x="775" y="235" class="field">location, latitude, longitude</text>
+  <text x="775" y="260" class="field">profile_image, fcm_token</text>
+  <text x="775" y="285" class="field">notification flags, created_at</text>
 
   <!-- refresh tokens -->
-  <rect x="1195" y="135" width="365" height="185" class="entity"/>
-  <path d="M1195 147 Q1195 135 1207 135 H1548 Q1560 135 1560 147 V187 H1195 Z" class="head"/>
-  <text x="1220" y="168" class="headText">refresh_tokens</text>
-  <text x="1220" y="210" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="1220" y="234" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="1220" y="258" class="field">token : VARCHAR(255) &lt;UQ&gt;</text>
-  <text x="1220" y="282" class="field">expires_at : DATETIME</text>
-  <text x="1220" y="306" class="field">revoked : BIT, created_at : DATETIME</text>
+  <rect x="1220" y="80" width="420" height="205" class="entity"/>
+  <path d="M1220 92 Q1220 80 1232 80 H1628 Q1640 80 1640 92 V132 H1220 Z" class="headBox"/>
+  <text x="1245" y="113" class="headText">refresh_tokens</text>
+  <text x="1245" y="160" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="1245" y="188" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="1245" y="216" class="field">token : VARCHAR(255) &lt;UQ&gt;</text>
+  <text x="1245" y="244" class="field">expires_at, revoked, created_at</text>
 
   <!-- notifications -->
-  <rect x="1195" y="370" width="430" height="255" class="entity"/>
-  <path d="M1195 382 Q1195 370 1207 370 H1613 Q1625 370 1625 382 V422 H1195 Z" class="head"/>
-  <text x="1220" y="403" class="headText">notifications</text>
-  <text x="1220" y="445" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="1220" y="469" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="1220" y="493" class="field">type : ENUM</text>
-  <text x="1220" y="517" class="field">title : VARCHAR(100)</text>
-  <text x="1220" y="541" class="field">message : TEXT</text>
-  <text x="1220" y="565" class="field">target_type : VARCHAR(50), target_id : BIGINT</text>
-  <text x="1220" y="589" class="field">is_read : BIT, created_at : DATETIME</text>
+  <rect x="1220" y="350" width="470" height="265" class="entity"/>
+  <path d="M1220 362 Q1220 350 1232 350 H1678 Q1690 350 1690 362 V402 H1220 Z" class="headBox"/>
+  <text x="1245" y="383" class="headText">notifications</text>
+  <text x="1245" y="430" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="1245" y="458" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="1245" y="486" class="field">type : ENUM, title : VARCHAR(100)</text>
+  <text x="1245" y="514" class="field">message : TEXT</text>
+  <text x="1245" y="542" class="field">target_type : VARCHAR(50)</text>
+  <text x="1245" y="570" class="field">target_id : BIGINT, is_read : BIT</text>
+  <text x="1245" y="598" class="field">created_at : DATETIME</text>
 
-  <!-- comments -->
-  <rect x="1185" y="705" width="375" height="185" class="entity"/>
-  <path d="M1185 717 Q1185 705 1197 705 H1548 Q1560 705 1560 717 V757 H1185 Z" class="head"/>
-  <text x="1210" y="738" class="headText">comments</text>
-  <text x="1210" y="780" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="1210" y="804" class="field">post_id : BIGINT &lt;FK posts.id&gt;</text>
-  <text x="1210" y="828" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="1210" y="852" class="field">content : TEXT</text>
-  <text x="1210" y="876" class="field">created_at : DATETIME</text>
-
-  <!-- favorites -->
-  <rect x="1185" y="955" width="375" height="160" class="entity"/>
-  <path d="M1185 967 Q1185 955 1197 955 H1548 Q1560 955 1560 967 V1007 H1185 Z" class="head"/>
-  <text x="1210" y="988" class="headText">favorites</text>
-  <text x="1210" y="1030" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="1210" y="1054" class="field">post_id : BIGINT &lt;FK posts.id&gt;</text>
-  <text x="1210" y="1078" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="1210" y="1102" class="field">created_at : DATETIME</text>
+  <!-- posts -->
+  <rect x="760" y="420" width="410" height="440" class="entity"/>
+  <path d="M760 432 Q760 420 772 420 H1158 Q1170 420 1170 432 V472 H760 Z" class="headBox"/>
+  <text x="785" y="453" class="headText">posts</text>
+  <text x="785" y="500" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="785" y="526" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="785" y="552" class="field">title, content, post_type, status</text>
+  <text x="785" y="578" class="field">ingredient_name, quantity, price</text>
+  <text x="785" y="604" class="field">trade_location, latitude, longitude</text>
+  <text x="785" y="630" class="field">distance_km, expiration_date</text>
+  <text x="785" y="656" class="field">image_url, deleted</text>
+  <text x="785" y="682" class="field">current_participant_count</text>
+  <text x="785" y="708" class="field">target_participant_count</text>
+  <text x="785" y="734" class="field">deadline_date, created_at</text>
 
   <!-- trade requests -->
-  <rect x="290" y="760" width="330" height="230" class="entity"/>
-  <path d="M290 772 Q290 760 302 760 H608 Q620 760 620 772 V812 H290 Z" class="head"/>
-  <text x="315" y="793" class="headText">trade_requests</text>
-  <text x="315" y="835" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="315" y="859" class="field">post_id : BIGINT &lt;FK posts.id&gt;</text>
-  <text x="315" y="883" class="field">requester_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="315" y="907" class="field">status : ENUM</text>
-  <text x="315" y="931" class="field">created_at : DATETIME</text>
-  <text x="315" y="955" class="field">responded_at : DATETIME</text>
-  <text x="315" y="979" class="field">completed_at : DATETIME</text>
-
-  <!-- reviews -->
-  <rect x="290" y="1055" width="420" height="205" class="entity"/>
-  <path d="M290 1067 Q290 1055 302 1055 H698 Q710 1055 710 1067 V1107 H290 Z" class="head"/>
-  <text x="315" y="1088" class="headText">reviews</text>
-  <text x="315" y="1130" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="315" y="1154" class="field">trade_request_id : BIGINT &lt;FK trade_requests.id&gt;</text>
-  <text x="315" y="1178" class="field">reviewer_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="315" y="1202" class="field">target_user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="315" y="1226" class="field">rating : INT, content : TEXT</text>
-  <text x="315" y="1250" class="field">created_at : DATETIME</text>
+  <rect x="235" y="550" width="335" height="255" class="entity"/>
+  <path d="M235 562 Q235 550 247 550 H558 Q570 550 570 562 V602 H235 Z" class="headBox"/>
+  <text x="260" y="583" class="headText">trade_requests</text>
+  <text x="260" y="630" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="260" y="658" class="field">post_id : BIGINT &lt;FK posts.id&gt;</text>
+  <text x="260" y="686" class="field">requester_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="260" y="714" class="field">status : ENUM</text>
+  <text x="260" y="742" class="field">created_at, responded_at</text>
+  <text x="260" y="770" class="field">completed_at : DATETIME</text>
 
   <!-- reports -->
-  <rect x="70" y="510" width="365" height="215" class="entity"/>
-  <path d="M70 522 Q70 510 82 510 H423 Q435 510 435 522 V562 H70 Z" class="head"/>
-  <text x="95" y="543" class="headText">reports</text>
-  <text x="95" y="585" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="95" y="609" class="field">reporter_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="633" class="field">target_user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="657" class="field">target_type / target_id</text>
-  <text x="95" y="681" class="field">reason, description, status</text>
-  <text x="95" y="705" class="field">created_at, reviewed_at</text>
+  <rect x="70" y="690" width="430" height="235" class="entity"/>
+  <path d="M70 702 Q70 690 82 690 H488 Q500 690 500 702 V742 H70 Z" class="headBox"/>
+  <text x="95" y="723" class="headText">reports</text>
+  <text x="95" y="770" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="95" y="798" class="field">reporter_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="95" y="826" class="field">target_user_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="95" y="854" class="field">target_type / target_id</text>
+  <text x="95" y="882" class="field">reason, description, status</text>
+  <text x="95" y="910" class="field">created_at, reviewed_at</text>
 
-  <!-- blocks -->
-  <rect x="70" y="810" width="365" height="160" class="entity"/>
-  <path d="M70 822 Q70 810 82 810 H423 Q435 810 435 822 V862 H70 Z" class="head"/>
-  <text x="95" y="843" class="headText">user_blocks</text>
-  <text x="95" y="885" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="95" y="909" class="field">blocker_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="933" class="field">blocked_user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="957" class="field">created_at : DATETIME</text>
+  <!-- user blocks -->
+  <rect x="70" y="1000" width="430" height="205" class="entity"/>
+  <path d="M70 1012 Q70 1000 82 1000 H488 Q500 1000 500 1012 V1052 H70 Z" class="headBox"/>
+  <text x="95" y="1033" class="headText">user_blocks</text>
+  <text x="95" y="1080" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="95" y="1108" class="field">blocker_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="95" y="1136" class="field">blocked_user_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="95" y="1164" class="field">created_at : DATETIME</text>
+
+  <!-- comments -->
+  <rect x="1220" y="705" width="420" height="215" class="entity"/>
+  <path d="M1220 717 Q1220 705 1232 705 H1628 Q1640 705 1640 717 V757 H1220 Z" class="headBox"/>
+  <text x="1245" y="738" class="headText">comments</text>
+  <text x="1245" y="785" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="1245" y="813" class="field">post_id : BIGINT &lt;FK posts.id&gt;</text>
+  <text x="1245" y="841" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="1245" y="869" class="field">content : TEXT</text>
+  <text x="1245" y="897" class="field">created_at : DATETIME</text>
+
+  <!-- favorites -->
+  <rect x="1220" y="1030" width="420" height="205" class="entity"/>
+  <path d="M1220 1042 Q1220 1030 1232 1030 H1628 Q1640 1030 1640 1042 V1082 H1220 Z" class="headBox"/>
+  <text x="1245" y="1063" class="headText">favorites</text>
+  <text x="1245" y="1110" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="1245" y="1138" class="field">post_id : BIGINT &lt;FK posts.id&gt;</text>
+  <text x="1245" y="1166" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="1245" y="1194" class="field">created_at : DATETIME</text>
+
+  <!-- reviews -->
+  <rect x="235" y="1280" width="460" height="245" class="entity"/>
+  <path d="M235 1292 Q235 1280 247 1280 H683 Q695 1280 695 1292 V1332 H235 Z" class="headBox"/>
+  <text x="260" y="1313" class="headText">reviews</text>
+  <text x="260" y="1360" class="pk">* id : BIGINT &lt;PK&gt;</text>
+  <text x="260" y="1388" class="field">trade_request_id : BIGINT &lt;FK trade_requests.id&gt;</text>
+  <text x="260" y="1416" class="field">reviewer_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="260" y="1444" class="field">target_user_id : BIGINT &lt;FK users.id&gt;</text>
+  <text x="260" y="1472" class="field">rating : INT, content : TEXT</text>
+  <text x="260" y="1500" class="field">created_at : DATETIME</text>
 
   <!-- badge note -->
-  <rect x="825" y="1045" width="305" height="160" class="note"/>
-  <text x="850" y="1080" class="noteText">badges / achievements</text>
-  <text x="850" y="1110" class="noteText">별도 테이블 없이 활동 데이터 기반 계산</text>
-  <text x="850" y="1140" class="noteText">게시글 작성, 거래 완료, 리뷰 평점,</text>
-  <text x="850" y="1170" class="noteText">나눔 횟수로 진행률 산출</text>
+  <rect x="810" y="1390" width="430" height="145" class="note"/>
+  <text x="835" y="1425" class="noteText">badges / achievements</text>
+  <text x="835" y="1455" class="noteText">별도 테이블 없이 활동 데이터 기반 계산</text>
+  <text x="835" y="1485" class="noteText">게시글 작성, 거래 완료, 리뷰 평점, 나눔 횟수 집계</text>
 
-  <!-- relationships -->
-  <path d="M900 460 L900 555" class="rel"/>
-  <text x="918" y="515" class="label">1 : N 게시글 작성</text>
-
-  <path d="M1080 245 C1135 245 1145 235 1195 235" class="rel"/>
-  <text x="1105" y="218" class="label">1 : N 토큰</text>
-
-  <path d="M1080 390 C1160 410 1160 450 1195 470" class="rel"/>
-  <text x="1110" y="430" class="label">1 : N 알림</text>
-
-  <path d="M1130 760 C1155 770 1165 780 1185 800" class="rel"/>
-  <text x="1135" y="746" class="label">1 : N 댓글</text>
-
-  <path d="M1080 455 C1160 600 1165 745 1185 820" class="rel"/>
-  <text x="1115" y="660" class="label">1 : N 댓글 작성</text>
-
-  <path d="M1130 910 C1160 955 1165 1000 1185 1035" class="rel"/>
-  <text x="1135" y="985" class="label">1 : N 관심</text>
-
-  <path d="M1080 420 C1175 610 1165 890 1185 1060" class="rel"/>
-  <text x="1098" y="965" class="label">1 : N 관심 등록</text>
-
-  <path d="M670 850 C650 850 640 850 620 850" class="rel"/>
-  <text x="626" y="828" class="label">1 : N 거래 요청</text>
-
-  <path d="M720 420 C575 540 500 690 455 760" class="rel"/>
-  <text x="520" y="668" class="label">1 : N 요청자</text>
-
-  <path d="M455 990 C455 1015 455 1030 455 1055" class="rel"/>
-  <text x="472" y="1028" class="label">1 : N 후기 대상 거래</text>
-
-  <path d="M720 250 C520 310 350 430 252 510" class="rel"/>
-  <text x="425" y="405" class="label">신고자 / 신고 대상</text>
-
-  <path d="M720 350 C515 520 360 700 252 810" class="rel"/>
-  <text x="430" y="735" class="label">차단자 / 차단 대상</text>
-
-  <path d="M720 430 C650 590 585 890 505 1055" class="rel2"/>
-  <text x="555" y="1090" class="label">후기 작성자 / 평가 대상</text>
-
-  <path d="M425 245 C545 235 620 235 720 245" class="rel2"/>
-  <text x="485" y="215" class="label">email 값으로 인증 상태 확인</text>
-
-  <path d="M900 985 C900 1010 900 1025 900 1045" class="rel2"/>
-  <text x="918" y="1028" class="label">활동 데이터 집계</text>
-
-  <text x="70" y="1260" class="legend">실선: FK 기반 관계 / 점선: email 또는 활동 집계 기반 논리 관계</text>
+  <text x="70" y="1635" class="legend">실선: FK 기반 관계 / 점선: email 또는 활동 집계 기반 논리 관계</text>
 </svg>

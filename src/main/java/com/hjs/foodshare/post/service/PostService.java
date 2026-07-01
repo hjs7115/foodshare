@@ -44,6 +44,12 @@ public class PostService {
     public PostResponse createPost(Long userId, PostCreateRequest request) {
         User writer = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        validatePostRequest(
+                request.postType(),
+                request.currentParticipantCount(),
+                request.targetParticipantCount(),
+                request.deadlineDateValue()
+        );
 
         Post post = Post.create(
                 writer,
@@ -59,9 +65,9 @@ public class PostService {
                 request.longitude(),
                 request.imageUrlValue(),
                 request.content(),
-                normalizeCurrentParticipantCount(request.currentParticipantCount()),
-                request.targetParticipantCount(),
-                request.deadlineDateValue()
+                normalizeCurrentParticipantCount(request.postType(), request.currentParticipantCount()),
+                normalizeTargetParticipantCount(request.postType(), request.targetParticipantCount()),
+                normalizeDeadlineDate(request.postType(), request.deadlineDateValue())
         );
 
         return toResponse(postRepository.save(post), userId);
@@ -105,6 +111,12 @@ public class PostService {
     public PostResponse updatePost(Long postId, Long userId, PostUpdateRequest request) {
         Post post = getActivePost(postId);
         validateWriter(post, userId);
+        validatePostRequest(
+                request.postType(),
+                request.currentParticipantCount(),
+                request.targetParticipantCount(),
+                request.deadlineDateValue()
+        );
 
         post.update(
                 request.postType(),
@@ -119,9 +131,9 @@ public class PostService {
                 request.longitude(),
                 request.imageUrlValue(),
                 request.content(),
-                normalizeCurrentParticipantCount(request.currentParticipantCount()),
-                request.targetParticipantCount(),
-                request.deadlineDateValue()
+                normalizeCurrentParticipantCount(request.postType(), request.currentParticipantCount()),
+                normalizeTargetParticipantCount(request.postType(), request.targetParticipantCount()),
+                normalizeDeadlineDate(request.postType(), request.deadlineDateValue())
         );
 
         return toResponse(post, userId);
@@ -194,8 +206,43 @@ public class PostService {
         return Math.round(earthRadiusKm * c * 10.0) / 10.0;
     }
 
-    private Integer normalizeCurrentParticipantCount(Integer currentParticipantCount) {
-        return currentParticipantCount == null ? null : Math.max(currentParticipantCount, 1);
+    private void validatePostRequest(
+            PostType postType,
+            Integer currentParticipantCount,
+            Integer targetParticipantCount,
+            LocalDate deadlineDate
+    ) {
+        if (postType != PostType.GROUP_BUY) {
+            return;
+        }
+        int currentCount = currentParticipantCount == null ? 1 : currentParticipantCount;
+        if (targetParticipantCount == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "targetParticipantCount is required for group buy posts.");
+        }
+        if (targetParticipantCount < currentCount) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "targetParticipantCount must be greater than or equal to currentParticipantCount.");
+        }
+        if (deadlineDate == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "deadlineDate is required for group buy posts.");
+        }
+        if (deadlineDate.isBefore(LocalDate.now())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "deadlineDate must be today or later.");
+        }
+    }
+
+    private Integer normalizeCurrentParticipantCount(PostType postType, Integer currentParticipantCount) {
+        if (postType != PostType.GROUP_BUY) {
+            return null;
+        }
+        return currentParticipantCount == null ? 1 : Math.max(currentParticipantCount, 1);
+    }
+
+    private Integer normalizeTargetParticipantCount(PostType postType, Integer targetParticipantCount) {
+        return postType == PostType.GROUP_BUY ? targetParticipantCount : null;
+    }
+
+    private LocalDate normalizeDeadlineDate(PostType postType, LocalDate deadlineDate) {
+        return postType == PostType.GROUP_BUY ? deadlineDate : null;
     }
 
     private PostResponse toResponse(Post post, Long currentUserId) {

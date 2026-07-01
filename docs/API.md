@@ -1,4 +1,4 @@
-# 반띵 API
+# FoodShare Backend API
 
 Base URL:
 
@@ -6,54 +6,70 @@ Base URL:
 http://localhost:8080
 ```
 
-## Auth
-
 Most write APIs require JWT.
 
 ```text
 Authorization: Bearer {accessToken}
 ```
 
+All responses use this shape:
+
+```json
+{
+  "success": true,
+  "message": "Message.",
+  "data": {}
+}
+```
+
+## Auth
+
+### Send Signup Email Code
+
+```http
+POST /api/auth/email-verifications
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+The verification code is sent by email. It is not returned in the API response.
+
+### Verify Signup Email Code
+
+```http
+POST /api/auth/email-verifications/verify
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "code": "123456"
+}
+```
+
 ### Signup
+
+Signup requires a verified email.
 
 ```http
 POST /api/auth/signup
 Content-Type: application/json
 ```
 
-Request:
-
 ```json
 {
-  "name": "허준서",
-  "nickname": "junseo",
-  "email": "test@email.com",
+  "name": "홍길동",
+  "nickname": "gildong",
+  "email": "user@example.com",
   "password": "password123",
-  "carrier": "SKT",
   "phoneNumber": "01012345678",
-  "location": "충북 충주시"
-}
-```
-
-`carrier`: `SKT`, `KT`, `LGU`, `MVNO`, `UNKNOWN`
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "회원가입이 완료되었습니다.",
-  "data": {
-    "accessToken": "eyJ...",
-    "tokenType": "Bearer",
-    "user": {
-      "userId": 1,
-      "email": "test@email.com",
-      "name": "허준서",
-      "nickname": "junseo",
-      "location": "충북 충주시"
-    }
-  }
+  "location": "서울 강남구 역삼동"
 }
 ```
 
@@ -64,32 +80,10 @@ POST /api/auth/login
 Content-Type: application/json
 ```
 
-Request:
-
 ```json
 {
-  "email": "test@email.com",
+  "email": "user@example.com",
   "password": "password123"
-}
-```
-
-Response shape is the same as signup.
-
-### Find Email
-
-Development-only basic ID lookup. Uses name and phone number.
-
-```http
-POST /api/auth/find-email
-Content-Type: application/json
-```
-
-Request:
-
-```json
-{
-  "name": "허준서",
-  "phoneNumber": "01012345678"
 }
 ```
 
@@ -98,52 +92,58 @@ Response:
 ```json
 {
   "success": true,
-  "message": "Email found.",
+  "message": "Login completed.",
   "data": {
-    "email": "test@email.com"
+    "accessToken": "eyJ...",
+    "tokenType": "Bearer",
+    "user": {
+      "userId": 1,
+      "email": "user@example.com",
+      "name": "홍길동",
+      "nickname": "gildong",
+      "phoneNumber": "01012345678",
+      "location": "서울 강남구 역삼동"
+    }
   }
 }
 ```
 
-### Reset Password
+### Password Reset
 
-Development-only basic password reset. No email verification is sent yet.
+The endpoint name is kept for frontend compatibility, but the behavior is email-code based.
+
+```http
+POST /api/auth/password-reset-link
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+Then reset with the received code.
 
 ```http
 POST /api/auth/reset-password
 Content-Type: application/json
 ```
 
-Request:
-
 ```json
 {
-  "email": "test@email.com",
+  "email": "user@example.com",
+  "code": "123456",
   "newPassword": "newpassword123"
 }
 ```
 
 ### Duplicate Checks
 
-Public.
-
 ```http
-GET /api/auth/nickname/check?nickname=mero
-GET /api/auth/email/check?email=test@email.com
+GET /api/auth/nickname/check?nickname=gildong
+GET /api/auth/email/check?email=user@example.com
 GET /api/auth/phone/check?phoneNumber=01012345678
-```
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Nickname checked.",
-  "data": {
-    "duplicated": false,
-    "available": true
-  }
-}
 ```
 
 ## Posts
@@ -152,34 +152,49 @@ Response:
 
 ### Create Post
 
-Requires JWT.
-
 ```http
 POST /api/posts
 Content-Type: application/json
 Authorization: Bearer {accessToken}
 ```
 
-Request:
-
 ```json
 {
   "postType": "SHARE",
-  "title": "상추 나눔",
-  "ingredientName": "상추",
-  "quantity": "300g",
+  "title": "양파 나눔",
+  "ingredientName": "양파",
+  "quantity": "3개",
   "price": 0,
-  "tradeLocation": "충북 충주시",
-  "distanceKm": 0.5,
-  "expirationDate": "2026-05-20",
+  "tradeLocation": "서울 강남구 역삼동",
+  "latitude": 37.5001,
+  "longitude": 127.0361,
+  "expirationDate": "2026-07-08",
   "imageUrl": "/uploads/example.png",
-  "content": "상추 나눔합니다."
+  "content": "남은 양파 나눔합니다."
 }
 ```
 
-### Get Posts
+Group-buy posts require participant count and deadline.
 
-Public.
+```json
+{
+  "postType": "GROUP_BUY",
+  "title": "사과 공동구매",
+  "ingredientName": "사과",
+  "quantity": "10박스",
+  "price": 30000,
+  "tradeLocation": "서울 강남구 역삼동",
+  "latitude": 37.5001,
+  "longitude": 127.0361,
+  "expirationDate": "2026-07-20",
+  "content": "사과 공동구매 모집합니다.",
+  "currentParticipantCount": 1,
+  "targetParticipantCount": 5,
+  "deadlineDate": "2026-07-10"
+}
+```
+
+### Search Posts
 
 ```http
 GET /api/posts
@@ -189,8 +204,11 @@ Query parameters:
 
 ```text
 postType=SHARE | SALE | GROUP_BUY
-keyword=상추
-maxDistanceKm=1.0
+keyword=양파
+lat=37.5001
+lng=127.0361
+radiusKm=5
+expiringSoon=true
 sort=LATEST | EXPIRING_SOON | DISTANCE
 ```
 
@@ -198,79 +216,27 @@ Examples:
 
 ```http
 GET /api/posts?postType=SHARE
-GET /api/posts?keyword=상추
-GET /api/posts?maxDistanceKm=1.0
-GET /api/posts?sort=EXPIRING_SOON
-GET /api/posts?postType=GROUP_BUY&keyword=양배추&sort=DISTANCE
+GET /api/posts?lat=37.5001&lng=127.0361&radiusKm=3&sort=DISTANCE
+GET /api/posts?expiringSoon=true&sort=EXPIRING_SOON
 ```
 
-### Get Post
+Distance filtering uses the stored post coordinates and the requester's `lat/lng`.
 
-Public.
+### Update/Delete Post
 
-```http
-GET /api/posts/{postId}
-```
-
-### Update Post
-
-Requires JWT. Only the writer can update.
+Only the writer can update or delete a post.
 
 ```http
 PUT /api/posts/{postId}
-Content-Type: application/json
-Authorization: Bearer {accessToken}
-```
-
-Request body is the same as create post.
-
-### Delete Post
-
-Requires JWT. Only the writer can delete.
-
-```http
 DELETE /api/posts/{postId}
 Authorization: Bearer {accessToken}
 ```
 
-Delete is soft delete. The row remains in DB but is hidden from list/detail APIs.
-
-Post response example:
-
-```json
-{
-  "success": true,
-  "message": "Posts found.",
-  "data": [
-    {
-      "postId": 1,
-      "writerId": 1,
-      "writerNickname": "junseo",
-      "postType": "SHARE",
-      "status": "OPEN",
-      "title": "상추 나눔",
-      "ingredientName": "상추",
-      "quantity": "300g",
-      "price": 0,
-      "priceText": "무료나눔",
-      "tradeLocation": "충북 충주시",
-      "distanceKm": 0.5,
-      "expirationDate": "2026-05-20",
-      "daysUntilExpiration": 2,
-      "expirationText": "유통기한 2일 남음",
-      "imageUrl": "/uploads/example.png",
-      "content": "상추 나눔합니다.",
-      "createdAt": "2026-05-18T20:00:00"
-    }
-  ]
-}
-```
+Expired posts are hidden/closed when searched. Group-buy posts whose deadline has passed are closed by the scheduled notification job.
 
 ## Comments
 
 ### Create Comment
-
-Requires JWT.
 
 ```http
 POST /api/posts/{postId}/comments
@@ -278,125 +244,108 @@ Content-Type: application/json
 Authorization: Bearer {accessToken}
 ```
 
-Request:
-
 ```json
 {
-  "content": "거래 가능한가요?"
+  "content": "거래 가능할까요?"
 }
 ```
 
-### Get Comments
-
-Public.
-
-```http
-GET /api/posts/{postId}/comments
-```
-
-Response item:
-
-```json
-{
-  "commentId": 1,
-  "postId": 1,
-  "writerId": 2,
-  "writerNickname": "buyer",
-  "content": "거래 가능한가요?",
-  "createdAt": "2026-05-18T20:00:00"
-}
-```
+Creating a comment on another user's post creates a DB notification for the post writer.
 
 ## Trade Requests
 
 ### Create Trade Request
-
-Requires JWT. Users cannot request their own post.
 
 ```http
 POST /api/posts/{postId}/requests
 Authorization: Bearer {accessToken}
 ```
 
-### My Trade Requests
-
-Requires JWT.
+Alias:
 
 ```http
-GET /api/trade-requests/me
-Authorization: Bearer {accessToken}
+POST /api/posts/{postId}/trade-requests
 ```
 
-### Received Trade Requests
+Users cannot request their own post or request the same post twice.
 
-Requires JWT. Returns requests on posts written by the current user.
+### Accept/Reject/Complete
 
-```http
-GET /api/trade-requests/received
-Authorization: Bearer {accessToken}
-```
-
-### Accept Trade Request
-
-Requires JWT. Only the post writer can accept.
+Only the post writer can accept or reject. The writer or requester can complete an accepted trade.
 
 ```http
 PATCH /api/trade-requests/{requestId}/accept
-Authorization: Bearer {accessToken}
-```
-
-### Reject Trade Request
-
-Requires JWT. Only the post writer can reject.
-
-```http
 PATCH /api/trade-requests/{requestId}/reject
-Authorization: Bearer {accessToken}
-```
-
-### Complete Trade Request
-
-Requires JWT. The post writer or requester can complete an accepted trade.
-
-```http
 PATCH /api/trade-requests/{requestId}/complete
 Authorization: Bearer {accessToken}
 ```
 
-Trade request response item:
+For normal share/sale posts, accepting a request closes the post and rejects other pending requests. For group-buy posts, accepting a request increases `currentParticipantCount`; the post closes when the target count is reached.
+
+## Notifications
+
+### List Notifications
+
+```http
+GET /api/notifications
+Authorization: Bearer {accessToken}
+```
+
+### Mark As Read
+
+```http
+PATCH /api/notifications/{notificationId}/read
+Authorization: Bearer {accessToken}
+```
+
+Only the notification owner can mark it as read.
+
+### Register FCM Token
+
+```http
+POST /api/notifications/fcm-token
+Content-Type: application/json
+Authorization: Bearer {accessToken}
+```
 
 ```json
 {
-  "requestId": 1,
-  "postId": 1,
-  "postTitle": "상추 나눔",
-  "requesterId": 2,
-  "requesterNickname": "buyer",
-  "status": "PENDING",
-  "createdAt": "2026-05-18T20:00:00",
-  "respondedAt": null,
-  "completedAt": null
+  "token": "browser-fcm-token"
 }
 ```
 
-`status`: `PENDING`, `ACCEPTED`, `REJECTED`, `COMPLETED`
+### Send Test Push
+
+Creates a DB notification for the current user and attempts FCM delivery to the registered token.
+
+```http
+POST /api/notifications/test-push
+Content-Type: application/json
+Authorization: Bearer {accessToken}
+```
+
+```json
+{
+  "title": "테스트 알림",
+  "message": "푸시 연결 확인"
+}
+```
+
+Response `data` is `true` when FCM delivery was attempted successfully. It can be `false` when Firebase is disabled, no FCM token exists, or FCM rejects the token. The DB notification is still created.
+
+### Scheduled Expiring Notifications
+
+Every day at 09:00 Asia/Seoul, the backend creates one `EXPIRING_SOON` notification per open post whose expiration date is within 3 days. Duplicate notifications for the same post/date message are skipped.
 
 ## Reviews
 
 Reviews can be written only after a trade request is `COMPLETED`.
-Each user can write one review per trade request.
-
-### Create Review
-
-Requires JWT.
 
 ```http
 POST /api/trade-requests/{requestId}/reviews
 Content-Type: application/json
 Authorization: Bearer {accessToken}
 ```
-
-Request:
 
 ```json
 {
@@ -405,66 +354,14 @@ Request:
 }
 ```
 
-`rating`: 1 to 5
-
-Response item:
-
-```json
-{
-  "reviewId": 1,
-  "tradeRequestId": 1,
-  "reviewerId": 2,
-  "reviewerNickname": "buyer",
-  "targetUserId": 1,
-  "targetUserNickname": "seller",
-  "rating": 5,
-  "content": "친절하고 빠르게 거래했어요.",
-  "createdAt": "2026-05-18T20:00:00"
-}
-```
-
-### Get User Reviews
-
-Public.
+Public rating APIs:
 
 ```http
 GET /api/users/{userId}/reviews
-```
-
-### Get User Rating Summary
-
-Public.
-
-```http
 GET /api/users/{userId}/rating
 ```
 
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Rating summary found.",
-  "data": {
-    "userId": 1,
-    "averageRating": 4.8,
-    "reviewCount": 12
-  }
-}
-```
-
-### Get My Written Reviews
-
-Requires JWT.
-
-```http
-GET /api/mypage/reviews
-Authorization: Bearer {accessToken}
-```
-
 ## My Page
-
-All mypage APIs require JWT.
 
 ```http
 GET /api/mypage
@@ -472,35 +369,11 @@ GET /api/mypage/posts
 GET /api/mypage/comments
 GET /api/mypage/trade-requests
 GET /api/mypage/received-trade-requests
-```
-
-`GET /api/mypage` response:
-
-```json
-{
-  "success": true,
-  "message": "My page found.",
-  "data": {
-    "user": {
-      "userId": 1,
-      "email": "test@email.com",
-      "name": "허준서",
-      "nickname": "junseo",
-      "location": "충북 충주시"
-    },
-    "myPostCount": 3,
-    "myCommentCount": 5,
-    "myTradeRequestCount": 2,
-    "receivedTradeRequestCount": 1,
-    "averageRating": 4.8,
-    "reviewCount": 12
-  }
-}
+GET /api/mypage/reviews
+Authorization: Bearer {accessToken}
 ```
 
 ## Image Upload
-
-Requires JWT.
 
 ```http
 POST /api/uploads/images
@@ -514,89 +387,6 @@ Form field:
 file
 ```
 
-Allowed types:
-
-```text
-image/jpeg
-image/png
-image/webp
-image/gif
-```
+Allowed types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`
 
 Max size: `5MB`
-
-Response:
-
-```json
-{
-  "success": true,
-  "message": "Image uploaded.",
-  "data": {
-    "imageUrl": "/uploads/uuid.png",
-    "originalFilename": "carrot.png",
-    "size": 12345
-  }
-}
-```
-
-Use returned `imageUrl` as `imageUrl` when creating or updating a post.
-
-## Frontend Examples
-
-Login:
-
-```ts
-const response = await fetch("http://localhost:8080/api/auth/login", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    email: "test@email.com",
-    password: "password123",
-  }),
-});
-
-const result = await response.json();
-localStorage.setItem("accessToken", result.data.accessToken);
-```
-
-Authorized request:
-
-```ts
-const token = localStorage.getItem("accessToken");
-
-const response = await fetch("http://localhost:8080/api/posts", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  },
-  body: JSON.stringify({
-    postType: "SHARE",
-    title: "상추 나눔",
-    ingredientName: "상추",
-    quantity: "300g",
-    price: 0,
-    tradeLocation: "충북 충주시",
-    distanceKm: 0.5,
-    expirationDate: "2026-05-20",
-    imageUrl: "",
-    content: "상추 나눔합니다.",
-  }),
-});
-```
-
-Image upload:
-
-```ts
-const token = localStorage.getItem("accessToken");
-const formData = new FormData();
-formData.append("file", file);
-
-const response = await fetch("http://localhost:8080/api/uploads/images", {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${token}`,
-  },
-  body: formData,
-});
-```

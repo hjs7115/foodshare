@@ -53,7 +53,7 @@ public class TradeRequestService {
             notificationService.createNotification(
                     post.getWriter().getId(),
                     "TRADE_REQUEST",
-                    "새 거래 요청",
+                    "거래 요청",
                     requester.getNickname() + "님이 '" + post.getTitle() + "' 게시글에 거래를 요청했습니다."
             );
         }
@@ -161,16 +161,24 @@ public class TradeRequestService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Post is closed.");
         }
         if (post.getPostType() == PostType.GROUP_BUY) {
-            if (post.getDeadlineDate() != null && post.getDeadlineDate().isBefore(LocalDate.now())) {
-                post.close();
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy deadline has passed.");
-            }
-            if (post.getTargetParticipantCount() != null
-                    && post.getCurrentParticipantCount() != null
-                    && post.getCurrentParticipantCount() >= post.getTargetParticipantCount()) {
-                post.close();
-                throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy is full.");
-            }
+            validateGroupBuyRequestable(post);
+        }
+    }
+
+    private void validateGroupBuyRequestable(Post post) {
+        if (post.getDeadlineDate() != null && post.getDeadlineDate().isBefore(LocalDate.now())) {
+            post.close();
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy deadline has passed.");
+        }
+        if (post.getTargetParticipantCount() == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy target participant count is required.");
+        }
+        if (post.getCurrentParticipantCount() == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy current participant count is required.");
+        }
+        if (post.getCurrentParticipantCount() >= post.getTargetParticipantCount()) {
+            post.close();
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy is full.");
         }
     }
 

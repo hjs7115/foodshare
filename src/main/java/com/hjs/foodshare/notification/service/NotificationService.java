@@ -6,6 +6,7 @@ import com.hjs.foodshare.notification.dto.FcmTokenRequest;
 import com.hjs.foodshare.notification.dto.NotificationResponse;
 import com.hjs.foodshare.notification.dto.NotificationSettingsRequest;
 import com.hjs.foodshare.notification.dto.NotificationSettingsResponse;
+import com.hjs.foodshare.notification.dto.TestPushRequest;
 import com.hjs.foodshare.notification.repository.NotificationRepository;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
@@ -76,6 +77,18 @@ public class NotificationService {
         User user = getUser(userId);
         notificationRepository.save(Notification.create(user, type, title, message));
         fcmPushService.sendPush(user.getFcmToken(), title, message);
+    }
+
+    @Transactional
+    public boolean sendTestPush(Long userId, TestPushRequest request) {
+        User user = getUser(userId);
+        String title = request == null ? "FoodShare 테스트 알림" : request.titleValue();
+        String message = request == null
+                ? "브라우저 푸시 알림 설정이 정상적으로 연결되었습니다."
+                : request.messageValue();
+
+        notificationRepository.save(Notification.create(user, "TEST_PUSH", title, message));
+        return fcmPushService.sendPush(user.getFcmToken(), title, message);
     }
 
     private boolean valueOrCurrent(Boolean value, boolean current) {

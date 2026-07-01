@@ -189,7 +189,7 @@ public class Post {
 
     public void increaseParticipantCount() {
         if (currentParticipantCount == null) {
-            currentParticipantCount = 1;
+            currentParticipantCount = 0;
         }
         currentParticipantCount++;
         if (targetParticipantCount != null && currentParticipantCount >= targetParticipantCount) {

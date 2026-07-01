@@ -13,9 +13,9 @@ public class FcmPushService {
 
     private static final Logger log = LoggerFactory.getLogger(FcmPushService.class);
 
-    public void sendPush(String token, String title, String body) {
+    public boolean sendPush(String token, String title, String body) {
         if (token == null || token.isBlank() || FirebaseApp.getApps().isEmpty()) {
-            return;
+            return false;
         }
 
         Message message = Message.builder()
@@ -28,8 +28,10 @@ public class FcmPushService {
 
         try {
             FirebaseMessaging.getInstance().send(message);
+            return true;
         } catch (Exception exception) {
             log.warn("FCM push failed: {}", exception.getMessage());
+            return false;
         }
     }
 }

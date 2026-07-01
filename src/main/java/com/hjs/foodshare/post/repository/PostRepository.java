@@ -1,7 +1,9 @@
 package com.hjs.foodshare.post.repository;
 
 import com.hjs.foodshare.post.domain.Post;
+import com.hjs.foodshare.post.domain.PostStatus;
 import com.hjs.foodshare.post.domain.PostType;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -12,6 +14,17 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     List<Post> findAllByDeletedFalseOrderByCreatedAtDesc();
 
     List<Post> findAllByWriterIdAndDeletedFalseOrderByCreatedAtDesc(Long writerId);
+
+    List<Post> findAllByDeletedFalseAndStatusAndExpirationDateBetween(
+            PostStatus status,
+            LocalDate startDate,
+            LocalDate endDate
+    );
+
+    List<Post> findAllByDeletedFalseAndStatusAndDeadlineDateBefore(
+            PostStatus status,
+            LocalDate date
+    );
 
     @Query("""
             select p

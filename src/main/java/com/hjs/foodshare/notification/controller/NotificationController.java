@@ -6,6 +6,7 @@ import com.hjs.foodshare.notification.dto.FcmTokenRequest;
 import com.hjs.foodshare.notification.dto.NotificationResponse;
 import com.hjs.foodshare.notification.dto.NotificationSettingsRequest;
 import com.hjs.foodshare.notification.dto.NotificationSettingsResponse;
+import com.hjs.foodshare.notification.dto.TestPushRequest;
 import com.hjs.foodshare.notification.service.NotificationService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -70,5 +71,14 @@ public class NotificationController {
     ) {
         notificationService.registerFcmToken(authUser.userId(), request);
         return ResponseEntity.ok(ApiResponse.ok("FCM token registered.", null));
+    }
+
+    @PostMapping("/api/notifications/test-push")
+    public ResponseEntity<ApiResponse<Boolean>> sendTestPush(
+            @AuthenticationPrincipal AuthUser authUser,
+            @RequestBody(required = false) TestPushRequest request
+    ) {
+        boolean pushed = notificationService.sendTestPush(authUser.userId(), request);
+        return ResponseEntity.ok(ApiResponse.ok("Test notification created.", pushed));
     }
 }

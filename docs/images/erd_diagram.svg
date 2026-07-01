@@ -12,15 +12,15 @@
       .subtitle { font: 500 16px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #667085; }
       .entity { fill: #ffffff; stroke: #98a2b3; stroke-width: 2; rx: 12; filter: url(#shadow); }
       .head { fill: #eef4ff; stroke: #98a2b3; stroke-width: 2; rx: 12; }
-      .headText { font: 800 19px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #1d2939; }
-      .field { font: 500 14px 'Consolas', 'D2Coding', monospace; fill: #344054; }
-      .pk { font: 800 14px 'Consolas', 'D2Coding', monospace; fill: #101828; }
+      .headText { font: 800 27px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #1d2939; }
+      .field { font: 500 19px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
+      .pk { font: 800 19px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #101828; }
       .note { fill: #fff8db; stroke: #eaaa08; stroke-width: 1.5; rx: 12; }
-      .noteText { font: 600 14px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #7a4d00; }
+      .noteText { font: 600 18px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #7a4d00; }
       .rel { stroke: #667085; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
       .rel2 { stroke: #667085; stroke-width: 2.2; fill: none; stroke-dasharray: 8 6; marker-end: url(#arrow); }
-      .label { font: 800 13px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
-      .legend { font: 500 14px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #475467; }
+      .label { font: 800 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
+      .legend { font: 500 18px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #475467; }
     </style>
   </defs>
 

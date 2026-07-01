@@ -32,13 +32,13 @@
       .db { fill: url(#db); stroke: #e6aa35; }
       .external { fill: url(#external); stroke: #ea7ca4; }
       .storage { fill: #f2f4f7; stroke: #98a2b3; }
-      .head { font: 800 24px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #1d2939; }
-      .section { font: 800 16px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
-      .text { font: 500 15px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
-      .small { font: 500 13px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #475467; }
+      .head { font: 800 30px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #1d2939; }
+      .section { font: 800 21px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
+      .text { font: 500 20px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
+      .small { font: 500 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #475467; }
       .pill { fill: #ffffff; stroke: #d0d5dd; stroke-width: 1.2; rx: 10; }
       .arrow { stroke: #243447; stroke-width: 3; fill: none; marker-end: url(#arrow); }
-      .label { font: 800 14px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #243447; }
+      .label { font: 800 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #243447; }
     </style>
   </defs>
 

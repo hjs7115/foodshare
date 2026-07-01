@@ -1,4 +1,4 @@
-﻿# 반띵
+# 반띵
 <p align="center">
   <img width="254" height="254" alt="image" src="https://github.com/user-attachments/assets/36fba8d8-fe6c-49f8-bd4d-34c25b1736cd" />
 </p>
@@ -38,15 +38,17 @@
 | 🥬 **식재료 게시판** | 나눔, 판매, 공동구매 목적에 맞춰 식재료 게시글 등록·수정·삭제 |
 | 🛒 **공동구매 모집** | 목표 인원과 마감일을 설정해 함께 구매할 이웃 모집 |
 | 🔍 **검색과 필터링** | 게시글 타입, 키워드, 거리, 유통기한 임박순 등 조건별 조회 |
+| 📄 **페이지네이션** | 게시글, 댓글, 알림, 리뷰 목록을 `page`/`size` 기준으로 나눠 조회 |
 | 💬 **댓글 소통** | 게시글에 대한 문의와 거래 전 소통을 위한 댓글 기능 |
 | 🤝 **거래 요청** | 관심 있는 게시글에 거래 요청을 보내고 작성자가 수락·거절·완료 처리 |
 | ⭐ **리뷰와 평점** | 완료된 거래를 기반으로 리뷰를 작성하고 사용자 신뢰도 확인 |
 | ❤️ **관심 게시글** | 다시 보고 싶은 게시글을 관심 목록으로 저장 |
 | 🔔 **알림 설정** | 거래와 서비스 알림을 위한 설정, DB 알림 목록, FCM 푸시 알림 관리 |
-| 🔐 **회원 인증** | JWT 기반 로그인, 이메일 인증, 비밀번호 재설정 코드 인증, 닉네임·이메일·전화번호 중복 확인 제공 |
-| 🖼️ **이미지 업로드** | 식재료 상태를 확인할 수 있도록 게시글 이미지 업로드 지원 |
+| 🔐 **회원 인증** | JWT·Refresh Token 기반 로그인, 이메일 인증, 비밀번호 재설정 코드 인증, 닉네임·이메일·전화번호 중복 확인 제공 |
+| 🖼️ **이미지 업로드** | 게시글 이미지 업로드와 이미지 교체·삭제 시 로컬 파일 정리 지원 |
 | 🚨 **신고와 차단** | 사용자·게시글·댓글 신고, 사용자 차단/해제, 차단 사용자 콘텐츠 숨김 |
 | 🏅 **배지와 업적** | 게시글 작성, 나눔, 공동구매, 거래 완료, 리뷰, 평점 기반 배지 진행률 제공 |
+| 🛠️ **관리자 기능** | 서비스 통계 조회, 신고 목록 확인, 신고 처리 상태 변경 API 제공 |
 
 ---
 
@@ -127,7 +129,7 @@ graph TB
 
 이메일, 비밀번호, 닉네임, 전화번호, 위치 정보를 기반으로 회원을 관리합니다.
 
-로그인 이후 발급되는 JWT를 통해 게시글 작성, 거래 요청, 리뷰 작성, 신고/차단, 배지 조회, 마이페이지 조회처럼 인증이 필요한 기능을 사용할 수 있습니다. 회원가입은 이메일 인증 완료 후 진행되며, 비밀번호 재설정도 이메일 인증 코드를 검증한 뒤 처리됩니다.
+로그인 이후 발급되는 Access Token과 Refresh Token을 통해 게시글 작성, 거래 요청, 리뷰 작성, 신고/차단, 배지 조회, 마이페이지 조회처럼 인증이 필요한 기능을 사용할 수 있습니다. 회원가입은 이메일 인증 완료 후 진행되며, 비밀번호 재설정도 이메일 인증 코드를 검증한 뒤 처리됩니다. 로그아웃이나 비밀번호 재설정 시 저장된 Refresh Token은 무효화됩니다.
 
 ### 🥬 게시글
 
@@ -176,6 +178,22 @@ graph TB
 
 리뷰는 거래 이후의 신뢰 정보를 쌓기 위한 장치이며, 사용자는 다른 사용자의 평점과 리뷰 목록을 조회할 수 있습니다.
 
+### 🔔 알림
+
+댓글, 거래 요청, 거래 수락, 거래 완료, 유통기한 임박 상황에서 사용자별 DB 알림을 생성합니다. 알림은 읽음 처리와 페이지 조회를 지원하며, FCM 토큰이 등록된 경우 웹 푸시 전송도 함께 시도합니다.
+
+### 🚨 신고와 차단
+
+사용자는 부적절한 사용자, 게시글, 댓글을 신고할 수 있고, 특정 사용자를 차단하거나 차단 해제할 수 있습니다. 차단 관계가 있으면 댓글 작성과 거래 요청이 제한되며, 로그인 사용자의 목록에서는 차단된 사용자의 콘텐츠가 숨겨집니다.
+
+### 🏅 배지와 업적
+
+배지와 업적은 실제 활동 데이터를 기준으로 계산됩니다. 게시글 작성, 나눔, 공동구매, 거래 완료, 받은 리뷰 수, 평균 평점에 따라 진행률과 획득 여부를 제공합니다.
+
+### 🛠️ 관리자
+
+관리자 API는 서비스 통계와 신고 처리를 위한 기능입니다. 전체 사용자 수, 게시글 수, 거래 완료 수, 신고 수를 확인할 수 있고, 신고 목록을 페이지 단위로 조회하거나 신고 상태를 변경할 수 있습니다.
+
 ---
 
 ## 📊 데이터 설계
@@ -191,7 +209,8 @@ graph TB
 | `TradeRequest` | 게시글 거래 요청과 거래 상태 |
 | `Review` | 거래 완료 후 작성되는 리뷰와 평점 |
 | `EmailVerification` | 이메일 인증 및 비밀번호 재설정 코드와 검증 상태 |
-| `Notification` | 댓글, 거래, 유통기한 임박 등 사용자별 알림 |
+| `RefreshToken` | 로그인 유지와 Access Token 재발급을 위한 토큰 저장 정보 |
+| `Notification` | 댓글, 거래, 유통기한 임박 등 사용자별 알림과 이동 대상 정보 |
 | `Report` | 사용자, 게시글, 댓글 신고 내역 |
 | `UserBlock` | 사용자 차단 관계 |
 
@@ -231,6 +250,7 @@ foodshare/
 │   │   │   ├── trade/                 # 거래 요청
 │   │   │   ├── review/                # 리뷰
 │   │   │   ├── mypage/                # 마이페이지
+│   │   │   ├── admin/                 # 관리자 통계, 신고 처리
 │   │   │   ├── notification/          # 알림, FCM, 유통기한 임박 알림
 │   │   │   ├── moderation/            # 신고, 차단
 │   │   │   ├── badge/                 # 배지, 업적
@@ -258,7 +278,7 @@ foodshare/
 | UI | MUI, Radix UI, Lucide React, Motion |
 | Backend | Java 21, Spring Boot 4.0.6 |
 | Web | Spring Web MVC |
-| Security | Spring Security, JWT, BCrypt |
+| Security | Spring Security, JWT, Refresh Token, BCrypt |
 | Database | MySQL |
 | ORM | Spring Data JPA, Hibernate |
 | Validation | Jakarta Validation |
@@ -298,7 +318,8 @@ Authorization: Bearer {accessToken}
 |------|------|------|
 | POST | `/api/auth/signup` | 회원가입 |
 | POST | `/api/auth/login` | 로그인 |
-| POST | `/api/auth/logout` | 로그아웃 |
+| POST | `/api/auth/refresh` | Refresh Token 기반 Access Token 재발급 |
+| POST | `/api/auth/logout` | 로그아웃 및 Refresh Token 무효화 |
 | POST | `/api/auth/find-email` | 이메일 찾기 |
 | POST | `/api/auth/find-id` | 아이디 찾기 |
 | POST | `/api/auth/password-reset-link` | 비밀번호 재설정 인증 코드 발송 |
@@ -316,6 +337,7 @@ Authorization: Bearer {accessToken}
 | POST | `/api/posts` | 게시글 작성 |
 | POST | `/api/posts/create` | 게시글 작성 |
 | GET | `/api/posts` | 게시글 목록 조회 |
+| GET | `/api/posts/page` | 게시글 목록 페이지 조회 |
 | GET | `/api/posts/{postId}` | 게시글 상세 조회 |
 | PUT | `/api/posts/{postId}` | 게시글 수정 |
 | DELETE | `/api/posts/{postId}` | 게시글 삭제 |
@@ -347,6 +369,7 @@ sort=LATEST | EXPIRING_SOON | DISTANCE
 |------|------|------|
 | POST | `/api/posts/{postId}/comments` | 댓글 작성 |
 | GET | `/api/posts/{postId}/comments` | 게시글 댓글 조회 |
+| GET | `/api/posts/{postId}/comments/page` | 게시글 댓글 페이지 조회 |
 | PUT | `/api/comments/{commentId}` | 댓글 수정 |
 | DELETE | `/api/comments/{commentId}` | 댓글 삭제 |
 
@@ -379,8 +402,10 @@ sort=LATEST | EXPIRING_SOON | DISTANCE
 | POST | `/api/trade-requests/{requestId}/reviews` | 거래 요청 기반 리뷰 작성 |
 | POST | `/api/users/{userId}/reviews` | 특정 사용자 대상 리뷰 작성 |
 | GET | `/api/users/{userId}/reviews` | 특정 사용자 리뷰 조회 |
+| GET | `/api/users/{userId}/reviews/page` | 특정 사용자 리뷰 페이지 조회 |
 | GET | `/api/users/{userId}/rating` | 특정 사용자 평점 요약 조회 |
 | GET | `/api/mypage/reviews` | 내가 작성한 리뷰 조회 |
+| GET | `/api/mypage/reviews/page` | 내가 작성한 리뷰 페이지 조회 |
 
 ### My Page
 
@@ -391,6 +416,8 @@ sort=LATEST | EXPIRING_SOON | DISTANCE
 | GET | `/api/mypage/comments` | 내가 작성한 댓글 조회 |
 | GET | `/api/mypage/trade-requests` | 내가 보낸 거래 요청 조회 |
 | GET | `/api/mypage/received-trade-requests` | 내가 받은 거래 요청 조회 |
+| GET | `/api/mypage/blocks` | 차단 사용자 목록 조회 |
+| GET | `/api/mypage/badges` | 내 배지/업적 조회 |
 | PUT | `/api/mypage` | 프로필 수정 |
 | PUT | `/api/mypage/location` | 위치 수정 |
 
@@ -401,6 +428,7 @@ sort=LATEST | EXPIRING_SOON | DISTANCE
 | GET | `/api/mypage/notifications/settings` | 알림 설정 조회 |
 | PUT | `/api/mypage/notifications/settings` | 알림 설정 수정 |
 | GET | `/api/notifications` | 알림 목록 조회 |
+| GET | `/api/notifications/page` | 알림 목록 페이지 조회 |
 | POST/PUT/PATCH | `/api/notifications/{notificationId}/read` | 알림 읽음 처리 |
 | POST | `/api/notifications/fcm-token` | FCM 토큰 등록 |
 | POST | `/api/notifications/test-push` | 테스트 푸시 알림 전송 |
@@ -422,6 +450,13 @@ sort=LATEST | EXPIRING_SOON | DISTANCE
 | GET | `/api/badges/me` | 내 배지/업적 진행률 조회 |
 | GET | `/api/mypage/badges` | 마이페이지 배지/업적 조회 |
 
+### Admin
+
+| Method | URL | 설명 |
+|------|------|------|
+| GET | `/api/admin/stats` | 서비스 통계 조회 |
+| GET | `/api/admin/reports` | 신고 목록 페이지 조회 |
+| PATCH | `/api/admin/reports/{reportId}` | 신고 처리 상태 변경 |
 ### Image Upload
 
 | Method | URL | 설명 |
@@ -587,10 +622,11 @@ file
 현재 반띵은 핵심 기능 구현과 화면 연동을 중심으로 개발되었습니다.
 
 - 회원가입 / 로그인
-- JWT 기반 인증
+- JWT 기반 인증과 Refresh Token 재발급
 - 이메일 인증
 - 게시글 CRUD
 - 위치 좌표와 반경 기반 게시글 검색 및 필터링
+- 주요 목록 페이지네이션
 - 댓글 작성 / 조회 / 수정 / 삭제
 - 관심 게시글 등록 / 해제 / 조회
 - 거래 요청 생성
@@ -599,7 +635,8 @@ file
 - 사용자 리뷰 및 평점 조회
 - 마이페이지 조회 및 프로필·위치 수정
 - DB 알림 목록/읽음 처리, 알림 설정, FCM 토큰 등록 및 테스트 푸시 API
-- 이미지 업로드
+- 이미지 업로드와 게시글 이미지 파일 정리
+- 신고/차단, 배지/업적, 관리자 통계/신고 처리 API
 - React 기반 사용자 화면 구성
 
 백엔드 테스트와 통합본 테스트는 Gradle 기준으로 통과했으며, MySQL 연결과 JPA 스키마 반영도 확인했습니다. 아직 실제 서비스 운영 결과나 사용자 통계는 확보되지 않았기 때문에 운영 성과 지표는 포함하지 않았습니다.

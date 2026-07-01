@@ -252,6 +252,8 @@ Authorization: Bearer {accessToken}
 
 Creating a comment on another user's post creates a DB notification for the post writer.
 
+If either user has blocked the other user, comment creation is rejected. When an authenticated user lists comments, comments written by blocked users are hidden.
+
 ## Trade Requests
 
 ### Create Trade Request
@@ -268,6 +270,8 @@ POST /api/posts/{postId}/trade-requests
 ```
 
 Users cannot request their own post or request the same post twice.
+
+If either user has blocked the other user, trade request creation is rejected.
 
 ### Accept/Reject/Complete
 
@@ -361,6 +365,84 @@ GET /api/users/{userId}/reviews
 GET /api/users/{userId}/rating
 ```
 
+## Reports And Blocks
+
+### Create Report
+
+```http
+POST /api/reports
+Content-Type: application/json
+Authorization: Bearer {accessToken}
+```
+
+`targetType`: `USER`, `POST`, `COMMENT`
+
+```json
+{
+  "targetType": "POST",
+  "targetId": 1,
+  "reason": "부적절한 게시글",
+  "description": "상세 신고 사유"
+}
+```
+
+For `POST` and `COMMENT`, the backend resolves the target user from the writer. Duplicate reports for the same target by the same reporter are rejected.
+
+### My Reports
+
+```http
+GET /api/reports/me
+Authorization: Bearer {accessToken}
+```
+
+### Block / Unblock User
+
+```http
+POST /api/users/{userId}/block
+DELETE /api/users/{userId}/block
+Authorization: Bearer {accessToken}
+```
+
+Blocked users cannot create comments or trade requests between each other. Authenticated post/comment lists hide blocked users' content.
+
+### Blocked Users
+
+```http
+GET /api/users/blocks
+GET /api/mypage/blocks
+Authorization: Bearer {accessToken}
+```
+
+## Badges
+
+Badges are calculated from existing user activity.
+
+```http
+GET /api/badges/me
+GET /api/mypage/badges
+Authorization: Bearer {accessToken}
+```
+
+Response data:
+
+```json
+{
+  "totalCount": 6,
+  "achievedCount": 2,
+  "badges": [
+    {
+      "badgeId": "FIRST_POST",
+      "name": "첫 게시글",
+      "description": "게시글을 1개 이상 작성하면 획득합니다.",
+      "currentValue": 1,
+      "targetValue": 1,
+      "achieved": true,
+      "progress": 1.0
+    }
+  ]
+}
+```
+
 ## My Page
 
 ```http
@@ -370,6 +452,8 @@ GET /api/mypage/comments
 GET /api/mypage/trade-requests
 GET /api/mypage/received-trade-requests
 GET /api/mypage/reviews
+GET /api/mypage/blocks
+GET /api/mypage/badges
 Authorization: Bearer {accessToken}
 ```
 

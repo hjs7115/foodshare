@@ -1,6 +1,7 @@
 package com.hjs.foodshare.trade.service;
 
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.moderation.repository.UserBlockRepository;
 import com.hjs.foodshare.notification.service.NotificationService;
 import com.hjs.foodshare.post.domain.Post;
 import com.hjs.foodshare.post.domain.PostType;
@@ -25,13 +26,16 @@ public class TradeRequestService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final UserBlockRepository userBlockRepository;
 
     public TradeRequestService(TradeRequestRepository tradeRequestRepository, PostRepository postRepository,
-                               UserRepository userRepository, NotificationService notificationService) {
+                               UserRepository userRepository, NotificationService notificationService,
+                               UserBlockRepository userBlockRepository) {
         this.tradeRequestRepository = tradeRequestRepository;
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.userBlockRepository = userBlockRepository;
     }
 
     @Transactional
@@ -41,6 +45,7 @@ public class TradeRequestService {
         if (post.getWriter().getId().equals(requesterId)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "You cannot request your own post.");
         }
+        validateNotBlocked(requesterId, post.getWriter().getId());
         if (tradeRequestRepository.existsByPostIdAndRequesterId(postId, requesterId)) {
             throw new BusinessException(HttpStatus.CONFLICT, "You already requested this post.");
         }
@@ -162,6 +167,13 @@ public class TradeRequestService {
         }
         if (post.getPostType() == PostType.GROUP_BUY) {
             validateGroupBuyRequestable(post);
+        }
+    }
+
+    private void validateNotBlocked(Long requesterId, Long writerId) {
+        if (userBlockRepository.existsByBlockerIdAndBlockedUserId(requesterId, writerId)
+                || userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, requesterId)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Blocked users cannot request this post.");
         }
     }
 

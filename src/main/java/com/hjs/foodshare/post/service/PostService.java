@@ -3,6 +3,7 @@ package com.hjs.foodshare.post.service;
 import com.hjs.foodshare.comment.repository.CommentRepository;
 import com.hjs.foodshare.favorite.repository.FavoriteRepository;
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.moderation.repository.UserBlockRepository;
 import com.hjs.foodshare.post.domain.Post;
 import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.post.dto.PostCreateRequest;
@@ -29,15 +30,17 @@ public class PostService {
     private final CommentRepository commentRepository;
     private final FavoriteRepository favoriteRepository;
     private final ReviewRepository reviewRepository;
+    private final UserBlockRepository userBlockRepository;
 
     public PostService(PostRepository postRepository, UserRepository userRepository,
                        CommentRepository commentRepository, FavoriteRepository favoriteRepository,
-                       ReviewRepository reviewRepository) {
+                       ReviewRepository reviewRepository, UserBlockRepository userBlockRepository) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.commentRepository = commentRepository;
         this.favoriteRepository = favoriteRepository;
         this.reviewRepository = reviewRepository;
+        this.userBlockRepository = userBlockRepository;
     }
 
     @Transactional
@@ -80,6 +83,7 @@ public class PostService {
     public List<PostResponse> getPosts(Long currentUserId) {
         return postRepository.findAllByDeletedFalseOrderByCreatedAtDesc()
                 .stream()
+                .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .map(post -> toResponse(post, currentUserId))
                 .toList();
     }
@@ -93,6 +97,7 @@ public class PostService {
         return postRepository.searchPosts(postType, normalizedKeyword)
                 .stream()
                 .filter(this::keepVisibleOrCloseExpired)
+                .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .filter(post -> !Boolean.TRUE.equals(expiringSoon) || isExpiringSoon(post))
                 .map(post -> toResponse(post, currentUserId).withDistance(resolveDistanceKm(post, latitude, longitude)))
                 .filter(response -> maxDistanceKm == null
@@ -104,6 +109,9 @@ public class PostService {
 
     public PostResponse getPost(Long postId, Long currentUserId) {
         Post post = getActivePost(postId);
+        if (!canViewWriter(currentUserId, post.getWriter().getId())) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Blocked users cannot view this post.");
+        }
         return toResponse(post, currentUserId);
     }
 
@@ -228,6 +236,14 @@ public class PostService {
         if (deadlineDate.isBefore(LocalDate.now())) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "deadlineDate must be today or later.");
         }
+    }
+
+    private boolean canViewWriter(Long currentUserId, Long writerId) {
+        if (currentUserId == null || currentUserId.equals(writerId)) {
+            return true;
+        }
+        return !userBlockRepository.existsByBlockerIdAndBlockedUserId(currentUserId, writerId)
+                && !userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, currentUserId);
     }
 
     private Integer normalizeCurrentParticipantCount(PostType postType, Integer currentParticipantCount) {

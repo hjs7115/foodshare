@@ -6,6 +6,7 @@ import com.hjs.foodshare.comment.dto.CommentResponse;
 import com.hjs.foodshare.comment.dto.CommentUpdateRequest;
 import com.hjs.foodshare.comment.repository.CommentRepository;
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.moderation.repository.UserBlockRepository;
 import com.hjs.foodshare.notification.service.NotificationService;
 import com.hjs.foodshare.post.domain.Post;
 import com.hjs.foodshare.post.repository.PostRepository;
@@ -24,13 +25,15 @@ public class CommentService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final UserBlockRepository userBlockRepository;
 
     public CommentService(CommentRepository commentRepository, PostRepository postRepository, UserRepository userRepository,
-                          NotificationService notificationService) {
+                          NotificationService notificationService, UserBlockRepository userBlockRepository) {
         this.commentRepository = commentRepository;
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.userBlockRepository = userBlockRepository;
     }
 
     @Transactional
@@ -39,6 +42,7 @@ public class CommentService {
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Post not found."));
         User writer = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        validateNotBlocked(userId, post.getWriter().getId());
 
         Comment comment = Comment.create(post, writer, request.content());
         Comment savedComment = commentRepository.save(comment);
@@ -60,6 +64,7 @@ public class CommentService {
 
         return commentRepository.findAllByPostIdOrderByCreatedAtAsc(postId)
                 .stream()
+                .filter(comment -> canViewWriter(currentUserId, comment.getWriter().getId()))
                 .map(comment -> CommentResponse.from(comment, currentUserId))
                 .toList();
     }
@@ -88,5 +93,19 @@ public class CommentService {
         if (!comment.getWriter().getId().equals(userId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Only the writer can change this comment.");
         }
+    }
+
+    private void validateNotBlocked(Long userId, Long writerId) {
+        if (!canViewWriter(userId, writerId)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Blocked users cannot comment on this post.");
+        }
+    }
+
+    private boolean canViewWriter(Long currentUserId, Long writerId) {
+        if (currentUserId == null || currentUserId.equals(writerId)) {
+            return true;
+        }
+        return !userBlockRepository.existsByBlockerIdAndBlockedUserId(currentUserId, writerId)
+                && !userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, currentUserId);
     }
 }

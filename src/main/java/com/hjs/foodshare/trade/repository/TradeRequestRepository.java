@@ -21,6 +21,17 @@ public interface TradeRequestRepository extends JpaRepository<TradeRequest, Long
     List<TradeRequest> findAllByPostIdAndStatus(Long postId, TradeRequestStatus status);
 
     @Query("""
+            select count(tr)
+            from TradeRequest tr
+            where tr.status = :status
+              and (tr.post.writer.id = :userId or tr.requester.id = :userId)
+            """)
+    long countCompletedTradesForUser(
+            @Param("userId") Long userId,
+            @Param("status") TradeRequestStatus status
+    );
+
+    @Query("""
             select tr
             from TradeRequest tr
             where tr.status = :status

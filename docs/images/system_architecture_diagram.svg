@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="900" viewBox="0 0 1500 900">
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="810" viewBox="0 90 1500 810">
   <defs>
     <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
       <path d="M2,2 L10,6 L2,10 Z" fill="#243447" />
@@ -43,8 +43,6 @@
   </defs>
 
   <rect class="bg" width="1500" height="900"/>
-  <text x="70" y="66" class="title">FoodShare 최신 시스템 아키텍처</text>
-  <text x="70" y="96" class="subtitle">PWA 클라이언트, Spring Boot API, MySQL, 알림/인증/위치 기반 기능을 반영한 구조</text>
 
   <rect x="70" y="145" width="330" height="425" class="box client"/>
   <text x="100" y="190" class="head">Client / PWA</text>

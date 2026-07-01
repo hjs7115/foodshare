@@ -12,8 +12,11 @@ import com.hjs.foodshare.auth.dto.PhoneVerificationSendRequest;
 import com.hjs.foodshare.auth.dto.PhoneVerificationSendResponse;
 import com.hjs.foodshare.auth.dto.PhoneVerificationVerifyRequest;
 import com.hjs.foodshare.auth.dto.PhoneVerificationVerifyResponse;
+import com.hjs.foodshare.auth.dto.RefreshTokenRequest;
 import com.hjs.foodshare.auth.dto.ResetPasswordRequest;
 import com.hjs.foodshare.auth.dto.SignupRequest;
+import com.hjs.foodshare.auth.domain.RefreshToken;
+import com.hjs.foodshare.auth.repository.RefreshTokenRepository;
 import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.global.security.JwtTokenProvider;
 import com.hjs.foodshare.user.domain.User;
@@ -21,6 +24,8 @@ import com.hjs.foodshare.user.repository.UserRepository;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.HttpStatus;
@@ -36,20 +41,25 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationService emailVerificationService;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Map<String, VerificationCode> phoneVerificationCodes = new ConcurrentHashMap<>();
 
     private static final Duration PHONE_CODE_TTL = Duration.ofMinutes(3);
+    private static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(14);
+
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
-            EmailVerificationService emailVerificationService
+            EmailVerificationService emailVerificationService,
+            RefreshTokenRepository refreshTokenRepository
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.emailVerificationService = emailVerificationService;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     @Transactional
@@ -67,9 +77,10 @@ public class AuthService {
         );
 
         User savedUser = userRepository.save(user);
-        return AuthResponse.of(jwtTokenProvider.createAccessToken(savedUser), savedUser);
+        return createAuthResponse(savedUser);
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Email or password is invalid."));
@@ -78,7 +89,24 @@ public class AuthService {
             throw new BusinessException(HttpStatus.UNAUTHORIZED, "Email or password is invalid.");
         }
 
-        return AuthResponse.of(jwtTokenProvider.createAccessToken(user), user);
+        return createAuthResponse(user);
+    }
+
+    @Transactional
+    public AuthResponse refresh(RefreshTokenRequest request) {
+        RefreshToken refreshToken = refreshTokenRepository.findByToken(request.refreshToken())
+                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Refresh token is invalid."));
+        if (!refreshToken.isValid()) {
+            refreshToken.revoke();
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Refresh token is expired or revoked.");
+        }
+        refreshToken.revoke();
+        return createAuthResponse(refreshToken.getUser());
+    }
+
+    @Transactional
+    public void logout(Long userId) {
+        refreshTokenRepository.deleteAllByUserId(userId);
     }
 
     public FindEmailResponse findEmail(FindEmailRequest request) {
@@ -145,6 +173,7 @@ public class AuthService {
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
 
         user.changePassword(passwordEncoder.encode(request.newPassword()));
+        refreshTokenRepository.deleteAllByUserId(user.getId());
     }
 
     private void validateDuplicateUser(SignupRequest request) {
@@ -157,6 +186,22 @@ public class AuthService {
         if (userRepository.existsByPhoneNumber(request.phoneNumber())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Phone number already exists.");
         }
+    }
+
+    private AuthResponse createAuthResponse(User user) {
+        String refreshToken = createOpaqueRefreshToken();
+        refreshTokenRepository.save(RefreshToken.create(
+                user,
+                refreshToken,
+                LocalDateTime.now().plus(REFRESH_TOKEN_TTL)
+        ));
+        return AuthResponse.of(jwtTokenProvider.createAccessToken(user), refreshToken, user);
+    }
+
+    private String createOpaqueRefreshToken() {
+        byte[] bytes = new byte[48];
+        secureRandom.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     private record VerificationCode(String code, Instant expiresAt) {

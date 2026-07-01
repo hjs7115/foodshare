@@ -16,12 +16,14 @@ import com.hjs.foodshare.auth.dto.PhoneVerificationSendRequest;
 import com.hjs.foodshare.auth.dto.PhoneVerificationSendResponse;
 import com.hjs.foodshare.auth.dto.PhoneVerificationVerifyRequest;
 import com.hjs.foodshare.auth.dto.PhoneVerificationVerifyResponse;
+import com.hjs.foodshare.auth.dto.RefreshTokenRequest;
 import com.hjs.foodshare.auth.dto.ResetPasswordRequest;
 import com.hjs.foodshare.auth.dto.SignupRequest;
 import com.hjs.foodshare.auth.service.AuthService;
 import com.hjs.foodshare.auth.service.EmailVerificationService;
 import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.global.response.ApiResponse;
+import com.hjs.foodshare.global.security.AuthUser;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +33,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -57,8 +60,16 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout() {
+    public ResponseEntity<ApiResponse<Void>> logout(@AuthenticationPrincipal AuthUser authUser) {
+        if (authUser != null) {
+            authService.logout(authUser.userId());
+        }
         return ResponseEntity.ok(ApiResponse.ok("Logout completed.", null));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<AuthResponse>> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Token refreshed.", authService.refresh(request)));
     }
 
     @PostMapping("/find-email")

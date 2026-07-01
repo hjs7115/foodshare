@@ -1,6 +1,7 @@
 package com.hjs.foodshare.post.controller;
 
 import com.hjs.foodshare.global.response.ApiResponse;
+import com.hjs.foodshare.global.response.PageResponse;
 import com.hjs.foodshare.global.security.AuthUser;
 import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.post.dto.PostCreateRequest;
@@ -67,6 +68,27 @@ public class PostController {
         Long currentUserId = authUser == null ? null : authUser.userId();
         return ResponseEntity.ok(ApiResponse.ok("Posts found.",
                 postService.searchPosts(postType, keyword, distanceFilter, lat, lng, expiringSoon, sort, currentUserId)));
+    }
+
+    @GetMapping("/page")
+    public ResponseEntity<ApiResponse<PageResponse<PostResponse>>> getPostsPage(
+            @RequestParam(required = false) PostType postType,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Double maxDistanceKm,
+            @RequestParam(required = false) Double radiusKm,
+            @RequestParam(required = false) Double lat,
+            @RequestParam(required = false) Double lng,
+            @RequestParam(required = false) Boolean expiringSoon,
+            @RequestParam(required = false, defaultValue = "LATEST") PostSort sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        Double distanceFilter = maxDistanceKm != null ? maxDistanceKm : radiusKm;
+        Long currentUserId = authUser == null ? null : authUser.userId();
+        return ResponseEntity.ok(ApiResponse.ok("Posts found.",
+                postService.searchPostsPage(postType, keyword, distanceFilter, lat, lng, expiringSoon, sort,
+                        currentUserId, page, size)));
     }
 
     @GetMapping("/{postId}")

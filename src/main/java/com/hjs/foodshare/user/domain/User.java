@@ -189,4 +189,8 @@ public class User {
     public void updateFcmToken(String fcmToken) {
         this.fcmToken = fcmToken;
     }
+
+    public void clearFcmToken() {
+        this.fcmToken = null;
+    }
 }

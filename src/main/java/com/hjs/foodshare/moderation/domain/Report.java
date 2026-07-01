@@ -50,6 +50,8 @@ public class Report {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    private LocalDateTime reviewedAt;
+
     protected Report() {
     }
 
@@ -104,5 +106,14 @@ public class Report {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public LocalDateTime getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void updateStatus(ReportStatus status) {
+        this.status = status;
+        this.reviewedAt = LocalDateTime.now();
     }
 }

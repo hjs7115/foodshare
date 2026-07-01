@@ -33,6 +33,11 @@ public class Notification {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String message;
 
+    @Column(length = 50)
+    private String targetType;
+
+    private Long targetId;
+
     @Column(name = "is_read", nullable = false)
     private boolean read;
 
@@ -42,17 +47,23 @@ public class Notification {
     protected Notification() {
     }
 
-    private Notification(User user, String type, String title, String message) {
+    private Notification(User user, String type, String title, String message, String targetType, Long targetId) {
         this.user = user;
         this.type = type;
         this.title = title;
         this.message = message;
+        this.targetType = targetType;
+        this.targetId = targetId;
         this.read = false;
         this.createdAt = LocalDateTime.now();
     }
 
     public static Notification create(User user, String type, String title, String message) {
-        return new Notification(user, type, title, message);
+        return create(user, type, title, message, null, null);
+    }
+
+    public static Notification create(User user, String type, String title, String message, String targetType, Long targetId) {
+        return new Notification(user, type, title, message, targetType, targetId);
     }
 
     public Long getId() {
@@ -73,6 +84,14 @@ public class Notification {
 
     public String getMessage() {
         return message;
+    }
+
+    public String getTargetType() {
+        return targetType;
+    }
+
+    public Long getTargetId() {
+        return targetId;
     }
 
     public boolean isRead() {

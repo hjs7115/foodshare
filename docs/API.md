@@ -95,6 +95,7 @@ Response:
   "message": "Login completed.",
   "data": {
     "accessToken": "eyJ...",
+    "refreshToken": "opaque-refresh-token",
     "tokenType": "Bearer",
     "user": {
       "userId": 1,
@@ -107,6 +108,21 @@ Response:
   }
 }
 ```
+
+### Refresh Token
+
+```http
+POST /api/auth/refresh
+Content-Type: application/json
+```
+
+```json
+{
+  "refreshToken": "opaque-refresh-token"
+}
+```
+
+The backend rotates refresh tokens. Logout and password reset revoke stored refresh tokens.
 
 ### Password Reset
 
@@ -218,6 +234,7 @@ Examples:
 GET /api/posts?postType=SHARE
 GET /api/posts?lat=37.5001&lng=127.0361&radiusKm=3&sort=DISTANCE
 GET /api/posts?expiringSoon=true&sort=EXPIRING_SOON
+GET /api/posts/page?page=0&size=20
 ```
 
 Distance filtering uses the stored post coordinates and the requester's `lat/lng`.
@@ -337,6 +354,15 @@ Authorization: Bearer {accessToken}
 
 Response `data` is `true` when FCM delivery was attempted successfully. It can be `false` when Firebase is disabled, no FCM token exists, or FCM rejects the token. The DB notification is still created.
 
+When Firebase is enabled and a registered FCM token is rejected, the backend clears the stored token so the client can register a fresh one.
+
+Paged notification list:
+
+```http
+GET /api/notifications/page?page=0&size=20
+Authorization: Bearer {accessToken}
+```
+
 ### Scheduled Expiring Notifications
 
 Every day at 09:00 Asia/Seoul, the backend creates one `EXPIRING_SOON` notification per open post whose expiration date is within 3 days. Duplicate notifications for the same post/date message are skipped.
@@ -362,6 +388,7 @@ Public rating APIs:
 
 ```http
 GET /api/users/{userId}/reviews
+GET /api/users/{userId}/reviews/page?page=0&size=20
 GET /api/users/{userId}/rating
 ```
 
@@ -452,10 +479,33 @@ GET /api/mypage/comments
 GET /api/mypage/trade-requests
 GET /api/mypage/received-trade-requests
 GET /api/mypage/reviews
+GET /api/mypage/reviews/page?page=0&size=20
 GET /api/mypage/blocks
 GET /api/mypage/badges
 Authorization: Bearer {accessToken}
 ```
+
+## Admin
+
+Admin APIs require both normal authentication and `X-Admin-Token`.
+
+```http
+GET /api/admin/stats
+GET /api/admin/reports?page=0&size=20
+PATCH /api/admin/reports/{reportId}
+Authorization: Bearer {accessToken}
+X-Admin-Token: {app.admin.token}
+```
+
+Report status update body:
+
+```json
+{
+  "status": "REVIEWED"
+}
+```
+
+Allowed report statuses: `PENDING`, `REVIEWED`, `REJECTED`.
 
 ## Image Upload
 
@@ -474,3 +524,5 @@ file
 Allowed types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`
 
 Max size: `5MB`
+
+Local `/uploads/...` files are deleted when a post image is replaced or when the post is deleted.

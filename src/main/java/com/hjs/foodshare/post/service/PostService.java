@@ -3,6 +3,7 @@ package com.hjs.foodshare.post.service;
 import com.hjs.foodshare.comment.repository.CommentRepository;
 import com.hjs.foodshare.favorite.repository.FavoriteRepository;
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.global.response.PageResponse;
 import com.hjs.foodshare.moderation.repository.UserBlockRepository;
 import com.hjs.foodshare.post.domain.Post;
 import com.hjs.foodshare.post.domain.PostType;
@@ -12,6 +13,7 @@ import com.hjs.foodshare.post.dto.PostSort;
 import com.hjs.foodshare.post.dto.PostUpdateRequest;
 import com.hjs.foodshare.post.repository.PostRepository;
 import com.hjs.foodshare.review.repository.ReviewRepository;
+import com.hjs.foodshare.upload.service.ImageUploadService;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.time.LocalDate;
@@ -31,16 +33,19 @@ public class PostService {
     private final FavoriteRepository favoriteRepository;
     private final ReviewRepository reviewRepository;
     private final UserBlockRepository userBlockRepository;
+    private final ImageUploadService imageUploadService;
 
     public PostService(PostRepository postRepository, UserRepository userRepository,
                        CommentRepository commentRepository, FavoriteRepository favoriteRepository,
-                       ReviewRepository reviewRepository, UserBlockRepository userBlockRepository) {
+                       ReviewRepository reviewRepository, UserBlockRepository userBlockRepository,
+                       ImageUploadService imageUploadService) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.commentRepository = commentRepository;
         this.favoriteRepository = favoriteRepository;
         this.reviewRepository = reviewRepository;
         this.userBlockRepository = userBlockRepository;
+        this.imageUploadService = imageUploadService;
     }
 
     @Transactional
@@ -89,6 +94,17 @@ public class PostService {
     }
 
     @Transactional
+    public PageResponse<PostResponse> searchPostsPage(PostType postType, String keyword, Double maxDistanceKm,
+                                                       Double latitude, Double longitude, Boolean expiringSoon,
+                                                       PostSort sort, Long currentUserId, int page, int size) {
+        return PageResponse.of(
+                searchPosts(postType, keyword, maxDistanceKm, latitude, longitude, expiringSoon, sort, currentUserId),
+                page,
+                size
+        );
+    }
+
+    @Transactional
     public List<PostResponse> searchPosts(PostType postType, String keyword, Double maxDistanceKm, Double latitude,
                                           Double longitude, Boolean expiringSoon, PostSort sort, Long currentUserId) {
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
@@ -119,6 +135,7 @@ public class PostService {
     public PostResponse updatePost(Long postId, Long userId, PostUpdateRequest request) {
         Post post = getActivePost(postId);
         validateWriter(post, userId);
+        String previousImageUrl = post.getImageUrl();
         validatePostRequest(
                 request.postType(),
                 request.currentParticipantCount(),
@@ -144,6 +161,8 @@ public class PostService {
                 normalizeDeadlineDate(request.postType(), request.deadlineDateValue())
         );
 
+        deleteReplacedImage(previousImageUrl, post.getImageUrl());
+
         return toResponse(post, userId);
     }
 
@@ -152,6 +171,7 @@ public class PostService {
         Post post = getActivePost(postId);
         validateWriter(post, userId);
         post.delete();
+        imageUploadService.deleteIfLocalUpload(post.getImageUrl());
     }
 
     private Post getActivePost(Long postId) {
@@ -244,6 +264,12 @@ public class PostService {
         }
         return !userBlockRepository.existsByBlockerIdAndBlockedUserId(currentUserId, writerId)
                 && !userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, currentUserId);
+    }
+
+    private void deleteReplacedImage(String previousImageUrl, String nextImageUrl) {
+        if (previousImageUrl != null && !previousImageUrl.equals(nextImageUrl)) {
+            imageUploadService.deleteIfLocalUpload(previousImageUrl);
+        }
     }
 
     private Integer normalizeCurrentParticipantCount(PostType postType, Integer currentParticipantCount) {

@@ -19,6 +19,10 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     long countByWriterIdAndPostTypeAndDeletedFalse(Long writerId, PostType postType);
 
+    long countByDeletedFalse();
+
+    long countByDeletedFalseAndStatus(PostStatus status);
+
     List<Post> findAllByDeletedFalseAndStatusAndExpirationDateBetween(
             PostStatus status,
             LocalDate startDate,

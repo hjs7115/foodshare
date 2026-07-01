@@ -9,6 +9,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -16,7 +17,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "posts")
+@Table(
+        name = "posts",
+        indexes = {
+                @Index(name = "idx_posts_deleted_status_created", columnList = "deleted,status,created_at"),
+                @Index(name = "idx_posts_type_deleted", columnList = "post_type,deleted"),
+                @Index(name = "idx_posts_expiration", columnList = "expiration_date"),
+                @Index(name = "idx_posts_location", columnList = "latitude,longitude")
+        }
+)
 public class Post {
 
     @Id

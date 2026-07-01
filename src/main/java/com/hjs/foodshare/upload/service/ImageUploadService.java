@@ -45,6 +45,24 @@ public class ImageUploadService {
         }
     }
 
+    public void deleteIfLocalUpload(String imageUrl) {
+        if (imageUrl == null || !imageUrl.startsWith("/uploads/")) {
+            return;
+        }
+        String filename = imageUrl.substring("/uploads/".length());
+        if (filename.isBlank() || filename.contains("/") || filename.contains("\\")) {
+            return;
+        }
+        try {
+            Path target = uploadPath.resolve(filename).normalize();
+            if (target.startsWith(uploadPath)) {
+                Files.deleteIfExists(target);
+            }
+        } catch (IOException ignored) {
+            // File cleanup should not fail the user-facing post operation.
+        }
+    }
+
     private String getExtension(String filename) {
         int dotIndex = filename.lastIndexOf('.');
         if (dotIndex < 0) {

@@ -6,6 +6,7 @@ import com.hjs.foodshare.comment.dto.CommentResponse;
 import com.hjs.foodshare.comment.dto.CommentUpdateRequest;
 import com.hjs.foodshare.comment.repository.CommentRepository;
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.global.response.PageResponse;
 import com.hjs.foodshare.moderation.repository.UserBlockRepository;
 import com.hjs.foodshare.notification.service.NotificationService;
 import com.hjs.foodshare.post.domain.Post;
@@ -67,6 +68,10 @@ public class CommentService {
                 .filter(comment -> canViewWriter(currentUserId, comment.getWriter().getId()))
                 .map(comment -> CommentResponse.from(comment, currentUserId))
                 .toList();
+    }
+
+    public PageResponse<CommentResponse> getCommentsPage(Long postId, Long currentUserId, int page, int size) {
+        return PageResponse.of(getComments(postId, currentUserId), page, size);
     }
 
     @Transactional

@@ -34,4 +34,8 @@ public class FcmPushService {
             return false;
         }
     }
+
+    public boolean isEnabled() {
+        return !FirebaseApp.getApps().isEmpty();
+    }
 }

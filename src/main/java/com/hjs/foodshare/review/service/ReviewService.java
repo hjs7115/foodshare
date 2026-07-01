@@ -1,6 +1,7 @@
 package com.hjs.foodshare.review.service;
 
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.global.response.PageResponse;
 import com.hjs.foodshare.review.domain.Review;
 import com.hjs.foodshare.review.dto.RatingSummaryResponse;
 import com.hjs.foodshare.review.dto.ReviewCreateRequest;
@@ -93,11 +94,19 @@ public class ReviewService {
                 .toList();
     }
 
+    public PageResponse<ReviewResponse> getReviewsForUserPage(Long userId, int page, int size) {
+        return PageResponse.of(getReviewsForUser(userId), page, size);
+    }
+
     public List<ReviewResponse> getMyWrittenReviews(Long userId) {
         return reviewRepository.findAllByReviewerIdOrderByCreatedAtDesc(userId)
                 .stream()
                 .map(ReviewResponse::from)
                 .toList();
+    }
+
+    public PageResponse<ReviewResponse> getMyWrittenReviewsPage(Long userId, int page, int size) {
+        return PageResponse.of(getMyWrittenReviews(userId), page, size);
     }
 
     public RatingSummaryResponse getRatingSummary(Long userId) {

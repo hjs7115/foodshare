@@ -68,7 +68,8 @@ public class ExpiringPostNotificationService {
             return;
         }
 
-        notificationService.createNotification(post.getWriter().getId(), EXPIRING_SOON_TYPE, title, message);
+        notificationService.createNotification(post.getWriter().getId(), EXPIRING_SOON_TYPE, title, message,
+                "POST", post.getId());
     }
 
     private String toExpirationText(long days) {

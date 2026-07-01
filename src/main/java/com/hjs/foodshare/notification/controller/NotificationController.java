@@ -1,6 +1,7 @@
 package com.hjs.foodshare.notification.controller;
 
 import com.hjs.foodshare.global.response.ApiResponse;
+import com.hjs.foodshare.global.response.PageResponse;
 import com.hjs.foodshare.global.security.AuthUser;
 import com.hjs.foodshare.notification.dto.FcmTokenRequest;
 import com.hjs.foodshare.notification.dto.NotificationResponse;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -50,6 +52,16 @@ public class NotificationController {
             @AuthenticationPrincipal AuthUser authUser
     ) {
         return ResponseEntity.ok(ApiResponse.ok("Notifications found.", notificationService.getNotifications(authUser.userId())));
+    }
+
+    @GetMapping("/api/notifications/page")
+    public ResponseEntity<ApiResponse<PageResponse<NotificationResponse>>> getNotificationsPage(
+            @AuthenticationPrincipal AuthUser authUser,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok("Notifications found.",
+                notificationService.getNotificationsPage(authUser.userId(), page, size)));
     }
 
     @RequestMapping(

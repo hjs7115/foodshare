@@ -1,6 +1,7 @@
 package com.hjs.foodshare.notification.service;
 
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.global.response.PageResponse;
 import com.hjs.foodshare.notification.domain.Notification;
 import com.hjs.foodshare.notification.dto.FcmTokenRequest;
 import com.hjs.foodshare.notification.dto.NotificationResponse;
@@ -55,6 +56,10 @@ public class NotificationService {
                 .toList();
     }
 
+    public PageResponse<NotificationResponse> getNotificationsPage(Long userId, int page, int size) {
+        return PageResponse.of(getNotifications(userId), page, size);
+    }
+
     @Transactional
     public void markAsRead(Long userId, Long notificationId) {
         getUser(userId);
@@ -74,9 +79,14 @@ public class NotificationService {
 
     @Transactional
     public void createNotification(Long userId, String type, String title, String message) {
+        createNotification(userId, type, title, message, null, null);
+    }
+
+    @Transactional
+    public void createNotification(Long userId, String type, String title, String message, String targetType, Long targetId) {
         User user = getUser(userId);
-        notificationRepository.save(Notification.create(user, type, title, message));
-        fcmPushService.sendPush(user.getFcmToken(), title, message);
+        notificationRepository.save(Notification.create(user, type, title, message, targetType, targetId));
+        clearInvalidFcmTokenIfNeeded(user, fcmPushService.sendPush(user.getFcmToken(), title, message));
     }
 
     @Transactional
@@ -88,7 +98,15 @@ public class NotificationService {
                 : request.messageValue();
 
         notificationRepository.save(Notification.create(user, "TEST_PUSH", title, message));
-        return fcmPushService.sendPush(user.getFcmToken(), title, message);
+        boolean pushed = fcmPushService.sendPush(user.getFcmToken(), title, message);
+        clearInvalidFcmTokenIfNeeded(user, pushed);
+        return pushed;
+    }
+
+    private void clearInvalidFcmTokenIfNeeded(User user, boolean pushed) {
+        if (fcmPushService.isEnabled() && !pushed && user.getFcmToken() != null && !user.getFcmToken().isBlank()) {
+            user.clearFcmToken();
+        }
     }
 
     private boolean valueOrCurrent(Boolean value, boolean current) {

@@ -13,6 +13,7 @@ import com.hjs.foodshare.post.repository.PostRepository;
 import com.hjs.foodshare.review.repository.ReviewRepository;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -54,6 +55,8 @@ public class PostService {
                 request.tradeLocation(),
                 request.distanceKm() == null ? 0.0 : request.distanceKm(),
                 request.expirationDateValue(),
+                request.latitude(),
+                request.longitude(),
                 request.imageUrlValue(),
                 request.content(),
                 normalizeCurrentParticipantCount(request.currentParticipantCount()),
@@ -75,14 +78,21 @@ public class PostService {
                 .toList();
     }
 
-    public List<PostResponse> searchPosts(PostType postType, String keyword, Double maxDistanceKm, PostSort sort, Long currentUserId) {
+    @Transactional
+    public List<PostResponse> searchPosts(PostType postType, String keyword, Double maxDistanceKm, Double latitude,
+                                          Double longitude, Boolean expiringSoon, PostSort sort, Long currentUserId) {
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         PostSort normalizedSort = sort == null ? PostSort.LATEST : sort;
 
-        return postRepository.searchPosts(postType, normalizedKeyword, maxDistanceKm)
+        return postRepository.searchPosts(postType, normalizedKeyword)
                 .stream()
-                .sorted(getPostComparator(normalizedSort))
-                .map(post -> toResponse(post, currentUserId))
+                .filter(this::keepVisibleOrCloseExpired)
+                .filter(post -> !Boolean.TRUE.equals(expiringSoon) || isExpiringSoon(post))
+                .map(post -> toResponse(post, currentUserId).withDistance(resolveDistanceKm(post, latitude, longitude)))
+                .filter(response -> maxDistanceKm == null
+                        || response.distanceKm() == null
+                        || response.distanceKm() <= maxDistanceKm)
+                .sorted(getPostResponseComparator(normalizedSort))
                 .toList();
     }
 
@@ -105,6 +115,8 @@ public class PostService {
                 request.tradeLocation(),
                 request.distanceKm() == null ? 0.0 : request.distanceKm(),
                 request.expirationDateValue(),
+                request.latitude(),
+                request.longitude(),
                 request.imageUrlValue(),
                 request.content(),
                 normalizeCurrentParticipantCount(request.currentParticipantCount()),
@@ -137,14 +149,49 @@ public class PostService {
         }
     }
 
-    private Comparator<Post> getPostComparator(PostSort sort) {
+    private Comparator<PostResponse> getPostResponseComparator(PostSort sort) {
         return switch (sort) {
-            case EXPIRING_SOON -> Comparator.comparing(Post::getExpirationDate)
-                    .thenComparing(Post::getCreatedAt, Comparator.reverseOrder());
-            case DISTANCE -> Comparator.comparing(Post::getDistanceKm)
-                    .thenComparing(Post::getCreatedAt, Comparator.reverseOrder());
-            case LATEST -> Comparator.comparing(Post::getCreatedAt).reversed();
+            case EXPIRING_SOON -> Comparator.comparing(PostResponse::expirationDate)
+                    .thenComparing(PostResponse::createdAt, Comparator.reverseOrder());
+            case DISTANCE -> Comparator.comparing(
+                            PostResponse::distanceKm,
+                            Comparator.nullsLast(Double::compareTo)
+                    )
+                    .thenComparing(PostResponse::createdAt, Comparator.reverseOrder());
+            case LATEST -> Comparator.comparing(PostResponse::createdAt).reversed();
         };
+    }
+
+    private boolean isExpiringSoon(Post post) {
+        LocalDate today = LocalDate.now();
+        return !post.getExpirationDate().isBefore(today)
+                && !post.getExpirationDate().isAfter(today.plusDays(3));
+    }
+
+    private boolean keepVisibleOrCloseExpired(Post post) {
+        if (post.getExpirationDate().isBefore(LocalDate.now())) {
+            post.close();
+            return false;
+        }
+        return true;
+    }
+
+    private Double resolveDistanceKm(Post post, Double latitude, Double longitude) {
+        if (latitude == null || longitude == null || post.getLatitude() == null || post.getLongitude() == null) {
+            return post.getDistanceKm();
+        }
+        return calculateDistanceKm(latitude, longitude, post.getLatitude(), post.getLongitude());
+    }
+
+    private double calculateDistanceKm(double fromLat, double fromLng, double toLat, double toLng) {
+        double earthRadiusKm = 6371.0;
+        double latDistance = Math.toRadians(toLat - fromLat);
+        double lngDistance = Math.toRadians(toLng - fromLng);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(fromLat)) * Math.cos(Math.toRadians(toLat))
+                * Math.sin(lngDistance / 2) * Math.sin(lngDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return Math.round(earthRadiusKm * c * 10.0) / 10.0;
     }
 
     private Integer normalizeCurrentParticipantCount(Integer currentParticipantCount) {

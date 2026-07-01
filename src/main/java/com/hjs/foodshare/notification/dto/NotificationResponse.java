@@ -1,5 +1,6 @@
 package com.hjs.foodshare.notification.dto;
 
+import com.hjs.foodshare.notification.domain.Notification;
 import java.time.LocalDateTime;
 
 public record NotificationResponse(
@@ -10,4 +11,14 @@ public record NotificationResponse(
         boolean read,
         LocalDateTime createdAt
 ) {
+    public static NotificationResponse from(Notification notification) {
+        return new NotificationResponse(
+                notification.getId(),
+                notification.getType(),
+                notification.getTitle(),
+                notification.getMessage(),
+                notification.isRead(),
+                notification.getCreatedAt()
+        );
+    }
 }

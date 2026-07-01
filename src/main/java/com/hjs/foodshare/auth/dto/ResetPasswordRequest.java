@@ -9,6 +9,9 @@ public record ResetPasswordRequest(
         @Email(message = "email format is invalid.")
         String email,
 
+        @NotBlank(message = "code is required.")
+        String code,
+
         @NotBlank(message = "newPassword is required.")
         @Size(min = 8, message = "newPassword must be at least 8 characters.")
         String newPassword

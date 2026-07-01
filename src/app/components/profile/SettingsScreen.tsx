@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { X, ChevronRight, Shield, Lock, Bell, Database, HelpCircle, FileText, AlertCircle, User, MapPin } from 'lucide-react';
 import EditProfileScreen from './EditProfileScreen';
 import NotificationSettingsScreen from './NotificationSettingsScreen';

@@ -2,7 +2,6 @@ package com.hjs.foodshare.post.dto;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.hjs.foodshare.post.domain.PostType;
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -37,6 +36,12 @@ public record PostUpdateRequest(
 
         Double distanceKm,
 
+        @JsonAlias("lat")
+        Double latitude,
+
+        @JsonAlias("lng")
+        Double longitude,
+
         @JsonAlias("expiry")
         Object expirationDate,
 
@@ -65,7 +70,7 @@ public record PostUpdateRequest(
             price = 0;
         }
         if (tradeLocation == null || tradeLocation.isBlank()) {
-            tradeLocation = "직거래";
+            tradeLocation = "거래 위치 미정";
         }
         if (expirationDate == null) {
             expirationDate = LocalDate.now().plusDays(7);
@@ -114,5 +119,4 @@ public record PostUpdateRequest(
         }
         return defaultValue;
     }
-
 }

@@ -1,4 +1,4 @@
-export default function CategorySelectScreen({ onSelectCategory }: { onSelectCategory: (category: string) => void }) {
+﻿export default function CategorySelectScreen({ onSelectCategory }: { onSelectCategory: (category: string) => void }) {
   return (
     <div className="bg-white size-full flex flex-col items-center justify-center px-6">
       <div className="max-w-md w-full space-y-8">

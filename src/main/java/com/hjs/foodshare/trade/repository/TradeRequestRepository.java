@@ -18,6 +18,8 @@ public interface TradeRequestRepository extends JpaRepository<TradeRequest, Long
 
     List<TradeRequest> findAllByPostWriterIdOrderByCreatedAtDesc(Long writerId);
 
+    List<TradeRequest> findAllByPostIdAndStatus(Long postId, TradeRequestStatus status);
+
     @Query("""
             select tr
             from TradeRequest tr

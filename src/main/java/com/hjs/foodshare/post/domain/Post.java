@@ -53,6 +53,10 @@ public class Post {
     @Column(nullable = false)
     private Double distanceKm;
 
+    private Double latitude;
+
+    private Double longitude;
+
     @Column(nullable = false)
     private LocalDate expirationDate;
 
@@ -79,7 +83,7 @@ public class Post {
 
     private Post(User writer, PostType postType, String title, String ingredientName, String quantity,
                  Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,
-                 String imageUrl, String content, Integer currentParticipantCount,
+                 Double latitude, Double longitude, String imageUrl, String content, Integer currentParticipantCount,
                  Integer targetParticipantCount, LocalDate deadlineDate) {
         this.writer = writer;
         this.postType = postType;
@@ -90,6 +94,8 @@ public class Post {
         this.price = price;
         this.tradeLocation = tradeLocation;
         this.distanceKm = distanceKm;
+        this.latitude = latitude;
+        this.longitude = longitude;
         this.expirationDate = expirationDate;
         this.imageUrl = imageUrl;
         this.content = content;
@@ -102,10 +108,10 @@ public class Post {
 
     public static Post create(User writer, PostType postType, String title, String ingredientName, String quantity,
                               Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,
-                              String imageUrl, String content, Integer currentParticipantCount,
+                              Double latitude, Double longitude, String imageUrl, String content, Integer currentParticipantCount,
                               Integer targetParticipantCount, LocalDate deadlineDate) {
         return new Post(writer, postType, title, ingredientName, quantity, price, tradeLocation,
-                distanceKm, expirationDate, imageUrl, content, currentParticipantCount,
+                distanceKm, expirationDate, latitude, longitude, imageUrl, content, currentParticipantCount,
                 targetParticipantCount, deadlineDate);
     }
 
@@ -129,6 +135,10 @@ public class Post {
 
     public Double getDistanceKm() { return distanceKm; }
 
+    public Double getLatitude() { return latitude; }
+
+    public Double getLongitude() { return longitude; }
+
     public LocalDate getExpirationDate() { return expirationDate; }
 
     public String getImageUrl() { return imageUrl; }
@@ -145,9 +155,11 @@ public class Post {
 
     public boolean isDeleted() { return deleted; }
 
+    public boolean isOpen() { return status == PostStatus.OPEN && !deleted; }
+
     public void update(PostType postType, String title, String ingredientName, String quantity,
                        Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,
-                       String imageUrl, String content, Integer currentParticipantCount,
+                       Double latitude, Double longitude, String imageUrl, String content, Integer currentParticipantCount,
                        Integer targetParticipantCount, LocalDate deadlineDate) {
         this.postType = postType;
         this.title = title;
@@ -156,6 +168,8 @@ public class Post {
         this.price = price;
         this.tradeLocation = tradeLocation;
         this.distanceKm = distanceKm;
+        this.latitude = latitude;
+        this.longitude = longitude;
         this.expirationDate = expirationDate;
         this.imageUrl = imageUrl;
         this.content = content;
@@ -167,5 +181,19 @@ public class Post {
     public void delete() {
         this.deleted = true;
         this.status = PostStatus.CLOSED;
+    }
+
+    public void close() {
+        this.status = PostStatus.CLOSED;
+    }
+
+    public void increaseParticipantCount() {
+        if (currentParticipantCount == null) {
+            currentParticipantCount = 1;
+        }
+        currentParticipantCount++;
+        if (targetParticipantCount != null && currentParticipantCount >= targetParticipantCount) {
+            close();
+        }
     }
 }

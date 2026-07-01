@@ -1,10 +1,12 @@
 package com.hjs.foodshare.notification.service;
 
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.notification.domain.Notification;
 import com.hjs.foodshare.notification.dto.FcmTokenRequest;
 import com.hjs.foodshare.notification.dto.NotificationResponse;
 import com.hjs.foodshare.notification.dto.NotificationSettingsRequest;
 import com.hjs.foodshare.notification.dto.NotificationSettingsResponse;
+import com.hjs.foodshare.notification.repository.NotificationRepository;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.util.List;
@@ -17,9 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
 
     private final UserRepository userRepository;
+    private final NotificationRepository notificationRepository;
+    private final FcmPushService fcmPushService;
 
-    public NotificationService(UserRepository userRepository) {
+    public NotificationService(UserRepository userRepository, NotificationRepository notificationRepository,
+                               FcmPushService fcmPushService) {
         this.userRepository = userRepository;
+        this.notificationRepository = notificationRepository;
+        this.fcmPushService = fcmPushService;
     }
 
     public NotificationSettingsResponse getSettings(Long userId) {
@@ -41,17 +48,34 @@ public class NotificationService {
 
     public List<NotificationResponse> getNotifications(Long userId) {
         getUser(userId);
-        return List.of();
+        return notificationRepository.findAllByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(NotificationResponse::from)
+                .toList();
     }
 
+    @Transactional
     public void markAsRead(Long userId, Long notificationId) {
         getUser(userId);
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Notification not found."));
+        if (!notification.getUser().getId().equals(userId)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Only the notification owner can read it.");
+        }
+        notification.markAsRead();
     }
 
     @Transactional
     public void registerFcmToken(Long userId, FcmTokenRequest request) {
         User user = getUser(userId);
         user.updateFcmToken(request.token());
+    }
+
+    @Transactional
+    public void createNotification(Long userId, String type, String title, String message) {
+        User user = getUser(userId);
+        notificationRepository.save(Notification.create(user, type, title, message));
+        fcmPushService.sendPush(user.getFcmToken(), title, message);
     }
 
     private boolean valueOrCurrent(Boolean value, boolean current) {

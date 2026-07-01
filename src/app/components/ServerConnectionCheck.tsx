@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { API_BASE_URL, testServerConnection } from '../api/config';
 
 export default function ServerConnectionCheck({ children }: { children: React.ReactNode }) {

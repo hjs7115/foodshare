@@ -49,6 +49,35 @@ public class EmailVerificationService {
 
         checkDuplicatedEmail(email);
 
+        EmailVerification verification = createAndSendCode(
+                email,
+                "FoodShare email verification",
+                "Enter this verification code on the signup screen.",
+                "[FoodShare] Email verification code"
+        );
+
+        return new EmailVerificationSendResponse(verification.getEmail(), (int) codeTtl.toSeconds());
+    }
+
+    @Transactional
+    public EmailVerificationSendResponse sendPasswordResetCode(String email) {
+        String normalizedEmail = email.trim();
+
+        if (!userRepository.existsByEmail(normalizedEmail)) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "User not found.");
+        }
+
+        EmailVerification verification = createAndSendCode(
+                normalizedEmail,
+                "FoodShare password reset",
+                "Enter this verification code on the password reset screen.",
+                "[FoodShare] Password reset code"
+        );
+
+        return new EmailVerificationSendResponse(verification.getEmail(), (int) codeTtl.toSeconds());
+    }
+
+    private EmailVerification createAndSendCode(String email, String title, String description, String subject) {
         String code = createCode();
         EmailVerification verification = EmailVerification.create(
                 email,
@@ -57,9 +86,9 @@ public class EmailVerificationService {
         );
         emailVerificationRepository.save(verification);
 
-        sendVerificationMail(email, code);
+        sendVerificationMail(email, code, title, description, subject);
 
-        return new EmailVerificationSendResponse(email, (int) codeTtl.toSeconds());
+        return verification;
     }
 
     @Transactional
@@ -94,17 +123,36 @@ public class EmailVerificationService {
         verification.use();
     }
 
-    private void sendVerificationMail(String email, String code) {
+    @Transactional
+    public void consumePasswordResetCode(String email, String code) {
+        String normalizedEmail = email.trim();
+        String normalizedCode = code.trim();
+
+        EmailVerification verification = emailVerificationRepository.findFirstByEmailOrderByCreatedAtDesc(normalizedEmail)
+                .orElseThrow(() -> new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is not found."));
+
+        if (verification.isUsed() || verification.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is expired.");
+        }
+        if (!verification.getCode().equals(normalizedCode)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is invalid.");
+        }
+
+        verification.verify();
+        verification.use();
+    }
+
+    private void sendVerificationMail(String email, String code, String title, String description, String subject) {
         String html = """
                 <div style="font-family:Arial,sans-serif;line-height:1.6">
-                  <h2>FoodShare email verification</h2>
-                  <p>Enter this verification code on the signup screen.</p>
+                  <h2>%s</h2>
+                  <p>%s</p>
                   <p style="font-size:28px;font-weight:700;letter-spacing:4px">%s</p>
                   <p>This code expires in %d minutes.</p>
                 </div>
-                """.formatted(code, codeTtl.toMinutes());
+                """.formatted(title, description, code, codeTtl.toMinutes());
 
-        mailService.sendHtmlEmail(fromAddress, email, "[FoodShare] Email verification code", html);
+        mailService.sendHtmlEmail(fromAddress, email, subject, html);
     }
 
     private void checkDuplicatedEmail(String email) {

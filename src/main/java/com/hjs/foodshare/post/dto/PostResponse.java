@@ -28,6 +28,8 @@ public record PostResponse(
         String tradeLocation,
         String neighborhood,
         Double distanceKm,
+        Double latitude,
+        Double longitude,
         LocalDate expirationDate,
         long daysUntilExpiration,
         String expirationText,
@@ -84,6 +86,8 @@ public record PostResponse(
                 post.getTradeLocation(),
                 toNeighborhood(post.getTradeLocation()),
                 post.getDistanceKm(),
+                post.getLatitude(),
+                post.getLongitude(),
                 post.getExpirationDate(),
                 daysUntilExpiration,
                 toExpirationText(daysUntilExpiration),
@@ -101,6 +105,47 @@ public record PostResponse(
                 daysUntilDeadline,
                 daysUntilDeadline == null ? null : toDeadlineText(daysUntilDeadline),
                 post.getCreatedAt()
+        );
+    }
+
+    public PostResponse withDistance(Double distanceKm) {
+        return new PostResponse(
+                postId,
+                writerId,
+                writerNickname,
+                authorNickname,
+                writerProfileImage,
+                rating,
+                freshness,
+                postType,
+                status,
+                title,
+                ingredientName,
+                quantity,
+                price,
+                priceText,
+                tradeLocation,
+                neighborhood,
+                distanceKm,
+                latitude,
+                longitude,
+                expirationDate,
+                daysUntilExpiration,
+                expirationText,
+                imageUrl,
+                content,
+                commentCount,
+                favoriteCount,
+                favorite,
+                isFavorite,
+                isMine,
+                editable,
+                currentParticipantCount,
+                targetParticipantCount,
+                deadlineDate,
+                daysUntilDeadline,
+                deadlineText,
+                createdAt
         );
     }
 

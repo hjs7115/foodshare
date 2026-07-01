@@ -3,6 +3,7 @@ export {
   API_ENDPOINTS,
   apiRequest,
   buildPostsUrl,
+  normalizeImageUrl,
   testServerConnection,
   uploadImage,
 } from './config';

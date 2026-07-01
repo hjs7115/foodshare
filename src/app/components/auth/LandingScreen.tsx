@@ -1,4 +1,4 @@
-export default function LandingScreen({ onShowLogin, onShowSignup }: { onShowLogin: () => void; onShowSignup: () => void }) {
+﻿export default function LandingScreen({ onShowLogin, onShowSignup }: { onShowLogin: () => void; onShowSignup: () => void }) {
   return (
     <div className="bg-white size-full flex flex-col items-center justify-between px-6 py-16">
       <div className="flex-1 flex flex-col items-center justify-center w-full max-w-md">

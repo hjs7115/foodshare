@@ -1,7 +1,9 @@
 package com.hjs.foodshare.trade.service;
 
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.notification.service.NotificationService;
 import com.hjs.foodshare.post.domain.Post;
+import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.post.repository.PostRepository;
 import com.hjs.foodshare.trade.domain.TradeRequest;
 import com.hjs.foodshare.trade.domain.TradeRequestStatus;
@@ -9,6 +11,7 @@ import com.hjs.foodshare.trade.dto.TradeRequestResponse;
 import com.hjs.foodshare.trade.repository.TradeRequestRepository;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -21,16 +24,20 @@ public class TradeRequestService {
     private final TradeRequestRepository tradeRequestRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
-    public TradeRequestService(TradeRequestRepository tradeRequestRepository, PostRepository postRepository, UserRepository userRepository) {
+    public TradeRequestService(TradeRequestRepository tradeRequestRepository, PostRepository postRepository,
+                               UserRepository userRepository, NotificationService notificationService) {
         this.tradeRequestRepository = tradeRequestRepository;
         this.postRepository = postRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
     public TradeRequestResponse createRequest(Long postId, Long requesterId) {
         Post post = getActivePost(postId);
+        validateRequestablePost(post);
         if (post.getWriter().getId().equals(requesterId)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "You cannot request your own post.");
         }
@@ -41,7 +48,16 @@ public class TradeRequestService {
         User requester = userRepository.findById(requesterId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
 
-        return TradeRequestResponse.from(tradeRequestRepository.save(TradeRequest.create(post, requester)));
+        TradeRequest savedRequest = tradeRequestRepository.save(TradeRequest.create(post, requester));
+        if (post.getWriter().isNotificationTradeRequest()) {
+            notificationService.createNotification(
+                    post.getWriter().getId(),
+                    "TRADE_REQUEST",
+                    "새 거래 요청",
+                    requester.getNickname() + "님이 '" + post.getTitle() + "' 게시글에 거래를 요청했습니다."
+            );
+        }
+        return TradeRequestResponse.from(savedRequest);
     }
 
     public List<TradeRequestResponse> getMyRequests(Long requesterId) {
@@ -75,7 +91,17 @@ public class TradeRequestService {
         if (tradeRequest.getStatus() != TradeRequestStatus.PENDING) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Only pending requests can be accepted.");
         }
+        validateRequestablePost(tradeRequest.getPost());
         tradeRequest.accept();
+        applyAcceptedTradePolicy(tradeRequest);
+        if (tradeRequest.getRequester().isNotificationTradeAccepted()) {
+            notificationService.createNotification(
+                    tradeRequest.getRequester().getId(),
+                    "TRADE_ACCEPTED",
+                    "거래 요청 수락",
+                    "'" + tradeRequest.getPost().getTitle() + "' 거래 요청이 수락되었습니다."
+            );
+        }
         return TradeRequestResponse.from(tradeRequest);
     }
 
@@ -103,7 +129,49 @@ public class TradeRequestService {
         }
 
         tradeRequest.complete();
+        notifyTradeCompleted(tradeRequest);
         return TradeRequestResponse.from(tradeRequest);
+    }
+
+    private void applyAcceptedTradePolicy(TradeRequest acceptedRequest) {
+        Post post = acceptedRequest.getPost();
+        if (post.getPostType() == PostType.GROUP_BUY) {
+            post.increaseParticipantCount();
+            return;
+        }
+
+        post.close();
+        tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.PENDING)
+                .stream()
+                .filter(request -> !request.getId().equals(acceptedRequest.getId()))
+                .forEach(TradeRequest::reject);
+    }
+
+    private void notifyTradeCompleted(TradeRequest tradeRequest) {
+        Long writerId = tradeRequest.getPost().getWriter().getId();
+        Long requesterId = tradeRequest.getRequester().getId();
+        String message = "'" + tradeRequest.getPost().getTitle() + "' 거래가 완료되었습니다.";
+
+        notificationService.createNotification(writerId, "TRADE_COMPLETED", "거래 완료", message);
+        notificationService.createNotification(requesterId, "TRADE_COMPLETED", "거래 완료", message);
+    }
+
+    private void validateRequestablePost(Post post) {
+        if (!post.isOpen()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Post is closed.");
+        }
+        if (post.getPostType() == PostType.GROUP_BUY) {
+            if (post.getDeadlineDate() != null && post.getDeadlineDate().isBefore(LocalDate.now())) {
+                post.close();
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy deadline has passed.");
+            }
+            if (post.getTargetParticipantCount() != null
+                    && post.getCurrentParticipantCount() != null
+                    && post.getCurrentParticipantCount() >= post.getTargetParticipantCount()) {
+                post.close();
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy is full.");
+            }
+        }
     }
 
     private TradeRequest getRequestForWriter(Long requestId, Long writerId) {

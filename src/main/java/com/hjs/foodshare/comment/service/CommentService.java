@@ -6,6 +6,7 @@ import com.hjs.foodshare.comment.dto.CommentResponse;
 import com.hjs.foodshare.comment.dto.CommentUpdateRequest;
 import com.hjs.foodshare.comment.repository.CommentRepository;
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.notification.service.NotificationService;
 import com.hjs.foodshare.post.domain.Post;
 import com.hjs.foodshare.post.repository.PostRepository;
 import com.hjs.foodshare.user.domain.User;
@@ -22,11 +23,14 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
-    public CommentService(CommentRepository commentRepository, PostRepository postRepository, UserRepository userRepository) {
+    public CommentService(CommentRepository commentRepository, PostRepository postRepository, UserRepository userRepository,
+                          NotificationService notificationService) {
         this.commentRepository = commentRepository;
         this.postRepository = postRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -37,7 +41,16 @@ public class CommentService {
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
 
         Comment comment = Comment.create(post, writer, request.content());
-        return CommentResponse.from(commentRepository.save(comment));
+        Comment savedComment = commentRepository.save(comment);
+        if (!post.getWriter().getId().equals(userId) && post.getWriter().isNotificationComment()) {
+            notificationService.createNotification(
+                    post.getWriter().getId(),
+                    "COMMENT",
+                    "새 댓글",
+                    writer.getNickname() + "님이 '" + post.getTitle() + "' 게시글에 댓글을 남겼습니다."
+            );
+        }
+        return CommentResponse.from(savedComment);
     }
 
     public List<CommentResponse> getComments(Long postId, Long currentUserId) {

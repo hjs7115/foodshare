@@ -37,6 +37,12 @@ public record PostCreateRequest(
 
         Double distanceKm,
 
+        @JsonAlias("lat")
+        Double latitude,
+
+        @JsonAlias("lng")
+        Double longitude,
+
         @JsonAlias("expiry")
         Object expirationDate,
 

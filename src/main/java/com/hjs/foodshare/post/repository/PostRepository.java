@@ -21,11 +21,9 @@ public interface PostRepository extends JpaRepository<Post, Long> {
               and (:keyword is null
                    or lower(p.title) like lower(concat('%', :keyword, '%'))
                    or lower(p.ingredientName) like lower(concat('%', :keyword, '%')))
-              and (:maxDistanceKm is null or p.distanceKm <= :maxDistanceKm)
             """)
     List<Post> searchPosts(
             @Param("postType") PostType postType,
-            @Param("keyword") String keyword,
-            @Param("maxDistanceKm") Double maxDistanceKm
+            @Param("keyword") String keyword
     );
 }

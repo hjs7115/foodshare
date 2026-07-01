@@ -1,4 +1,4 @@
-export default function BoardSwitchModal({ onClose, onSelect, currentBoard }: { onClose: () => void; onSelect: (board: string) => void; currentBoard: string }) {
+﻿export default function BoardSwitchModal({ onClose, onSelect, currentBoard }: { onClose: () => void; onSelect: (board: string) => void; currentBoard: string }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-end z-50" onClick={onClose}>
       <div

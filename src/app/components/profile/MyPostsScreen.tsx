@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { X, Trash2 } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl } from '../../api/config';
 import BackendImage from '../common/BackendImage';

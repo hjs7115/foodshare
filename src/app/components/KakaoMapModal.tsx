@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { X, Search, MapPin } from "lucide-react";
 
 declare global {

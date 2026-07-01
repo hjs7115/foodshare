@@ -22,7 +22,6 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,8 +40,6 @@ public class AuthService {
     private final Map<String, VerificationCode> phoneVerificationCodes = new ConcurrentHashMap<>();
 
     private static final Duration PHONE_CODE_TTL = Duration.ofMinutes(3);
-    private static final Duration RESET_TOKEN_TTL = Duration.ofMinutes(30);
-
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
@@ -136,18 +133,14 @@ public class AuthService {
     }
 
     public PasswordResetLinkResponse requestPasswordResetLink(PasswordResetLinkRequest request) {
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
-
-        return new PasswordResetLinkResponse(
-                user.getEmail(),
-                UUID.randomUUID().toString(),
-                RESET_TOKEN_TTL.toSeconds()
-        );
+        var response = emailVerificationService.sendPasswordResetCode(request.email());
+        return new PasswordResetLinkResponse(response.email(), response.expiresInSeconds());
     }
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
+        emailVerificationService.consumePasswordResetCode(request.email(), request.code());
+
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
 

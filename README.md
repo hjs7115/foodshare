@@ -1,4 +1,4 @@
-# 반띵
+﻿# 반띵
 <p align="center">
   <img width="254" height="254" alt="image" src="https://github.com/user-attachments/assets/36fba8d8-fe6c-49f8-bd4d-34c25b1736cd" />
 </p>
@@ -42,9 +42,11 @@
 | 🤝 **거래 요청** | 관심 있는 게시글에 거래 요청을 보내고 작성자가 수락·거절·완료 처리 |
 | ⭐ **리뷰와 평점** | 완료된 거래를 기반으로 리뷰를 작성하고 사용자 신뢰도 확인 |
 | ❤️ **관심 게시글** | 다시 보고 싶은 게시글을 관심 목록으로 저장 |
-| 🔔 **알림 설정** | 거래와 서비스 알림을 위한 설정 및 알림 목록 관리 |
-| 🔐 **회원 인증** | JWT 기반 로그인, 이메일 인증, 닉네임·이메일·전화번호 중복 확인 제공 |
+| 🔔 **알림 설정** | 거래와 서비스 알림을 위한 설정, DB 알림 목록, FCM 푸시 알림 관리 |
+| 🔐 **회원 인증** | JWT 기반 로그인, 이메일 인증, 비밀번호 재설정 코드 인증, 닉네임·이메일·전화번호 중복 확인 제공 |
 | 🖼️ **이미지 업로드** | 식재료 상태를 확인할 수 있도록 게시글 이미지 업로드 지원 |
+| 🚨 **신고와 차단** | 사용자·게시글·댓글 신고, 사용자 차단/해제, 차단 사용자 콘텐츠 숨김 |
+| 🏅 **배지와 업적** | 게시글 작성, 나눔, 공동구매, 거래 완료, 리뷰, 평점 기반 배지 진행률 제공 |
 
 ---
 
@@ -94,7 +96,9 @@ graph TB
     subgraph Server["🖥️ Spring Boot"]
         API["REST API"]
         Security["Spring Security<br/>JWT"]
-        Domain["Domain Service<br/>Auth · Post · Trade · Review"]
+        Domain["Domain Service<br/>Auth · Post · Trade · Review · Notification"]
+        Moderation["Moderation<br/>Report · Block"]
+        Badge["Badge Service"]
         Upload["Image Upload"]
     end
 
@@ -107,6 +111,8 @@ graph TB
     Web --> API
     API --> Security
     Security --> Domain
+    Domain --> Moderation
+    Domain --> Badge
     Domain --> MySQL
     Domain --> Mail
     API --> Upload
@@ -121,7 +127,7 @@ graph TB
 
 이메일, 비밀번호, 닉네임, 전화번호, 위치 정보를 기반으로 회원을 관리합니다.
 
-로그인 이후 발급되는 JWT를 통해 게시글 작성, 거래 요청, 리뷰 작성, 마이페이지 조회처럼 인증이 필요한 기능을 사용할 수 있습니다.
+로그인 이후 발급되는 JWT를 통해 게시글 작성, 거래 요청, 리뷰 작성, 신고/차단, 배지 조회, 마이페이지 조회처럼 인증이 필요한 기능을 사용할 수 있습니다. 회원가입은 이메일 인증 완료 후 진행되며, 비밀번호 재설정도 이메일 인증 코드를 검증한 뒤 처리됩니다.
 
 ### 🥬 게시글
 
@@ -145,7 +151,7 @@ graph TB
 
 공동구매 게시글은 `GROUP_BUY` 타입으로 등록되며, 일반 나눔·판매 게시글과 달리 목표 인원과 마감일 정보를 함께 관리합니다.
 
-사용자는 공동구매 게시판에서 진행 중인 모집글을 확인하고, 거래 요청을 통해 참여 의사를 전달할 수 있습니다.
+사용자는 공동구매 게시판에서 진행 중인 모집글을 확인하고, 거래 요청을 통해 참여 의사를 전달할 수 있습니다. 거래 요청이 수락되면 참여 인원이 증가하고, 목표 인원에 도달하거나 마감일이 지나면 게시글이 닫힙니다.
 
 | 항목 | 설명 |
 |------|------|
@@ -155,7 +161,7 @@ graph TB
 
 ### 🤝 거래 요청
 
-사용자는 원하는 게시글에 거래 요청을 보낼 수 있고, 게시글 작성자는 요청을 수락·거절·완료 처리할 수 있습니다.
+사용자는 원하는 게시글에 거래 요청을 보낼 수 있고, 게시글 작성자는 요청을 수락·거절·완료 처리할 수 있습니다. 일반 나눔/판매 게시글은 거래 요청 수락 시 게시글이 닫히며, 다른 대기 요청은 거절됩니다.
 
 | 상태 | 설명 |
 |------|------|
@@ -184,7 +190,10 @@ graph TB
 | `Favorite` | 사용자가 관심 등록한 게시글 |
 | `TradeRequest` | 게시글 거래 요청과 거래 상태 |
 | `Review` | 거래 완료 후 작성되는 리뷰와 평점 |
-| `EmailVerification` | 이메일 인증 코드와 검증 상태 |
+| `EmailVerification` | 이메일 인증 및 비밀번호 재설정 코드와 검증 상태 |
+| `Notification` | 댓글, 거래, 유통기한 임박 등 사용자별 알림 |
+| `Report` | 사용자, 게시글, 댓글 신고 내역 |
+| `UserBlock` | 사용자 차단 관계 |
 
 ---
 
@@ -222,7 +231,9 @@ foodshare/
 │   │   │   ├── trade/                 # 거래 요청
 │   │   │   ├── review/                # 리뷰
 │   │   │   ├── mypage/                # 마이페이지
-│   │   │   ├── notification/          # 알림
+│   │   │   ├── notification/          # 알림, FCM, 유통기한 임박 알림
+│   │   │   ├── moderation/            # 신고, 차단
+│   │   │   ├── badge/                 # 배지, 업적
 │   │   │   ├── upload/                # 이미지 업로드
 │   │   │   └── global/                # 공통 응답, 예외, 보안
 │   │   └── resources/
@@ -252,6 +263,7 @@ foodshare/
 | ORM | Spring Data JPA, Hibernate |
 | Validation | Jakarta Validation |
 | Mail | Spring Boot Mail, Angus Mail |
+| Push | Firebase Cloud Messaging |
 | Build | Gradle, npm |
 | Test | JUnit Platform, H2 Database |
 | Library | Lombok |
@@ -289,8 +301,8 @@ Authorization: Bearer {accessToken}
 | POST | `/api/auth/logout` | 로그아웃 |
 | POST | `/api/auth/find-email` | 이메일 찾기 |
 | POST | `/api/auth/find-id` | 아이디 찾기 |
-| POST | `/api/auth/password-reset-link` | 비밀번호 재설정 링크 생성 |
-| POST | `/api/auth/reset-password` | 비밀번호 재설정 |
+| POST | `/api/auth/password-reset-link` | 비밀번호 재설정 인증 코드 발송 |
+| POST | `/api/auth/reset-password` | 이메일 인증 코드 기반 비밀번호 재설정 |
 | GET | `/api/auth/nickname/check` | 닉네임 중복 확인 |
 | GET | `/api/auth/email/check` | 이메일 중복 확인 |
 | GET | `/api/auth/phone/check` | 전화번호 중복 확인 |
@@ -322,7 +334,10 @@ Authorization: Bearer {accessToken}
 postType=SHARE | SALE | GROUP_BUY
 keyword=상추
 maxDistanceKm=1.0
+lat=37.5001
+lng=127.0361
 radiusKm=1.0
+expiringSoon=true
 sort=LATEST | EXPIRING_SOON | DISTANCE
 ```
 
@@ -388,6 +403,24 @@ sort=LATEST | EXPIRING_SOON | DISTANCE
 | GET | `/api/notifications` | 알림 목록 조회 |
 | POST/PUT/PATCH | `/api/notifications/{notificationId}/read` | 알림 읽음 처리 |
 | POST | `/api/notifications/fcm-token` | FCM 토큰 등록 |
+| POST | `/api/notifications/test-push` | 테스트 푸시 알림 전송 |
+
+### Reports / Blocks
+
+| Method | URL | 설명 |
+|------|------|------|
+| POST | `/api/reports` | 사용자, 게시글, 댓글 신고 |
+| GET | `/api/reports/me` | 내가 작성한 신고 목록 조회 |
+| POST | `/api/users/{userId}/block` | 사용자 차단 |
+| DELETE | `/api/users/{userId}/block` | 사용자 차단 해제 |
+| GET | `/api/mypage/blocks` | 차단 사용자 목록 조회 |
+
+### Badges
+
+| Method | URL | 설명 |
+|------|------|------|
+| GET | `/api/badges/me` | 내 배지/업적 진행률 조회 |
+| GET | `/api/mypage/badges` | 마이페이지 배지/업적 조회 |
 
 ### Image Upload
 
@@ -557,7 +590,7 @@ file
 - JWT 기반 인증
 - 이메일 인증
 - 게시글 CRUD
-- 게시글 검색 및 필터링
+- 위치 좌표와 반경 기반 게시글 검색 및 필터링
 - 댓글 작성 / 조회 / 수정 / 삭제
 - 관심 게시글 등록 / 해제 / 조회
 - 거래 요청 생성
@@ -565,11 +598,11 @@ file
 - 완료된 거래 기반 리뷰 작성
 - 사용자 리뷰 및 평점 조회
 - 마이페이지 조회 및 프로필·위치 수정
-- 알림 설정 및 FCM 토큰 등록 API
+- DB 알림 목록/읽음 처리, 알림 설정, FCM 토큰 등록 및 테스트 푸시 API
 - 이미지 업로드
 - React 기반 사용자 화면 구성
 
-아직 실제 서비스 운영 결과나 사용자 통계는 확보되지 않았기 때문에 운영 성과 지표는 포함하지 않았습니다.
+백엔드 테스트와 통합본 테스트는 Gradle 기준으로 통과했으며, MySQL 연결과 JPA 스키마 반영도 확인했습니다. 아직 실제 서비스 운영 결과나 사용자 통계는 확보되지 않았기 때문에 운영 성과 지표는 포함하지 않았습니다.
 
 ---
 
@@ -590,78 +623,7 @@ file
 
 또한 식재료 공유라는 서비스 특성을 고려하여 거래 상태와 리뷰 구조를 함께 설계하면서, 실제 사용자 흐름에 가까운 서비스 구조를 구현하는 데 초점을 맞췄습니다.
 
----
 
-## 최근 백엔드 보강 내용
 
-아래 기능들은 현재 백엔드와 통합본에 추가로 반영된 기능입니다.
 
-### 인증/보안
 
-- 회원가입은 이메일 인증 완료 후 진행됩니다.
-- 비밀번호 찾기는 이메일로 인증 코드를 발송하고, 사용자가 `email + code + newPassword`를 제출해야 재설정됩니다.
-- 인증 코드는 API 응답에 노출하지 않고 서버에서 저장/검증합니다.
-
-### 위치 기반 게시글 검색
-
-- 게시글 작성 시 `latitude`, `longitude` 좌표를 저장합니다.
-- `GET /api/posts?lat=&lng=&radiusKm=&sort=DISTANCE` 요청에서 요청자 좌표 기준 거리를 계산합니다.
-- Haversine 공식을 사용해 실제 반경 필터링과 거리순 정렬을 처리합니다.
-
-### 알림/FCM
-
-- 알림은 DB에 저장되어 `GET /api/notifications`로 조회할 수 있습니다.
-- `PATCH /api/notifications/{notificationId}/read`로 읽음 처리를 할 수 있습니다.
-- 댓글, 거래 요청, 거래 수락, 거래 완료, 유통기한 임박 상황에서 알림을 생성합니다.
-- FCM 토큰 저장과 테스트 푸시 전송 API를 제공합니다.
-
-### 공동구매/거래 상태
-
-- 공동구매 게시글은 목표 인원과 마감일을 필수로 관리합니다.
-- 거래 요청 수락 시 공동구매 참여 인원이 증가합니다.
-- 목표 인원에 도달하거나 마감일이 지나면 게시글이 닫힙니다.
-- 일반 나눔/판매 게시글은 거래 수락 시 게시글을 닫고 다른 대기 요청을 거절합니다.
-
-### 유통기한 관리
-
-- 유통기한 임박 게시글 필터링을 지원합니다.
-- 유통기한이 지난 게시글은 검색 시 숨김/닫힘 처리됩니다.
-- 매일 09:00 기준 유통기한 임박 알림을 생성하는 스케줄러가 있습니다.
-
-### 신고/차단
-
-- 사용자, 게시글, 댓글 신고 API를 제공합니다.
-- 사용자 차단/차단 해제 API를 제공합니다.
-- 차단 관계가 있으면 댓글 작성과 거래 요청이 제한됩니다.
-- 로그인 사용자의 게시글/댓글 목록에서는 차단된 사용자의 콘텐츠를 숨깁니다.
-
-### 배지/업적
-
-- 게시글 작성, 나눔 게시글, 공동구매 작성, 거래 완료, 받은 리뷰 수, 평균 평점 기준으로 배지 진행률을 계산합니다.
-- `GET /api/badges/me` 또는 `GET /api/mypage/badges`로 내 배지 현황을 조회할 수 있습니다.
-
-## 추가 API 요약
-
-| 기능 | API |
-|------|-----|
-| 비밀번호 재설정 코드 발송 | `POST /api/auth/password-reset-link` |
-| 비밀번호 재설정 | `POST /api/auth/reset-password` |
-| 반경 기반 게시글 검색 | `GET /api/posts?lat=&lng=&radiusKm=` |
-| 유통기한 임박 게시글 | `GET /api/posts?expiringSoon=true` |
-| 알림 목록 | `GET /api/notifications` |
-| 알림 읽음 처리 | `PATCH /api/notifications/{notificationId}/read` |
-| FCM 토큰 저장 | `POST /api/notifications/fcm-token` |
-| 테스트 푸시 | `POST /api/notifications/test-push` |
-| 신고 | `POST /api/reports` |
-| 내 신고 목록 | `GET /api/reports/me` |
-| 사용자 차단 | `POST /api/users/{userId}/block` |
-| 사용자 차단 해제 | `DELETE /api/users/{userId}/block` |
-| 차단 목록 | `GET /api/mypage/blocks` |
-| 배지/업적 | `GET /api/badges/me` |
-
-## 검증 상태
-
-- 백엔드 테스트: `./gradlew test` 통과
-- 통합본 테스트: `./gradlew test` 통과
-- MySQL 연결과 JPA 스키마 반영 확인
-- GitHub 백엔드 저장소와 통합 저장소에 최신 코드 반영 완료

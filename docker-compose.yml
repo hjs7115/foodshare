@@ -1,0 +1,94 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: foodshare-mysql
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-foodshare}
+      MYSQL_USER: ${MYSQL_USER:-foodshare}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-foodshare_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - foodshare-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: foodshare-backend
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-foodshare}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-foodshare}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-foodshare_password}
+      APP_UPLOAD_DIR: /app/uploads
+      APP_FIREBASE_SERVICE_ACCOUNT: "${APP_FIREBASE_SERVICE_ACCOUNT:-}"
+      TZ: Asia/Seoul
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - uploads-data:/app/uploads
+      - ./secrets:/run/secrets:ro
+    expose:
+      - "8080"
+    networks:
+      - foodshare-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/}
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+        VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:-}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+        VITE_FIREBASE_MEASUREMENT_ID: ${VITE_FIREBASE_MEASUREMENT_ID:-}
+        VITE_FIREBASE_VAPID_KEY: ${VITE_FIREBASE_VAPID_KEY:-}
+    container_name: foodshare-frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - foodshare-network
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: foodshare-nginx
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    networks:
+      - foodshare-network
+
+volumes:
+  mysql-data:
+  uploads-data:
+
+networks:
+  foodshare-network:
+    driver: bridge

@@ -1,0 +1,16 @@
+.git
+.gradle
+build
+dist
+node_modules
+uploads
+secrets
+.env
+.env.*
+!.env.example
+!.env.docker.example
+*.log
+.idea
+.vscode
+.codex_deps
+.codex_python_root

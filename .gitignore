@@ -41,3 +41,5 @@ screenshot.png
 .codex_deps/
 .codex_python_root/
 .frontend-review/
+.env.docker
+secrets/

@@ -1,0 +1,27 @@
+{
+  "name": "반띵 - FoodShare",
+  "short_name": "반띵",
+  "description": "위치 기반 식재료 나눔, 거래, 공동구매 서비스",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fbfcfe",
+  "theme_color": "#2f855a",
+  "lang": "ko-KR",
+  "categories": ["food", "shopping", "social"],
+  "icons": [
+    {
+      "src": "/assets/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

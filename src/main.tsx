@@ -1,9 +1,9 @@
+import { createRoot } from 'react-dom/client';
+import App from './app/App.tsx';
+import { registerFirebaseMessaging } from './app/firebase.ts';
+import { registerPwaServiceWorker } from './app/pwa.ts';
+import './styles/index.css';
 
-  import { createRoot } from "react-dom/client";
-  import App from "./app/App.tsx";
-  import { registerFirebaseMessaging } from "./app/firebase.ts";
-  import "./styles/index.css";
-
-  createRoot(document.getElementById("root")!).render(<App />);
-  registerFirebaseMessaging();
-  
+createRoot(document.getElementById('root')!).render(<App />);
+registerPwaServiceWorker();
+registerFirebaseMessaging();

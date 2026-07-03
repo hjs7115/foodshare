@@ -31,7 +31,7 @@ public record CommentResponse(
                 comment.getWriter().getNickname(),
                 comment.getWriter().getNickname(),
                 4.5,
-                4.5,
+                50.0,
                 comment.getContent(),
                 comment.getCreatedAt(),
                 mine,

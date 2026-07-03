@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.hjs.foodshare.post.domain.Post;
 import com.hjs.foodshare.post.domain.PostStatus;
 import com.hjs.foodshare.post.domain.PostType;
+import com.hjs.foodshare.user.domain.FreshnessGrade;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -18,6 +19,9 @@ public record PostResponse(
         String writerProfileImage,
         double rating,
         double freshness,
+        String freshnessLevel,
+        String freshnessIcon,
+        String freshnessLabel,
         PostType postType,
         PostStatus status,
         String title,
@@ -67,6 +71,8 @@ public record PostResponse(
                 : ChronoUnit.DAYS.between(LocalDate.now(), post.getDeadlineDate());
         boolean mine = currentUserId != null && post.getWriter().getId().equals(currentUserId);
         double normalizedRating = writerRating <= 0 ? 4.5 : Math.round(writerRating * 10.0) / 10.0;
+        double freshness = post.getWriter().getFreshnessScore();
+        FreshnessGrade freshnessGrade = FreshnessGrade.fromScore(freshness);
 
         return new PostResponse(
                 post.getId(),
@@ -75,7 +81,10 @@ public record PostResponse(
                 post.getWriter().getNickname(),
                 post.getWriter().getProfileImage(),
                 normalizedRating,
-                normalizedRating,
+                freshness,
+                freshnessGrade.name(),
+                freshnessGrade.getIcon(),
+                freshnessGrade.getLabel(),
                 post.getPostType(),
                 post.getStatus(),
                 post.getTitle(),
@@ -117,6 +126,9 @@ public record PostResponse(
                 writerProfileImage,
                 rating,
                 freshness,
+                freshnessLevel,
+                freshnessIcon,
+                freshnessLabel,
                 postType,
                 status,
                 title,

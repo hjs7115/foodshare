@@ -7,6 +7,7 @@ import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.post.domain.Post;
 import com.hjs.foodshare.post.dto.PostResponse;
 import com.hjs.foodshare.post.repository.PostRepository;
+import com.hjs.foodshare.review.repository.ReviewRepository;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.util.List;
@@ -21,11 +22,14 @@ public class FavoriteService {
     private final FavoriteRepository favoriteRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
+    private final ReviewRepository reviewRepository;
 
-    public FavoriteService(FavoriteRepository favoriteRepository, PostRepository postRepository, UserRepository userRepository) {
+    public FavoriteService(FavoriteRepository favoriteRepository, PostRepository postRepository, UserRepository userRepository,
+                           ReviewRepository reviewRepository) {
         this.favoriteRepository = favoriteRepository;
         this.postRepository = postRepository;
         this.userRepository = userRepository;
+        this.reviewRepository = reviewRepository;
     }
 
     @Transactional
@@ -61,7 +65,7 @@ public class FavoriteService {
                         userId,
                         0,
                         favoriteRepository.countByPostId(favorite.getPost().getId()),
-                        4.5,
+                        reviewRepository.averageRatingByTargetUserId(favorite.getPost().getWriter().getId()),
                         true
                 ))
                 .toList();

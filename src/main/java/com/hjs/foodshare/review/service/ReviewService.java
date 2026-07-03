@@ -10,6 +10,7 @@ import com.hjs.foodshare.review.repository.ReviewRepository;
 import com.hjs.foodshare.trade.domain.TradeRequest;
 import com.hjs.foodshare.trade.domain.TradeRequestStatus;
 import com.hjs.foodshare.trade.repository.TradeRequestRepository;
+import com.hjs.foodshare.user.domain.FreshnessGrade;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.util.List;
@@ -58,6 +59,9 @@ public class ReviewService {
         }
 
         Review review = Review.create(tradeRequest, reviewer, targetUser, request.rating(), request.content());
+        targetUser.updateFreshnessScore(
+                FreshnessCalculator.update(targetUser.getFreshnessScore(), request.rating())
+        );
         return ReviewResponse.from(reviewRepository.save(review));
     }
 
@@ -115,6 +119,19 @@ public class ReviewService {
                 .mapToInt(Review::getRating)
                 .average()
                 .orElse(0.0);
-        return new RatingSummaryResponse(userId, Math.round(average * 10.0) / 10.0, reviews.size());
+        double averageRating = Math.round(average * 10.0) / 10.0;
+        double freshness = userRepository.findById(userId)
+                .map(User::getFreshnessScore)
+                .orElse(FreshnessCalculator.baseScore());
+        FreshnessGrade freshnessGrade = FreshnessGrade.fromScore(freshness);
+        return new RatingSummaryResponse(
+                userId,
+                averageRating,
+                freshness,
+                freshnessGrade.name(),
+                freshnessGrade.getIcon(),
+                freshnessGrade.getLabel(),
+                reviews.size()
+        );
     }
 }

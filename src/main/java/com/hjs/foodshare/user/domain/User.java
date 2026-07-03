@@ -41,6 +41,9 @@ public class User {
     @Column(columnDefinition = "TEXT")
     private String profileImage;
 
+    @Column(nullable = false, columnDefinition = "double default 50.0")
+    private Double freshnessScore;
+
     private Boolean notificationNewPost;
 
     private Boolean notificationComment;
@@ -68,6 +71,7 @@ public class User {
         this.password = password;
         this.phoneNumber = phoneNumber;
         this.location = location;
+        this.freshnessScore = 50.0;
         this.notificationNewPost = true;
         this.notificationComment = true;
         this.notificationTradeRequest = true;
@@ -119,6 +123,10 @@ public class User {
 
     public String getProfileImage() {
         return profileImage;
+    }
+
+    public double getFreshnessScore() {
+        return freshnessScore == null ? 50.0 : freshnessScore;
     }
 
     public boolean isNotificationNewPost() {
@@ -192,5 +200,9 @@ public class User {
 
     public void clearFcmToken() {
         this.fcmToken = null;
+    }
+
+    public void updateFreshnessScore(double freshnessScore) {
+        this.freshnessScore = Math.max(0.0, Math.min(freshnessScore, 100.0));
     }
 }

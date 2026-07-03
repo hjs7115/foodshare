@@ -160,6 +160,7 @@ public class AuthService {
         return new PhoneVerificationVerifyResponse(request.phoneNumber(), true);
     }
 
+    @Transactional
     public PasswordResetLinkResponse requestPasswordResetLink(PasswordResetLinkRequest request) {
         var response = emailVerificationService.sendPasswordResetCode(request.email());
         return new PasswordResetLinkResponse(response.email(), response.expiresInSeconds());

@@ -52,12 +52,12 @@ public class TradeRequestController {
                 tradeRequestService.getRequestsForPost(postId, authUser.userId())));
     }
 
-    @GetMapping({"/trade-requests/me", "/mypage/trade-requests"})
+    @GetMapping("/trade-requests/me")
     public ResponseEntity<ApiResponse<List<TradeRequestResponse>>> getMyRequests(@AuthenticationPrincipal AuthUser authUser) {
         return ResponseEntity.ok(ApiResponse.ok("My trade requests found.", tradeRequestService.getMyRequests(authUser.userId())));
     }
 
-    @GetMapping({"/trade-requests/received", "/mypage/received-trade-requests"})
+    @GetMapping("/trade-requests/received")
     public ResponseEntity<ApiResponse<List<TradeRequestResponse>>> getReceivedRequests(@AuthenticationPrincipal AuthUser authUser) {
         return ResponseEntity.ok(ApiResponse.ok("Received trade requests found.", tradeRequestService.getReceivedRequests(authUser.userId())));
     }

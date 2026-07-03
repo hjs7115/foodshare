@@ -47,3 +47,13 @@ app:
   firebase:
     enabled: ${APP_FIREBASE_ENABLED:true}
     service-account: ${APP_FIREBASE_SERVICE_ACCOUNT:}
+  phone-verification:
+    recipient-email: ${PHONE_VERIFICATION_RECIPIENT_EMAIL:${MAIL_USERNAME:}}
+    expiration-millis: ${PHONE_VERIFICATION_EXPIRATION_MILLIS:600000}
+    allowed-domains: ${PHONE_VERIFICATION_ALLOWED_DOMAINS:vmms.nate.com,ktfmms.magicn.com,lguplus.com}
+    imap:
+      host: ${PHONE_VERIFICATION_IMAP_HOST:imap.gmail.com}
+      port: ${PHONE_VERIFICATION_IMAP_PORT:993}
+      username: ${PHONE_VERIFICATION_IMAP_USERNAME:${MAIL_USERNAME:}}
+      password: ${PHONE_VERIFICATION_IMAP_PASSWORD:${MAIL_PASSWORD:}}
+      ssl: ${PHONE_VERIFICATION_IMAP_SSL:true}

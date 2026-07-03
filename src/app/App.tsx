@@ -9,9 +9,11 @@ import {
 import { CategorySelectScreen } from './components/category';
 import { SharingBoard, GroupBuyingBoard } from './components/board';
 import { ProfileScreen } from './components/profile';
+import { FridgeScreen } from './components/fridge';
+import { hasAuthSession } from './auth/session';
 
 type Screen = 'landing' | 'login' | 'signup' | 'findId' | 'findPassword' | 'category' | 'main';
-type MainView = 'board' | 'profile';
+type MainView = 'board' | 'fridge' | 'profile';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('landing');
@@ -19,8 +21,7 @@ export default function App() {
   const [mainView, setMainView] = useState<MainView>('board');
 
   useEffect(() => {
-    const autoLogin = localStorage.getItem('autoLogin');
-    if (autoLogin === 'true') {
+    if (hasAuthSession()) {
       setCurrentScreen('category');
     }
   }, []);
@@ -85,6 +86,10 @@ export default function App() {
 
   if (mainView === 'profile') {
     return <ProfileScreen onNavigate={(screen) => setMainView(screen as MainView)} />;
+  }
+
+  if (mainView === 'fridge') {
+    return <FridgeScreen onNavigate={(screen) => setMainView(screen as MainView)} />;
   }
 
   if (selectedCategory === '나눔 및 판매') {

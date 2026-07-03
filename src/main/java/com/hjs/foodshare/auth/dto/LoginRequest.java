@@ -1,14 +1,17 @@
 package com.hjs.foodshare.auth.dto;
 
-import jakarta.validation.constraints.Email;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 
 public record LoginRequest(
-        @NotBlank(message = "이메일은 필수입니다.")
-        @Email(message = "이메일 형식이 올바르지 않습니다.")
-        String email,
+        @NotBlank(message = "loginId is required.")
+        @JsonAlias({"nickname", "userId", "id", "email"})
+        String loginId,
 
-        @NotBlank(message = "비밀번호는 필수입니다.")
+        @NotBlank(message = "password is required.")
         String password
 ) {
+    public String loginIdValue() {
+        return loginId.trim();
+    }
 }

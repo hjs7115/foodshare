@@ -61,13 +61,14 @@ public class PostController {
             @RequestParam(required = false) Double lat,
             @RequestParam(required = false) Double lng,
             @RequestParam(required = false) Boolean expiringSoon,
-            @RequestParam(required = false, defaultValue = "LATEST") PostSort sort,
+            @RequestParam(required = false, defaultValue = "LATEST") String sort,
             @AuthenticationPrincipal AuthUser authUser
     ) {
         Double distanceFilter = maxDistanceKm != null ? maxDistanceKm : radiusKm;
         Long currentUserId = authUser == null ? null : authUser.userId();
         return ResponseEntity.ok(ApiResponse.ok("Posts found.",
-                postService.searchPosts(postType, keyword, distanceFilter, lat, lng, expiringSoon, sort, currentUserId)));
+                postService.searchPosts(postType, keyword, distanceFilter, lat, lng, expiringSoon,
+                        PostSort.from(sort), currentUserId)));
     }
 
     @GetMapping("/page")
@@ -79,7 +80,7 @@ public class PostController {
             @RequestParam(required = false) Double lat,
             @RequestParam(required = false) Double lng,
             @RequestParam(required = false) Boolean expiringSoon,
-            @RequestParam(required = false, defaultValue = "LATEST") PostSort sort,
+            @RequestParam(required = false, defaultValue = "LATEST") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal AuthUser authUser
@@ -87,7 +88,7 @@ public class PostController {
         Double distanceFilter = maxDistanceKm != null ? maxDistanceKm : radiusKm;
         Long currentUserId = authUser == null ? null : authUser.userId();
         return ResponseEntity.ok(ApiResponse.ok("Posts found.",
-                postService.searchPostsPage(postType, keyword, distanceFilter, lat, lng, expiringSoon, sort,
+                postService.searchPostsPage(postType, keyword, distanceFilter, lat, lng, expiringSoon, PostSort.from(sort),
                         currentUserId, page, size)));
     }
 

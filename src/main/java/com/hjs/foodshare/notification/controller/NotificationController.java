@@ -8,6 +8,7 @@ import com.hjs.foodshare.notification.dto.NotificationResponse;
 import com.hjs.foodshare.notification.dto.NotificationSettingsRequest;
 import com.hjs.foodshare.notification.dto.NotificationSettingsResponse;
 import com.hjs.foodshare.notification.dto.TestPushRequest;
+import com.hjs.foodshare.notification.dto.UnreadNotificationCountResponse;
 import com.hjs.foodshare.notification.service.NotificationService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -62,6 +63,14 @@ public class NotificationController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok("Notifications found.",
                 notificationService.getNotificationsPage(authUser.userId(), page, size)));
+    }
+
+    @GetMapping("/api/notifications/unread-count")
+    public ResponseEntity<ApiResponse<UnreadNotificationCountResponse>> getUnreadCount(
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok("Unread notification count found.",
+                notificationService.getUnreadCount(authUser.userId())));
     }
 
     @RequestMapping(

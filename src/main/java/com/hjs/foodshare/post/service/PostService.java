@@ -116,9 +116,7 @@ public class PostService {
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .filter(post -> !Boolean.TRUE.equals(expiringSoon) || isExpiringSoon(post))
                 .map(post -> toResponse(post, currentUserId).withDistance(resolveDistanceKm(post, latitude, longitude)))
-                .filter(response -> maxDistanceKm == null
-                        || response.distanceKm() == null
-                        || response.distanceKm() <= maxDistanceKm)
+                .filter(response -> isInsideDistance(response, maxDistanceKm, latitude, longitude))
                 .sorted(getPostResponseComparator(normalizedSort))
                 .toList();
     }
@@ -198,6 +196,14 @@ public class PostService {
                             Comparator.nullsLast(Double::compareTo)
                     )
                     .thenComparing(PostResponse::createdAt, Comparator.reverseOrder());
+            case FRESHNESS -> Comparator.comparing(PostResponse::freshness)
+                    .reversed()
+                    .thenComparing(PostResponse::createdAt, Comparator.reverseOrder());
+            case PRICE_LOW -> Comparator.comparing(
+                            PostResponse::price,
+                            Comparator.nullsLast(Integer::compareTo)
+                    )
+                    .thenComparing(PostResponse::createdAt, Comparator.reverseOrder());
             case LATEST -> Comparator.comparing(PostResponse::createdAt).reversed();
         };
     }
@@ -217,10 +223,23 @@ public class PostService {
     }
 
     private Double resolveDistanceKm(Post post, Double latitude, Double longitude) {
-        if (latitude == null || longitude == null || post.getLatitude() == null || post.getLongitude() == null) {
+        if (latitude == null || longitude == null) {
             return post.getDistanceKm();
         }
+        if (post.getLatitude() == null || post.getLongitude() == null) {
+            return null;
+        }
         return calculateDistanceKm(latitude, longitude, post.getLatitude(), post.getLongitude());
+    }
+
+    private boolean isInsideDistance(PostResponse response, Double maxDistanceKm, Double latitude, Double longitude) {
+        if (maxDistanceKm == null) {
+            return true;
+        }
+        if (latitude == null || longitude == null || response.distanceKm() == null) {
+            return false;
+        }
+        return response.distanceKm() <= maxDistanceKm;
     }
 
     private double calculateDistanceKm(double fromLat, double fromLng, double toLat, double toLng) {
@@ -231,7 +250,7 @@ public class PostService {
                 + Math.cos(Math.toRadians(fromLat)) * Math.cos(Math.toRadians(toLat))
                 * Math.sin(lngDistance / 2) * Math.sin(lngDistance / 2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return Math.round(earthRadiusKm * c * 10.0) / 10.0;
+        return earthRadiusKm * c;
     }
 
     private void validatePostRequest(

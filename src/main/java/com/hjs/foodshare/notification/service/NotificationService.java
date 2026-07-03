@@ -8,6 +8,7 @@ import com.hjs.foodshare.notification.dto.NotificationResponse;
 import com.hjs.foodshare.notification.dto.NotificationSettingsRequest;
 import com.hjs.foodshare.notification.dto.NotificationSettingsResponse;
 import com.hjs.foodshare.notification.dto.TestPushRequest;
+import com.hjs.foodshare.notification.dto.UnreadNotificationCountResponse;
 import com.hjs.foodshare.notification.repository.NotificationRepository;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
@@ -58,6 +59,11 @@ public class NotificationService {
 
     public PageResponse<NotificationResponse> getNotificationsPage(Long userId, int page, int size) {
         return PageResponse.of(getNotifications(userId), page, size);
+    }
+
+    public UnreadNotificationCountResponse getUnreadCount(Long userId) {
+        getUser(userId);
+        return new UnreadNotificationCountResponse(notificationRepository.countByUserIdAndReadFalse(userId));
     }
 
     @Transactional

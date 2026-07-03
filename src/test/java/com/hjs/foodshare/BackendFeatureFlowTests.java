@@ -4,8 +4,23 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.when;
 
+import com.hjs.foodshare.auth.dto.FindIdRequest;
+import com.hjs.foodshare.auth.dto.FindIdVerifyRequest;
+import com.hjs.foodshare.auth.dto.LoginRequest;
+import com.hjs.foodshare.auth.dto.PasswordResetLinkRequest;
+import com.hjs.foodshare.auth.dto.PhoneVerificationSendRequest;
+import com.hjs.foodshare.auth.dto.PhoneVerificationVerifyRequest;
+import com.hjs.foodshare.auth.dto.ResetPasswordRequest;
+import com.hjs.foodshare.auth.repository.EmailVerificationRepository;
+import com.hjs.foodshare.auth.service.AuthService;
+import com.hjs.foodshare.auth.service.MailService;
+import com.hjs.foodshare.auth.service.SmsEmailInboxVerifier;
 import com.hjs.foodshare.global.exception.BusinessException;
+import com.hjs.foodshare.fridge.dto.FridgeItemRequest;
+import com.hjs.foodshare.fridge.repository.FridgeItemRepository;
+import com.hjs.foodshare.fridge.service.FridgeItemService;
 import com.hjs.foodshare.notification.repository.NotificationRepository;
 import com.hjs.foodshare.notification.service.ExpiringPostNotificationService;
 import com.hjs.foodshare.notification.service.NotificationService;
@@ -14,16 +29,20 @@ import com.hjs.foodshare.post.domain.PostStatus;
 import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.post.dto.PostCreateRequest;
 import com.hjs.foodshare.post.repository.PostRepository;
+import com.hjs.foodshare.post.dto.PostSort;
 import com.hjs.foodshare.post.service.PostService;
 import com.hjs.foodshare.trade.repository.TradeRequestRepository;
 import com.hjs.foodshare.trade.service.TradeRequestService;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.time.LocalDate;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
@@ -40,6 +59,12 @@ class BackendFeatureFlowTests {
     private TradeRequestRepository tradeRequestRepository;
 
     @Autowired
+    private FridgeItemRepository fridgeItemRepository;
+
+    @Autowired
+    private EmailVerificationRepository emailVerificationRepository;
+
+    @Autowired
     private NotificationRepository notificationRepository;
 
     @Autowired
@@ -49,10 +74,25 @@ class BackendFeatureFlowTests {
     private TradeRequestService tradeRequestService;
 
     @Autowired
+    private FridgeItemService fridgeItemService;
+
+    @Autowired
+    private AuthService authService;
+
+    @Autowired
     private NotificationService notificationService;
 
     @Autowired
     private ExpiringPostNotificationService expiringPostNotificationService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @MockitoBean
+    private MailService mailService;
+
+    @MockitoBean
+    private SmsEmailInboxVerifier smsEmailInboxVerifier;
 
     @Test
     void groupBuyAcceptIncreasesParticipantCountAndClosesWhenFull() {
@@ -90,6 +130,158 @@ class BackendFeatureFlowTests {
     }
 
     @Test
+    void receivedRequestsAreReturnedForPostWriter() {
+        User writer = saveUser("received_writer");
+        User requester = saveUser("received_requester");
+        User otherWriter = saveUser("received_other");
+
+        Long writerPostId = postService.createPost(writer.getId(), shareRequest("Writer apples")).postId();
+        Long otherPostId = postService.createPost(otherWriter.getId(), shareRequest("Other apples")).postId();
+
+        tradeRequestService.createRequest(writerPostId, requester.getId());
+        tradeRequestService.createRequest(otherPostId, requester.getId());
+
+        var writerRequests = tradeRequestService.getReceivedRequests(writer.getId());
+
+        assertEquals(1, writerRequests.size());
+        assertEquals(writerPostId, writerRequests.get(0).postId());
+    }
+
+    @Test
+    void postSortSupportsFreshnessPriceAndFrontendAliases() {
+        assertEquals(PostSort.LATEST, PostSort.from("latest"));
+        assertEquals(PostSort.EXPIRING_SOON, PostSort.from("expiry"));
+        assertEquals(PostSort.FRESHNESS, PostSort.from("rating"));
+        assertEquals(PostSort.DISTANCE, PostSort.from("distance"));
+        assertEquals(PostSort.PRICE_LOW, PostSort.from("price"));
+    }
+
+    @Test
+    void postsCanBeSortedByFreshnessAndPrice() {
+        User freshWriter = saveUser("fresh_writer");
+        freshWriter.updateFreshnessScore(90.0);
+        User normalWriter = saveUser("normal_writer");
+        normalWriter.updateFreshnessScore(50.0);
+
+        Long expensivePostId = postService.createPost(
+                freshWriter.getId(),
+                customShareRequest("Expensive fresh apples", 5000, LocalDate.now().plusDays(5), 37.500, 127.000)
+        ).postId();
+        Long cheapPostId = postService.createPost(
+                normalWriter.getId(),
+                customShareRequest("Cheap normal apples", 1000, LocalDate.now().plusDays(2), 37.501, 127.000)
+        ).postId();
+
+        var freshnessSorted = postService.searchPosts(null, null, null, null, null, null, PostSort.FRESHNESS, null);
+        assertEquals(expensivePostId, freshnessSorted.get(0).postId());
+
+        var priceSorted = postService.searchPosts(null, null, null, null, null, null, PostSort.PRICE_LOW, null);
+        assertEquals(cheapPostId, priceSorted.get(0).postId());
+    }
+
+    @Test
+    void fridgeItemsAreStoredPerUserInDatabase() {
+        User owner = saveUser("fridge_owner");
+        User other = saveUser("fridge_other");
+
+        var created = fridgeItemService.createItem(owner.getId(), new FridgeItemRequest(
+                "Tomato",
+                "2 pcs",
+                LocalDate.now().plusDays(2),
+                "냉장",
+                "Use soon"
+        ));
+
+        assertEquals(1, fridgeItemRepository.findAllByUserIdOrderByExpiryDateAscCreatedAtAsc(owner.getId()).size());
+        assertEquals(0, fridgeItemService.getItems(other.getId()).size());
+        assertTrue(created.expiringSoon());
+
+        var updated = fridgeItemService.updateItem(owner.getId(), created.id(), new FridgeItemRequest(
+                "Tomato pack",
+                "3 pcs",
+                LocalDate.now().plusDays(5),
+                "냉동",
+                "Saved"
+        ));
+        assertEquals("Tomato pack", updated.name());
+        assertEquals("냉동", updated.storagePlace());
+
+        assertThrows(BusinessException.class,
+                () -> fridgeItemService.updateItem(other.getId(), created.id(), new FridgeItemRequest(
+                        "Other",
+                        "1",
+                        LocalDate.now().plusDays(1),
+                        "냉장",
+                        ""
+                )));
+
+        fridgeItemService.deleteItem(owner.getId(), created.id());
+        assertEquals(0, fridgeItemService.getItems(owner.getId()).size());
+    }
+
+    @Test
+    void authUsesLoginIdAndRecoveryCodes() {
+        User user = userRepository.save(User.create(
+                "Recover User",
+                "recover_id",
+                "recover@foodshare.test",
+                passwordEncoder.encode("Password123!"),
+                "010-1111-2222",
+                "Seoul"
+        ));
+
+        var loginResponse = authService.login(new LoginRequest("recover_id", "Password123!"));
+        assertEquals(user.getId(), loginResponse.user().userId());
+
+        authService.requestFindIdCode(new FindIdRequest("Recover User", "recover@foodshare.test"));
+        String findIdCode = emailVerificationRepository.findFirstByEmailOrderByCreatedAtDesc("recover@foodshare.test")
+                .orElseThrow()
+                .getCode();
+        var findIdResponse = authService.verifyFindIdCode(new FindIdVerifyRequest(
+                "Recover User",
+                "recover@foodshare.test",
+                findIdCode
+        ));
+        assertEquals("recover_id", findIdResponse.loginId());
+
+        authService.requestPasswordResetLink(new PasswordResetLinkRequest(null, "recover_id", "Recover User"));
+        String resetCode = emailVerificationRepository.findFirstByEmailOrderByCreatedAtDesc("recover@foodshare.test")
+                .orElseThrow()
+                .getCode();
+        authService.resetPassword(new ResetPasswordRequest(null, "recover_id", "Recover User", resetCode, "NewPassword123!"));
+
+        var resetLoginResponse = authService.login(new LoginRequest("recover_id", "NewPassword123!"));
+        assertEquals(user.getId(), resetLoginResponse.user().userId());
+    }
+
+    @Test
+    void phoneVerificationRequiresSmsEmailSenderMatchAndIsConsumedOnSignup() {
+        var sent = authService.sendPhoneVerificationCode(new PhoneVerificationSendRequest("010-1111-2222"));
+        when(smsEmailInboxVerifier.findSenderPhoneByCode(sent.code()))
+                .thenReturn(Optional.of("01011112222"));
+
+        var verified = authService.verifyPhoneCode(new PhoneVerificationVerifyRequest("010-1111-2222", sent.code()));
+        assertTrue(verified.verified());
+
+        emailVerificationRepository.save(com.hjs.foodshare.auth.domain.EmailVerification.create(
+                "phone-signup@foodshare.test",
+                "123456",
+                java.time.LocalDateTime.now().plusMinutes(10)
+        )).verify();
+
+        var response = authService.signup(new com.hjs.foodshare.auth.dto.SignupRequest(
+                "Phone Signup",
+                "phone_signup",
+                "phone-signup@foodshare.test",
+                "Password123!",
+                "010-1111-2222",
+                "Seoul"
+        ));
+
+        assertEquals("phone_signup", response.user().nickname());
+    }
+
+    @Test
     void notificationReadIsLimitedToOwner() {
         User owner = saveUser("owner1");
         User other = saveUser("other1");
@@ -102,6 +294,20 @@ class BackendFeatureFlowTests {
 
         assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
         assertFalse(notificationRepository.findById(notificationId).orElseThrow().isRead());
+    }
+
+    @Test
+    void unreadNotificationCountChangesAfterRead() {
+        User owner = saveUser("owner_unread");
+
+        notificationService.createNotification(owner.getId(), "TEST", "Test 1", "Unread 1");
+        notificationService.createNotification(owner.getId(), "TEST", "Test 2", "Unread 2");
+        assertEquals(2, notificationService.getUnreadCount(owner.getId()).unreadCount());
+
+        Long notificationId = notificationRepository.findAllByUserIdOrderByCreatedAtDesc(owner.getId()).get(0).getId();
+        notificationService.markAsRead(owner.getId(), notificationId);
+
+        assertEquals(1, notificationService.getUnreadCount(owner.getId()).unreadCount());
     }
 
     @Test
@@ -163,6 +369,31 @@ class BackendFeatureFlowTests {
                 currentCount,
                 targetCount,
                 deadline
+        );
+    }
+
+    private PostCreateRequest shareRequest(String title) {
+        return customShareRequest(title, 0, LocalDate.now().plusDays(5), 37.5, 127.0);
+    }
+
+    private PostCreateRequest customShareRequest(String title, int price, LocalDate expirationDate,
+                                                 double latitude, double longitude) {
+        return new PostCreateRequest(
+                PostType.SHARE,
+                title,
+                "Apple",
+                "1 box",
+                price,
+                "Seoul",
+                0.0,
+                latitude,
+                longitude,
+                expirationDate,
+                null,
+                "share",
+                null,
+                null,
+                null
         );
     }
 }

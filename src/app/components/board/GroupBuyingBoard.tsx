@@ -1,10 +1,11 @@
 ﻿import { useState, useEffect } from 'react';
-import { Bell, ArrowUpDown, MapPin } from 'lucide-react';
+import { Bell, ArrowUpDown, MapPin, Snowflake } from 'lucide-react';
 import CreatePostScreen from './CreatePostScreen';
 import BoardSwitchModal from './BoardSwitchModal';
 import PostDetailScreen from './PostDetailScreen';
 import LocationSettingsScreen from '../profile/LocationSettingsScreen';
 import BackendImage from '../common/BackendImage';
+import NotificationsScreen from '../common/NotificationsScreen';
 import { API_ENDPOINTS, apiRequest, buildPostsUrl, resolveImageUrl } from '../../api/config';
 
 interface GroupItem {
@@ -20,6 +21,10 @@ interface GroupItem {
   image: string;
   createdAt?: string;
   rating?: number;
+  freshness?: number;
+  freshnessLevel?: string;
+  freshnessIcon?: string;
+  freshnessLabel?: string;
 }
 
 type GroupSortType = 'latest' | 'deadline' | 'rating' | 'distance' | 'participation';
@@ -29,6 +34,7 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
   const [showBoardSwitch, setShowBoardSwitch] = useState(false);
   const [showPostDetail, setShowPostDetail] = useState(false);
   const [showLocationSettings, setShowLocationSettings] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
   const [groupItems, setGroupItems] = useState<GroupItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,24 +44,22 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
   const [radiusKm, setRadiusKm] = useState(5);
   const [showRadiusFilter, setShowRadiusFilter] = useState(false);
 
-  // ?꾩튂 ?뺣낫 遺덈윭?ㅺ린
+  // 위치 정보 불러오기
   useEffect(() => {
     loadLocation();
   }, []);
 
-  // ?쒕쾭?먯꽌 寃뚯떆湲 紐⑸줉 遺덈윭?ㅺ린
+  // 서버에서 게시글 목록 불러오기
   useEffect(() => {
     loadPosts();
   }, []);
 
-  // ?뺣젹 ???蹂寃????ъ젙??
+  // 정렬 타입 변경 시 서버 기준으로 새로고침
   useEffect(() => {
-    if (groupItems.length > 0) {
-      setGroupItems(sortPosts(groupItems));
-    }
+    loadPosts();
   }, [sortType]);
 
-  // 諛섍꼍 ?꾪꽣 蹂寃????щ줈??
+  // 반경 필터 변경 시 새로고침
   useEffect(() => {
     loadPosts();
   }, [radiusKm]);
@@ -69,7 +73,7 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
 
   const getPostQueryParams = () => {
     const savedCoords = localStorage.getItem('userLocationCoords');
-    const params: any = { radiusKm };
+    const params: any = { radiusKm, sort: sortType === 'deadline' ? 'EXPIRING_SOON' : sortType };
 
     if (!savedCoords) return params;
 
@@ -110,7 +114,11 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
             deadline: post.deadline || '마감일 미정',
             image: resolveImageUrl(post.image || post.imageUrl),
             createdAt: post.createdAt || new Date().toISOString(),
-            rating: post.rating || 4.5,
+            rating: post.rating ?? 0,
+            freshness: Number(post.freshness ?? 50),
+            freshnessLevel: post.freshnessLevel || '',
+            freshnessIcon: post.freshnessIcon || '🌱',
+            freshnessLabel: post.freshnessLabel || '일반·신규 유저',
           };
         });
 
@@ -132,7 +140,7 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
         return sorted.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
       case 'deadline':
-        // 留덇컧???뺣낫?먯꽌 ?レ옄 異붿텧 (?? "3???⑥쓬" -> 3)
+        // 마감일 정보에서 숫자 추출 (예: "3일 남음" -> 3)
         return sorted.sort((a, b) => {
           const daysA = parseInt(a.deadline.match(/\d+/)?.[0] || '999');
           const daysB = parseInt(b.deadline.match(/\d+/)?.[0] || '999');
@@ -140,10 +148,10 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
         });
 
       case 'rating':
-        return sorted.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        return sorted.sort((a, b) => (b.freshness || 0) - (a.freshness || 0));
 
       case 'distance':
-        // 嫄곕━?먯꽌 ?レ옄 異붿텧 (?? "0.5km" -> 0.5)
+        // 거리에서 숫자 추출 (예: "0.5km" -> 0.5)
         return sorted.sort((a, b) => {
           const distA = parseFloat(a.distance.replace(/[^0-9.]/g, ''));
           const distB = parseFloat(b.distance.replace(/[^0-9.]/g, ''));
@@ -151,7 +159,7 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
         });
 
       case 'participation':
-        // 李몄뿬???믪???
+        // 참여율 높은 순
         return sorted.sort((a, b) => {
           const rateA = (a.currentCount / a.targetCount) * 100;
           const rateB = (b.currentCount / b.targetCount) * 100;
@@ -185,7 +193,7 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
             <div className="text-sm text-[#2d3748] truncate" style={{ fontWeight: 600 }}>{location}</div>
           </div>
         </button>
-        <button className="text-[#2d3748] relative">
+        <button onClick={() => setShowNotifications(true)} className="text-[#2d3748] relative" aria-label="알림 열기">
           <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-[#e2e8f0] hover:border-[#fbbf24] transition-colors">
             <Bell size={20} />
           </div>
@@ -343,7 +351,7 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
       </div>
 
       {/* Group Items List */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 pb-20">
+      <div className="flex-1 overflow-y-auto px-5 py-4 pb-28">
         {groupItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-20">
             <div className="w-32 h-32 bg-gradient-to-br from-[#fef3c7] to-[#fbbf24] rounded-full flex items-center justify-center mb-6 shadow-lg">
@@ -408,8 +416,19 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
                     </div>
 
                     <div className="flex items-center gap-3 text-xs text-[#718096]">
+                      <span className="flex items-center gap-1 text-[#16a34a]" style={{ fontWeight: 600 }}>
+                        <span>{item.freshnessIcon || '🌱'}</span>
+                        <span>신선도 {Math.round(item.freshness ?? 50)}%</span>
+                      </span>
+                      {item.freshnessLabel && (
+                        <>
+                          <span className="text-[#cbd5e0]">|</span>
+                          <span>{item.freshnessLabel}</span>
+                        </>
+                      )}
+                      <span className="text-[#cbd5e0]">|</span>
                       <span className="flex items-center gap-1">
-                        <span className="text-[#16a34a]">?뱧</span> {item.distance}
+                        <span className="text-[#16a34a]">📍</span> {item.distance}
                       </span>
                       <span className="text-[#cbd5e0]">|</span>
                       <span className="flex items-center gap-1">
@@ -433,6 +452,17 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
         )}
       </div>
 
+      <button
+        onClick={() => setShowCreatePost(true)}
+        className="fixed bottom-24 right-5 z-40 flex h-13 items-center justify-center gap-1.5 rounded-full bg-[#fbbf24] px-5 py-3 text-[#0a0a0a] shadow-lg hover:bg-[#f59e0b] transition-colors"
+        aria-label="게시글 작성"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+        </svg>
+        <span className="text-sm" style={{ fontWeight: 800 }}>글쓰기</span>
+      </button>
+
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-12 py-4 flex items-center justify-between z-40">
         <button onClick={() => setShowBoardSwitch(true)} className="flex flex-col items-center gap-1">
@@ -441,11 +471,9 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
           </svg>
           <span className="text-xs text-[#bef264]">홈</span>
         </button>
-        <button onClick={() => setShowCreatePost(true)} className="flex flex-col items-center gap-1">
-          <svg className="w-6 h-6 text-[#2d3748]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="text-xs text-[#2d3748]">작성</span>
+        <button onClick={() => onNavigate('fridge')} className="flex flex-col items-center gap-1">
+          <Snowflake size={24} className="text-[#2d3748]" />
+          <span className="text-xs text-[#2d3748]">냉장고</span>
         </button>
         <button onClick={() => onNavigate('profile')} className="flex flex-col items-center gap-1">
           <svg className="w-6 h-6 text-[#2d3748]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -480,7 +508,7 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
           onClose={() => {
             setShowPostDetail(false);
             setSelectedPostId(null);
-            loadPosts(); // ?볤? 異붽? ?깆쑝濡?蹂寃??ы빆???덉쓣 ???덉쑝誘濡??덈줈怨좎묠
+            loadPosts(); // 댓글 추가 등 변경 사항이 있을 수 있어 새로고침
           }}
         />
       )}
@@ -490,6 +518,16 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
           onClose={() => {
             setShowLocationSettings(false);
             loadLocation();
+          }}
+        />
+      )}
+
+      {showNotifications && (
+        <NotificationsScreen
+          onClose={() => setShowNotifications(false)}
+          onOpenPost={(postId) => {
+            setSelectedPostId(postId);
+            setShowPostDetail(true);
           }}
         />
       )}

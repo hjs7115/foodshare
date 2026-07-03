@@ -77,6 +77,20 @@ public class EmailVerificationService {
         return new EmailVerificationSendResponse(verification.getEmail(), (int) codeTtl.toSeconds());
     }
 
+    @Transactional
+    public EmailVerificationSendResponse sendAccountRecoveryCode(String email) {
+        String normalizedEmail = email.trim();
+
+        EmailVerification verification = createAndSendCode(
+                normalizedEmail,
+                "FoodShare account recovery",
+                "Enter this verification code on the account recovery screen.",
+                "[FoodShare] Account recovery code"
+        );
+
+        return new EmailVerificationSendResponse(verification.getEmail(), (int) codeTtl.toSeconds());
+    }
+
     private EmailVerification createAndSendCode(String email, String title, String description, String subject) {
         String code = createCode();
         EmailVerification verification = EmailVerification.create(

@@ -2,7 +2,9 @@ package com.hjs.foodshare.auth.service;
 
 import com.hjs.foodshare.auth.dto.AuthResponse;
 import com.hjs.foodshare.auth.dto.DuplicateCheckResponse;
+import com.hjs.foodshare.auth.dto.FindIdResponse;
 import com.hjs.foodshare.auth.dto.FindIdRequest;
+import com.hjs.foodshare.auth.dto.FindIdVerifyRequest;
 import com.hjs.foodshare.auth.dto.FindEmailRequest;
 import com.hjs.foodshare.auth.dto.FindEmailResponse;
 import com.hjs.foodshare.auth.dto.LoginRequest;
@@ -23,11 +25,8 @@ import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Base64;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -41,11 +40,10 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationService emailVerificationService;
+    private final PhoneVerificationService phoneVerificationService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final SecureRandom secureRandom = new SecureRandom();
-    private final Map<String, VerificationCode> phoneVerificationCodes = new ConcurrentHashMap<>();
 
-    private static final Duration PHONE_CODE_TTL = Duration.ofMinutes(3);
     private static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(14);
 
     public AuthService(
@@ -53,12 +51,14 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             EmailVerificationService emailVerificationService,
+            PhoneVerificationService phoneVerificationService,
             RefreshTokenRepository refreshTokenRepository
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.emailVerificationService = emailVerificationService;
+        this.phoneVerificationService = phoneVerificationService;
         this.refreshTokenRepository = refreshTokenRepository;
     }
 
@@ -66,6 +66,7 @@ public class AuthService {
     public AuthResponse signup(SignupRequest request) {
         validateDuplicateUser(request);
         emailVerificationService.consumeVerifiedEmail(request.email());
+        phoneVerificationService.consumeVerifiedPhone(request.phoneNumber());
 
         User user = User.create(
                 request.name(),
@@ -82,11 +83,12 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Email or password is invalid."));
+        User user = userRepository.findByNickname(request.loginIdValue())
+                .or(() -> userRepository.findByEmail(request.loginIdValue()))
+                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Login ID or password is invalid."));
 
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Email or password is invalid.");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Login ID or password is invalid.");
         }
 
         return createAuthResponse(user);
@@ -116,11 +118,20 @@ public class AuthService {
         return new FindEmailResponse(user.getEmail());
     }
 
-    public FindEmailResponse findId(FindIdRequest request) {
+    public PasswordResetLinkResponse requestFindIdCode(FindIdRequest request) {
         User user = userRepository.findByNameAndEmail(request.name(), request.email())
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
 
-        return new FindEmailResponse(user.getEmail());
+        var response = emailVerificationService.sendAccountRecoveryCode(user.getEmail());
+        return new PasswordResetLinkResponse(response.email(), response.expiresInSeconds());
+    }
+
+    @Transactional
+    public FindIdResponse verifyFindIdCode(FindIdVerifyRequest request) {
+        User user = userRepository.findByNameAndEmail(request.name(), request.email())
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        emailVerificationService.consumePasswordResetCode(user.getEmail(), request.code());
+        return new FindIdResponse(user.getNickname());
     }
 
     public DuplicateCheckResponse checkNickname(String nickname) {
@@ -136,41 +147,23 @@ public class AuthService {
     }
 
     public PhoneVerificationSendResponse sendPhoneVerificationCode(PhoneVerificationSendRequest request) {
-        String code = "%06d".formatted(secureRandom.nextInt(1_000_000));
-        phoneVerificationCodes.put(request.phoneNumber(), new VerificationCode(code, Instant.now().plus(PHONE_CODE_TTL)));
-
-        return new PhoneVerificationSendResponse(
-                request.phoneNumber(),
-                (int) PHONE_CODE_TTL.toSeconds(),
-                code
-        );
+        return phoneVerificationService.start(request);
     }
 
     public PhoneVerificationVerifyResponse verifyPhoneCode(PhoneVerificationVerifyRequest request) {
-        VerificationCode verificationCode = phoneVerificationCodes.get(request.phoneNumber());
-        if (verificationCode == null || verificationCode.expiresAt().isBefore(Instant.now())) {
-            phoneVerificationCodes.remove(request.phoneNumber());
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is expired or not found.");
-        }
-        if (!verificationCode.code().equals(request.code())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is invalid.");
-        }
-
-        phoneVerificationCodes.remove(request.phoneNumber());
-        return new PhoneVerificationVerifyResponse(request.phoneNumber(), true);
+        return phoneVerificationService.verify(request);
     }
 
     public PasswordResetLinkResponse requestPasswordResetLink(PasswordResetLinkRequest request) {
-        var response = emailVerificationService.sendPasswordResetCode(request.email());
+        User user = resolvePasswordResetUser(request);
+        var response = emailVerificationService.sendPasswordResetCode(user.getEmail());
         return new PasswordResetLinkResponse(response.email(), response.expiresInSeconds());
     }
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
-        emailVerificationService.consumePasswordResetCode(request.email(), request.code());
-
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        User user = resolvePasswordResetUser(request.email(), request.name(), request.nickname());
+        emailVerificationService.consumePasswordResetCode(user.getEmail(), request.code());
 
         user.changePassword(passwordEncoder.encode(request.newPassword()));
         refreshTokenRepository.deleteAllByUserId(user.getId());
@@ -188,6 +181,22 @@ public class AuthService {
         }
     }
 
+    private User resolvePasswordResetUser(PasswordResetLinkRequest request) {
+        return resolvePasswordResetUser(request.email(), request.name(), request.nickname());
+    }
+
+    private User resolvePasswordResetUser(String email, String name, String nickname) {
+        if (nickname != null && !nickname.isBlank() && name != null && !name.isBlank()) {
+            return userRepository.findByNameAndNickname(name.trim(), nickname.trim())
+                    .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        }
+        if (email != null && !email.isBlank()) {
+            return userRepository.findByEmail(email.trim())
+                    .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        }
+        throw new BusinessException(HttpStatus.BAD_REQUEST, "loginId and name are required.");
+    }
+
     private AuthResponse createAuthResponse(User user) {
         String refreshToken = createOpaqueRefreshToken();
         refreshTokenRepository.save(RefreshToken.create(
@@ -202,8 +211,5 @@ public class AuthService {
         byte[] bytes = new byte[48];
         secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private record VerificationCode(String code, Instant expiresAt) {
     }
 }

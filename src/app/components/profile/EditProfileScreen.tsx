@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Camera, User } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl, uploadImage } from '../../api/config';
 import BackendImage from '../common/BackendImage';
+import { getStoredUserInfo, saveStoredUserInfo } from '../../auth/session';
 
 interface UserInfo {
   name: string;
@@ -28,11 +29,10 @@ export default function EditProfileScreen({ onClose, onSave }: EditProfileScreen
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const savedUserInfo = localStorage.getItem('userInfo');
+    const savedUserInfo = getStoredUserInfo<UserInfo>();
     if (savedUserInfo) {
-      const info = JSON.parse(savedUserInfo);
-      setUserInfo(info);
-      setProfileImage(resolveImageUrl(info.profileImage || ''));
+      setUserInfo(savedUserInfo);
+      setProfileImage(savedUserInfo.profileImage ? resolveImageUrl(savedUserInfo.profileImage) : '');
     }
   }, []);
 
@@ -71,7 +71,7 @@ export default function EditProfileScreen({ onClose, onSave }: EditProfileScreen
         profileImage: serverUser?.profileImage || uploadedProfileImage,
       };
 
-      localStorage.setItem('userInfo', JSON.stringify(updatedUserInfo));
+      saveStoredUserInfo(updatedUserInfo);
       setProfileImage(resolveImageUrl(updatedUserInfo.profileImage || ''));
       setSelectedImageFile(null);
 

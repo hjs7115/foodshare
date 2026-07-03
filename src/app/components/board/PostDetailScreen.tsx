@@ -1,7 +1,8 @@
 ﻿import { useState, useEffect } from 'react';
-import { X, Heart, MessageCircle, Send, User, Leaf, MoreVertical, Edit2, Trash2 } from 'lucide-react';
-import { API_ENDPOINTS, apiRequest, resolveImageUrl } from '../../api/config';
+import { X, Heart, MessageCircle, Send, User, Leaf, MoreVertical, Edit2, Trash2, Flag, Ban } from 'lucide-react';
+import { API_ENDPOINTS, apiRequest, resolveImageUrl, createReport, blockUser, type ReportTargetType } from '../../api/config';
 import BackendImage from '../common/BackendImage';
+import { getStoredUserInfo } from '../../auth/session';
 
 interface Post {
   id: number;
@@ -24,6 +25,9 @@ interface Post {
   longitude?: number;
   author?: string;
   authorId?: number;
+  writerId?: number;
+  userId?: number;
+  memberId?: number;
   nickname?: string;
   authorNickname?: string;
   writerNickname?: string;
@@ -36,6 +40,13 @@ interface Post {
   member?: any;
   rating?: number;
   freshness?: number;
+  freshnessLevel?: string;
+  freshnessIcon?: string;
+  freshnessLabel?: string;
+  isMine?: boolean;
+  mine?: boolean;
+  owner?: boolean;
+  editable?: boolean;
 }
 
 interface Comment {
@@ -49,6 +60,14 @@ interface Comment {
   isMine?: boolean;
   content: string;
   createdAt: string;
+}
+
+type TradeRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED';
+
+interface TradeRequestSummary {
+  requestId: number;
+  postId: number;
+  status: TradeRequestStatus;
 }
 
 interface PostDetailScreenProps {
@@ -65,11 +84,15 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   const [editingContent, setEditingContent] = useState('');
   const [showMenuForComment, setShowMenuForComment] = useState<number | null>(null);
   const [isCommentSubmitting, setIsCommentSubmitting] = useState(false);
+  const [tradeRequestStatus, setTradeRequestStatus] = useState<TradeRequestStatus | null>(null);
+  const [isTradeRequestSubmitting, setIsTradeRequestSubmitting] = useState(false);
+  const [isSafetyActionSubmitting, setIsSafetyActionSubmitting] = useState(false);
 
   useEffect(() => {
     loadPost();
     loadComments();
     checkFavorite();
+    checkMyTradeRequest();
   }, [postId]);
 
   const extractPost = (response: any): Post | null => {
@@ -106,7 +129,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       setPost(null);
     }
   };
-  const getCurrentUser = () => JSON.parse(localStorage.getItem('userInfo') || '{}');
+  const getCurrentUser = () => getStoredUserInfo() || {};
 
   const getUserId = (user: any): number | undefined => {
     const id = user?.id ?? user?.userId ?? user?.memberId;
@@ -135,6 +158,18 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
     '작성자'
   );
 
+  const getPostAuthorId = (postData: any): number | undefined => (
+    getUserId(postData.user || postData.author || postData.writer || postData.member) ??
+    getUserId({
+      id:
+        postData.authorId ??
+        postData.writerId ??
+        postData.userId ??
+        postData.memberId ??
+        postData.createdById,
+    })
+  );
+
   const getCommentAuthor = (comment: any, fallbackToCurrentUser = false): string => {
     const currentUser = getCurrentUser();
     const currentUserId = getUserId(currentUser);
@@ -153,7 +188,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       comment.createdBy ||
       (commentAuthorId && currentUserId && commentAuthorId === currentUserId ? getUserNickname(currentUser) : '') ||
       (comment.isMine || comment.mine || comment.owner || comment.editable || fallbackToCurrentUser ? getUserNickname(currentUser) : '') ||
-      '?듬챸'
+      '익명'
     );
   };
 
@@ -205,7 +240,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
     return Number(rating) || 0;
   };
 
-  const getCurrentUserRating = (): number => getRatingValue(getCurrentUser(), 4.5);
+  const getCurrentUserRating = (): number => getRatingValue(getCurrentUser(), 0);
 
   const getProfileImage = (source: any): string => {
     const image =
@@ -234,6 +269,15 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
     const percent = value <= 5 ? Math.round(value * 20) : Math.round(value);
     return `${Math.max(0, Math.min(100, percent))}%`;
   };
+
+  const getFreshnessPercent = (source: any): number => {
+    const value = Number(source?.freshness ?? 50);
+    return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 50;
+  };
+
+  const getFreshnessIcon = (source: any): string => source?.freshnessIcon || '🌱';
+
+  const getFreshnessLabel = (source: any): string => source?.freshnessLabel || '일반·신규 유저';
 
   const formatKoreanDate = (value?: string): string => {
     if (!value) return '';
@@ -409,11 +453,107 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       alert(error.message || '관심 목록 처리에 실패했습니다.');
     }
   };
+
+  const handleCreateReport = async (targetType: ReportTargetType, targetId: number, targetLabel: string) => {
+    if (isSafetyActionSubmitting) return;
+
+    const reason = prompt(`${targetLabel} 신고 사유를 입력해주세요.`);
+    if (!reason?.trim()) return;
+
+    setIsSafetyActionSubmitting(true);
+    try {
+      await createReport({
+        targetType,
+        targetId,
+        reason: reason.trim(),
+      });
+      alert('신고가 접수되었습니다.');
+      setShowMenuForComment(null);
+    } catch (error: any) {
+      alert(error.message || '신고 접수에 실패했습니다.');
+    } finally {
+      setIsSafetyActionSubmitting(false);
+    }
+  };
+
+  const handleBlockUser = async (userId: number | undefined, nickname: string) => {
+    if (!userId || isSafetyActionSubmitting) {
+      if (!userId) alert('차단할 사용자 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    if (!confirm(`${nickname || '사용자'}님을 차단하시겠습니까?`)) return;
+
+    setIsSafetyActionSubmitting(true);
+    try {
+      await blockUser(userId);
+      alert('사용자를 차단했습니다.');
+      onClose();
+    } catch (error: any) {
+      alert(error.message || '사용자 차단에 실패했습니다.');
+    } finally {
+      setIsSafetyActionSubmitting(false);
+    }
+  };
+
+  const extractTradeRequests = (response: any): TradeRequestSummary[] => {
+    const rawRequests =
+      response.tradeRequests ||
+      response.requests ||
+      response.data?.tradeRequests ||
+      response.data?.requests ||
+      response.data ||
+      response;
+
+    if (!Array.isArray(rawRequests)) return [];
+
+    return rawRequests.map((request: any) => ({
+      requestId: Number(request.requestId ?? request.id ?? request.tradeRequestId),
+      postId: Number(request.postId ?? request.post?.id),
+      status: request.status ?? 'PENDING',
+    }));
+  };
+
+  const checkMyTradeRequest = async () => {
+    try {
+      const response = await apiRequest(API_ENDPOINTS.mypageTradeRequests, { method: 'GET' });
+      const existingRequest = extractTradeRequests(response)
+        .filter((request) => request.postId === postId && request.status !== 'REJECTED')
+        .sort((a, b) => b.requestId - a.requestId)[0];
+
+      setTradeRequestStatus(existingRequest?.status || null);
+    } catch (error) {
+      console.warn('내 거래 요청 상태 조회에 실패했습니다.', error);
+      setTradeRequestStatus(null);
+    }
+  };
+
   const handleTradeRequest = async () => {
-    const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+    if (!post) return;
+
+    const userInfo = getCurrentUser();
 
     if (!userInfo.nickname) {
       alert('로그인이 필요합니다.');
+      return;
+    }
+
+    const currentUserId = getUserId(userInfo);
+    const currentUserNickname = getUserNickname(userInfo);
+    const postAuthor = getPostAuthor(post);
+    const postAuthorId = getPostAuthorId(post);
+    const isMyPost =
+      Boolean(post.isMine || post.mine || post.owner || post.editable) ||
+      (postAuthorId != null && currentUserId != null && postAuthorId === currentUserId) ||
+      (!!currentUserNickname && postAuthor === currentUserNickname);
+
+    if (isMyPost) {
+      alert('본인 게시글에는 거래 요청할 수 없습니다.');
+      return;
+    }
+
+    if (tradeRequestStatus) {
+      alert('이미 이 게시글에 거래 요청을 보냈습니다.');
       return;
     }
 
@@ -421,11 +561,34 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
     if (!confirm(`${typeLabel} 요청을 보내시겠습니까?`)) return;
 
+    setIsTradeRequestSubmitting(true);
     try {
       await apiRequest(API_ENDPOINTS.createTradeRequest(postId), { method: 'POST' });
+      setTradeRequestStatus('PENDING');
       alert(`${typeLabel} 요청이 전송되었습니다.\n게시글 작성자가 확인 후 연락드릴 예정입니다.`);
     } catch (error: any) {
+      if (error.message === '이미 이 게시글에 거래 요청을 보냈습니다.') {
+        setTradeRequestStatus('PENDING');
+      }
       alert(error.message || `${typeLabel} 요청에 실패했습니다.`);
+    } finally {
+      setIsTradeRequestSubmitting(false);
+    }
+  };
+
+  const getTradeButtonLabel = () => {
+    if (isTradeRequestSubmitting) return '요청 중';
+    switch (tradeRequestStatus) {
+      case 'PENDING':
+        return '요청 완료';
+      case 'ACCEPTED':
+        return '거래 수락됨';
+      case 'COMPLETED':
+        return '거래 완료됨';
+      default:
+        if (post?.postType === 'SHARE') return '나눔 요청하기';
+        if (post?.postType === 'SALE') return '구매 요청하기';
+        return '공동구매 참여하기';
     }
   };
 
@@ -454,13 +617,15 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   const currentUserId = getUserId(currentUser);
   const currentUserNickname = getUserNickname(currentUser);
   const postAuthor = getPostAuthor(post);
-  const postAuthorId = getUserId(post.user || post.author || post.writer || post.member) ??
-    getUserId({ id: post.authorId ?? (post as any).userId ?? (post as any).writerId ?? (post as any).memberId });
+  const postAuthorId = getPostAuthorId(post);
   const isMyPost =
     Boolean((post as any).isMine || (post as any).mine || (post as any).owner || (post as any).editable) ||
     (postAuthorId != null && currentUserId != null && postAuthorId === currentUserId) ||
     (!!currentUserNickname && postAuthor === currentUserNickname);
   const postRating = getRatingValue(post, isMyPost ? getCurrentUserRating() : 0);
+  const postFreshness = getFreshnessPercent(post);
+  const postFreshnessIcon = getFreshnessIcon(post);
+  const postFreshnessLabel = getFreshnessLabel(post);
   const postLocation = getPostLocation(post);
   const postAuthorImage = getProfileImage(post) || (isMyPost ? getProfileImage(currentUser) : '');
 
@@ -474,9 +639,21 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
         <h1 className="text-lg text-[#2d3748]" style={{ fontWeight: 600 }}>
           게시글
         </h1>
-        <button onClick={handleToggleFavorite} className="text-[#2d3748]">
-          <Heart size={24} fill={isFavorite ? '#e53e3e' : 'none'} className={isFavorite ? 'text-[#e53e3e]' : ''} />
-        </button>
+        <div className="flex items-center gap-2">
+          {!isMyPost && (
+            <button
+              onClick={() => handleCreateReport('POST', post.id, '게시글')}
+              className="text-[#718096] hover:text-[#e53e3e] p-1"
+              disabled={isSafetyActionSubmitting}
+              title="게시글 신고"
+            >
+              <Flag size={20} />
+            </button>
+          )}
+          <button onClick={handleToggleFavorite} className="text-[#2d3748]">
+            <Heart size={24} fill={isFavorite ? '#e53e3e' : 'none'} className={isFavorite ? 'text-[#e53e3e]' : ''} />
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -504,7 +681,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
           </h2>
 
           <div className="flex items-center gap-4 mb-4">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
               <div className="w-8 h-8 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden">
                 {postAuthorImage ? (
                   <BackendImage
@@ -521,13 +698,25 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
                   {postAuthor}
                 </span>
                 <div className="flex items-center gap-1 bg-[#dcfce7] px-2 py-0.5 rounded-full">
-                  <Leaf size={12} className="text-[#16a34a] fill-[#16a34a]" />
+                  <span className="text-xs">{postFreshnessIcon}</span>
                   <span className="text-xs text-[#16a34a]" style={{ fontWeight: 600 }}>
-                    {formatFreshness(postRating)}
+                    신선도 {Math.round(postFreshness)}%
                   </span>
                 </div>
+                <span className="text-xs text-[#718096]">{postFreshnessLabel}</span>
               </div>
             </div>
+            {!isMyPost && (
+              <button
+                onClick={() => handleBlockUser(postAuthorId, postAuthor)}
+                disabled={isSafetyActionSubmitting}
+                className="flex items-center gap-1 rounded-full border border-[#fee2e2] px-3 py-1.5 text-xs text-[#dc2626] hover:bg-[#fef2f2] disabled:opacity-50"
+                style={{ fontWeight: 600 }}
+              >
+                <Ban size={14} />
+                차단
+              </button>
+            )}
           </div>
 
           <div className="space-y-2 mb-4">
@@ -624,8 +813,20 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
                         <span className="text-xs text-[#a0aec0]">
                           {formatKoreanDate(comment.createdAt)}
                         </span>
-                        {isMyComment && !isEditing && (
+                        {!isEditing && (
                           <div className="ml-auto relative">
+                            {!isMyComment && (
+                              <button
+                                onClick={() => handleCreateReport('COMMENT', comment.id, '댓글')}
+                                className="flex items-center gap-1 text-xs text-[#718096] hover:text-[#e53e3e] px-2 py-1"
+                                disabled={isSafetyActionSubmitting}
+                              >
+                                <Flag size={14} />
+                                신고
+                              </button>
+                            )}
+                            {isMyComment && (
+                              <>
                             <button
                               onClick={() => setShowMenuForComment(showMenuForComment === comment.id ? null : comment.id)}
                               className="text-[#718096] hover:text-[#2d3748] p-1"
@@ -649,6 +850,8 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
                                   삭제
                                 </button>
                               </div>
+                            )}
+                              </>
                             )}
                           </div>
                         )}
@@ -717,17 +920,24 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
         </div>
       </div>
 
-      {/* Bottom Action Button */}
       <div className="bg-white border-t border-[#e2e8f0] px-5 py-4">
-        <button
-          onClick={handleTradeRequest}
-          className="w-full bg-[#bef264] text-[#0a0a0a] py-4 rounded-2xl hover:bg-[#a3e635] transition-colors shadow-sm"
-          style={{ fontWeight: 600 }}
-        >
-          {post.postType === 'SHARE' && '나눔 요청하기'}
-          {post.postType === 'SALE' && '구매 요청하기'}
-          {post.postType === 'GROUP_BUY' && '공동구매 참여하기'}
-        </button>
+        {isMyPost ? (
+          <div
+            className="w-full bg-[#f1f5f9] text-[#718096] py-4 rounded-2xl text-center"
+            style={{ fontWeight: 600 }}
+          >
+            내 게시글입니다
+          </div>
+        ) : (
+          <button
+            onClick={handleTradeRequest}
+            disabled={Boolean(tradeRequestStatus) || isTradeRequestSubmitting}
+            className="w-full bg-[#bef264] text-[#0a0a0a] py-4 rounded-2xl hover:bg-[#a3e635] disabled:bg-[#e2e8f0] disabled:text-[#718096] disabled:cursor-not-allowed transition-colors shadow-sm"
+            style={{ fontWeight: 600 }}
+          >
+            {getTradeButtonLabel()}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -7,8 +7,7 @@ const APP_SHELL = [
   '/index.html',
   '/manifest.webmanifest',
   '/assets/food-placeholder.png',
-  '/assets/pwa-icon-192.png',
-  '/assets/pwa-icon-512.png',
+  '/assets/app-icon.svg',
 ];
 
 self.addEventListener('install', (event) => {
@@ -36,6 +35,15 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  if (
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/@vite') ||
+    url.pathname.startsWith('/@react-refresh') ||
+    url.pathname.startsWith('/node_modules/')
+  ) {
     return;
   }
 
@@ -85,8 +93,8 @@ messaging.onBackgroundMessage((payload) => {
   const title = payload.notification?.title || 'FoodShare';
   const options = {
     body: payload.notification?.body || '',
-    icon: '/assets/pwa-icon-192.png',
-    badge: '/assets/pwa-icon-192.png',
+    icon: '/assets/app-icon.svg',
+    badge: '/assets/app-icon.svg',
   };
 
   self.registration.showNotification(title, options);

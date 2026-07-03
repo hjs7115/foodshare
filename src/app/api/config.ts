@@ -2,37 +2,13 @@
 // .env에 VITE_API_BASE_URL을 설정하면 그 주소를 우선 사용합니다.
 // 예) VITE_API_BASE_URL=http://localhost:8080
 // 예) VITE_API_BASE_URL=https://your-ngrok-url.ngrok-free.app
+import { getAuthToken } from '../auth/session';
+
 const DEFAULT_API_BASE_URL = "https://enticing-feel-fresh.ngrok-free.dev";
 
 export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL
 ).replace(/\/+$/, '');
-
-function normalizeAuthToken(token: string | null): string | null {
-  if (!token) return null;
-
-  let normalized = token.trim();
-  while (normalized.toLowerCase().startsWith('bearer ')) {
-    normalized = normalized.slice('bearer '.length).trim();
-  }
-
-  if (
-    (normalized.startsWith('"') && normalized.endsWith('"')) ||
-    (normalized.startsWith("'") && normalized.endsWith("'"))
-  ) {
-    normalized = normalized.slice(1, -1).trim();
-  }
-
-  return normalized || null;
-}
-
-function getAuthToken(): string | null {
-  const token = normalizeAuthToken(localStorage.getItem('authToken'));
-  if (token) {
-    localStorage.setItem('authToken', token);
-  }
-  return token;
-}
 
 export function resolveImageUrl(value?: string | null): string {
   if (!value) return '/assets/food-placeholder.png';
@@ -61,6 +37,8 @@ export const API_ENDPOINTS = {
   // ========== 이메일 인증 ==========
   sendEmailCode: `${API_BASE_URL}/api/auth/email-verifications`,
   verifyEmailCode: `${API_BASE_URL}/api/auth/email-verifications/verify`,
+  sendPhoneCode: `${API_BASE_URL}/api/auth/phone-verifications`,
+  verifyPhoneCode: `${API_BASE_URL}/api/auth/phone-verifications/verify`,
 
   // ========== 중복 확인 ==========
   checkNickname: `${API_BASE_URL}/api/auth/nickname/check`,
@@ -70,6 +48,7 @@ export const API_ENDPOINTS = {
   // ========== 아이디 / 비밀번호 찾기 ==========
   findEmail: `${API_BASE_URL}/api/auth/find-email`,
   findId: `${API_BASE_URL}/api/auth/find-id`,
+  verifyFindId: `${API_BASE_URL}/api/auth/find-id/verify`,
   sendPasswordResetLink: `${API_BASE_URL}/api/auth/password-reset-link`,
   resetPassword: `${API_BASE_URL}/api/auth/reset-password`,
 
@@ -92,6 +71,7 @@ export const API_ENDPOINTS = {
   getTradeRequests: (postId: number) => `${API_BASE_URL}/api/posts/${postId}/trade-requests`,
   acceptTradeRequest: (tradeRequestId: number) => `${API_BASE_URL}/api/trade-requests/${tradeRequestId}/accept`,
   rejectTradeRequest: (tradeRequestId: number) => `${API_BASE_URL}/api/trade-requests/${tradeRequestId}/reject`,
+  completeTradeRequest: (tradeRequestId: number) => `${API_BASE_URL}/api/trade-requests/${tradeRequestId}/complete`,
 
   // ========== 마이페이지 ==========
   mypage: `${API_BASE_URL}/api/mypage`,
@@ -113,6 +93,13 @@ export const API_ENDPOINTS = {
   notifications: `${API_BASE_URL}/api/notifications`,
   readNotification: (notificationId: number) => `${API_BASE_URL}/api/notifications/${notificationId}/read`,
   registerFcmToken: `${API_BASE_URL}/api/notifications/fcm-token`,
+  unreadNotificationCount: `${API_BASE_URL}/api/notifications/unread-count`,
+
+  // ========== 냉장고 ==========
+  fridgeItems: `${API_BASE_URL}/api/fridge/items`,
+  createFridgeItem: `${API_BASE_URL}/api/fridge/items`,
+  updateFridgeItem: (itemId: number) => `${API_BASE_URL}/api/fridge/items/${itemId}`,
+  deleteFridgeItem: (itemId: number) => `${API_BASE_URL}/api/fridge/items/${itemId}`,
 
   // ========== 관심 목록 ==========
   favorites: `${API_BASE_URL}/api/mypage/favorites`,
@@ -121,13 +108,17 @@ export const API_ENDPOINTS = {
   favoriteStatus: (postId: number) => `${API_BASE_URL}/api/posts/${postId}/favorites/status`,
 
   // ========== 이미지 업로드 ==========
+  createReport: `${API_BASE_URL}/api/reports`,
+  blockUser: (userId: number) => `${API_BASE_URL}/api/users/${userId}/block`,
+  unblockUser: (userId: number) => `${API_BASE_URL}/api/users/${userId}/block`,
+  blockedUsers: `${API_BASE_URL}/api/mypage/blocked-users`,
   uploadImage: `${API_BASE_URL}/api/uploads/images`,
   uploadImages: `${API_BASE_URL}/api/uploads/images`,
 };
 
 // 게시글 필터링 파라미터 타입
 export type PostType = 'SHARE' | 'SALE' | 'GROUP_BUY';
-export type SortType = 'LATEST' | 'EXPIRING_SOON' | 'DISTANCE';
+export type SortType = 'LATEST' | 'EXPIRING_SOON' | 'FRESHNESS' | 'DISTANCE' | 'PRICE_LOW' | 'latest' | 'expiry' | 'rating' | 'distance' | 'price';
 
 export interface PostQueryParams {
   postType?: PostType;
@@ -160,16 +151,47 @@ function isPublicAuthEndpoint(url: string): boolean {
     '/api/auth/login',
     '/api/auth/email-verifications',
     '/api/auth/email-verifications/verify',
+    '/api/auth/phone-verifications',
+    '/api/auth/phone-verifications/verify',
     '/api/auth/nickname/check',
     '/api/auth/email/check',
     '/api/auth/phone/check',
     '/api/auth/find-email',
     '/api/auth/find-id',
+    '/api/auth/find-id/verify',
     '/api/auth/password-reset-link',
     '/api/auth/reset-password',
   ];
 
   return publicAuthPaths.some((path) => url.startsWith(`${API_BASE_URL}${path}`));
+}
+
+function translateApiErrorMessage(message: string): string {
+  const translations: Record<string, string> = {
+    'You cannot request your own post.': '본인 게시글에는 거래 요청할 수 없습니다.',
+    'You already requested this post.': '이미 이 게시글에 거래 요청을 보냈습니다.',
+    'Post is closed.': '이미 마감된 게시글입니다.',
+    'Only pending requests can be accepted.': '대기 중인 요청만 수락할 수 있습니다.',
+    'Only pending requests can be rejected.': '대기 중인 요청만 거절할 수 있습니다.',
+    'Only accepted requests can be completed.': '수락된 거래만 완료 처리할 수 있습니다.',
+    'Only trade participants can complete this request.': '거래 참여자만 완료 처리할 수 있습니다.',
+  };
+
+  return translations[message] || message;
+}
+
+async function readJsonSafely(response: Response): Promise<any> {
+  const text = await response.text();
+  if (!text.trim()) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (!response.ok) {
+      return { message: text };
+    }
+    throw new Error('서버 응답을 해석하지 못했습니다.');
+  }
 }
 
 // 백엔드 서버 연결 테스트
@@ -265,12 +287,12 @@ export async function apiRequest(
       throw new Error('서버가 올바른 형식(JSON)으로 응답하지 않았습니다.');
     }
 
-    const data = await response.json();
+    const data = await readJsonSafely(response);
     console.log(`✅ 응답 데이터:`, data);
 
     if (!response.ok) {
       const errorMessage = data.message || data.error || `요청 실패 (${response.status})`;
-      throw new Error(errorMessage);
+      throw new Error(translateApiErrorMessage(errorMessage));
     }
 
     return data;
@@ -300,6 +322,14 @@ export async function apiRequest(
         `API 요청 실패 (${url})\n\n` +
         `서버는 실행 중이지만 이 API에 접근할 수 없습니다.\n` +
         `CORS 설정을 확인해주세요.`
+      );
+    }
+
+    if (error.message.includes('403 Forbidden')) {
+      throw new Error(
+        token
+          ? `요청 권한이 없거나 로그인 세션이 만료되었습니다. 다시 로그인한 뒤 시도해주세요. (403)`
+          : `로그인이 필요한 요청입니다. 다시 로그인해주세요. (403)`
       );
     }
 
@@ -341,16 +371,62 @@ export async function uploadImage(file: File): Promise<string> {
       credentials: 'omit',
     });
 
-    const data = await response.json();
+    const data = await readJsonSafely(response);
 
     if (!response.ok) {
-      throw new Error(data.message || '이미지 업로드에 실패했습니다.');
+      throw new Error(translateApiErrorMessage(data.message || data.error || '이미지 업로드에 실패했습니다.'));
     }
 
     // 백엔드가 이미지 URL을 반환한다고 가정
-    return data.imageUrl || data.url || data.data?.imageUrl || data.data?.url;
+    return data.imageUrl || data.url || data.data?.imageUrl || data.data?.url || '';
   } catch (error: any) {
     console.error('이미지 업로드 에러:', error);
     throw error;
   }
+}
+
+export type ReportTargetType = 'POST' | 'COMMENT' | 'USER';
+
+export interface CreateReportPayload {
+  targetType: ReportTargetType;
+  targetId: number;
+  reason: string;
+}
+
+export async function createReport(payload: CreateReportPayload): Promise<any> {
+  return apiRequest(API_ENDPOINTS.createReport, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function blockUser(userId: number): Promise<any> {
+  return apiRequest(API_ENDPOINTS.blockUser(userId), {
+    method: 'POST',
+  });
+}
+
+export async function unblockUser(userId: number): Promise<any> {
+  return apiRequest(API_ENDPOINTS.unblockUser(userId), {
+    method: 'DELETE',
+  });
+}
+
+export async function getBlockedUsers(): Promise<any> {
+  return apiRequest(API_ENDPOINTS.blockedUsers, {
+    method: 'GET',
+  });
+}
+
+export async function getNotifications(page = 0, size = 20): Promise<any> {
+  const url = `${API_ENDPOINTS.notifications}?page=${page}&size=${size}`;
+  return apiRequest(url, {
+    method: 'GET',
+  });
+}
+
+export async function readNotification(notificationId: number): Promise<any> {
+  return apiRequest(API_ENDPOINTS.readNotification(notificationId), {
+    method: 'PATCH',
+  });
 }

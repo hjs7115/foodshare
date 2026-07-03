@@ -61,7 +61,7 @@ public class ModerationController {
         return ResponseEntity.ok(ApiResponse.ok("User unblocked.", null));
     }
 
-    @GetMapping({"/users/blocks", "/mypage/blocks"})
+    @GetMapping({"/users/blocks", "/mypage/blocks", "/mypage/blocked-users"})
     public ResponseEntity<ApiResponse<List<BlockedUserResponse>>> getBlockedUsers(@AuthenticationPrincipal AuthUser authUser) {
         return ResponseEntity.ok(ApiResponse.ok("Blocked users found.", moderationService.getBlockedUsers(authUser.userId())));
     }

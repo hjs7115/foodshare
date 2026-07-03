@@ -8,7 +8,6 @@ public record PhoneVerificationVerifyRequest(
         @NotBlank(message = "phoneNumber is required.")
         String phoneNumber,
 
-        @NotBlank(message = "code is required.")
         String code
 ) {
 }

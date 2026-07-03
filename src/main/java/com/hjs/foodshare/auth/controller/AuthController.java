@@ -8,9 +8,7 @@ import com.hjs.foodshare.auth.dto.EmailVerificationVerifyRequest;
 import com.hjs.foodshare.auth.dto.EmailVerificationVerifyResponse;
 import com.hjs.foodshare.auth.dto.FindEmailRequest;
 import com.hjs.foodshare.auth.dto.FindEmailResponse;
-import com.hjs.foodshare.auth.dto.FindIdResponse;
 import com.hjs.foodshare.auth.dto.FindIdRequest;
-import com.hjs.foodshare.auth.dto.FindIdVerifyRequest;
 import com.hjs.foodshare.auth.dto.LoginRequest;
 import com.hjs.foodshare.auth.dto.PasswordResetLinkRequest;
 import com.hjs.foodshare.auth.dto.PasswordResetLinkResponse;
@@ -80,13 +78,8 @@ public class AuthController {
     }
 
     @PostMapping("/find-id")
-    public ResponseEntity<ApiResponse<PasswordResetLinkResponse>> requestFindIdCode(@Valid @RequestBody FindIdRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("ID verification code sent.", authService.requestFindIdCode(request)));
-    }
-
-    @PostMapping("/find-id/verify")
-    public ResponseEntity<ApiResponse<FindIdResponse>> verifyFindIdCode(@Valid @RequestBody FindIdVerifyRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("ID found.", authService.verifyFindIdCode(request)));
+    public ResponseEntity<ApiResponse<FindEmailResponse>> findId(@Valid @RequestBody FindIdRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("ID found.", authService.findId(request)));
     }
 
     @GetMapping("/nickname/check")

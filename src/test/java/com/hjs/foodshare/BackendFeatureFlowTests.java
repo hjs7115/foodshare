@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hjs.foodshare.auth.dto.FindIdRequest;
-import com.hjs.foodshare.auth.dto.FindIdVerifyRequest;
 import com.hjs.foodshare.auth.dto.LoginRequest;
 import com.hjs.foodshare.auth.dto.PasswordResetLinkRequest;
 import com.hjs.foodshare.auth.dto.ResetPasswordRequest;
@@ -212,7 +211,7 @@ class BackendFeatureFlowTests {
     }
 
     @Test
-    void authUsesLoginIdAndRecoveryCodes() {
+    void authUsesEmailAndPasswordResetCodes() {
         User user = userRepository.save(User.create(
                 "Recover User",
                 "recover_id",
@@ -222,27 +221,22 @@ class BackendFeatureFlowTests {
                 "Seoul"
         ));
 
-        var loginResponse = authService.login(new LoginRequest("recover_id", "Password123!"));
+        var loginResponse = authService.login(new LoginRequest("recover@foodshare.test", "Password123!"));
         assertEquals(user.getId(), loginResponse.user().userId());
 
-        authService.requestFindIdCode(new FindIdRequest("Recover User", "recover@foodshare.test"));
-        String findIdCode = emailVerificationRepository.findFirstByEmailOrderByCreatedAtDesc("recover@foodshare.test")
-                .orElseThrow()
-                .getCode();
-        var findIdResponse = authService.verifyFindIdCode(new FindIdVerifyRequest(
+        var findIdResponse = authService.findId(new FindIdRequest(
                 "Recover User",
-                "recover@foodshare.test",
-                findIdCode
+                "recover@foodshare.test"
         ));
-        assertEquals("recover_id", findIdResponse.loginId());
+        assertEquals("recover@foodshare.test", findIdResponse.email());
 
-        authService.requestPasswordResetLink(new PasswordResetLinkRequest(null, "recover_id", "Recover User"));
+        authService.requestPasswordResetLink(new PasswordResetLinkRequest("recover@foodshare.test"));
         String resetCode = emailVerificationRepository.findFirstByEmailOrderByCreatedAtDesc("recover@foodshare.test")
                 .orElseThrow()
                 .getCode();
-        authService.resetPassword(new ResetPasswordRequest(null, "recover_id", "Recover User", resetCode, "NewPassword123!"));
+        authService.resetPassword(new ResetPasswordRequest("recover@foodshare.test", resetCode, "NewPassword123!"));
 
-        var resetLoginResponse = authService.login(new LoginRequest("recover_id", "NewPassword123!"));
+        var resetLoginResponse = authService.login(new LoginRequest("recover@foodshare.test", "NewPassword123!"));
         assertEquals(user.getId(), resetLoginResponse.user().userId());
     }
 

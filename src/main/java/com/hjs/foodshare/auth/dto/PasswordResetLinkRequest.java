@@ -1,15 +1,11 @@
 package com.hjs.foodshare.auth.dto;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
 
 public record PasswordResetLinkRequest(
+        @NotBlank(message = "email is required.")
         @Email(message = "email format is invalid.")
-        String email,
-
-        @JsonAlias({"loginId", "userId", "id"})
-        String nickname,
-
-        String name
+        String email
 ) {
 }

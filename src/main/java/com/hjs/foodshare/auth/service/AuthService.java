@@ -2,9 +2,7 @@ package com.hjs.foodshare.auth.service;
 
 import com.hjs.foodshare.auth.dto.AuthResponse;
 import com.hjs.foodshare.auth.dto.DuplicateCheckResponse;
-import com.hjs.foodshare.auth.dto.FindIdResponse;
 import com.hjs.foodshare.auth.dto.FindIdRequest;
-import com.hjs.foodshare.auth.dto.FindIdVerifyRequest;
 import com.hjs.foodshare.auth.dto.FindEmailRequest;
 import com.hjs.foodshare.auth.dto.FindEmailResponse;
 import com.hjs.foodshare.auth.dto.LoginRequest;
@@ -84,12 +82,11 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByNickname(request.loginIdValue())
-                .or(() -> userRepository.findByEmail(request.loginIdValue()))
-                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Login ID or password is invalid."));
+        User user = userRepository.findByEmail(request.email())
+                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Email or password is invalid."));
 
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Login ID or password is invalid.");
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Email or password is invalid.");
         }
 
         return createAuthResponse(user);
@@ -119,20 +116,11 @@ public class AuthService {
         return new FindEmailResponse(user.getEmail());
     }
 
-    public PasswordResetLinkResponse requestFindIdCode(FindIdRequest request) {
+    public FindEmailResponse findId(FindIdRequest request) {
         User user = userRepository.findByNameAndEmail(request.name(), request.email())
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
 
-        var response = emailVerificationService.sendAccountRecoveryCode(user.getEmail());
-        return new PasswordResetLinkResponse(response.email(), response.expiresInSeconds());
-    }
-
-    @Transactional
-    public FindIdResponse verifyFindIdCode(FindIdVerifyRequest request) {
-        User user = userRepository.findByNameAndEmail(request.name(), request.email())
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
-        emailVerificationService.consumePasswordResetCode(user.getEmail(), request.code());
-        return new FindIdResponse(user.getNickname());
+        return new FindEmailResponse(user.getEmail());
     }
 
     public DuplicateCheckResponse checkNickname(String nickname) {
@@ -173,15 +161,16 @@ public class AuthService {
     }
 
     public PasswordResetLinkResponse requestPasswordResetLink(PasswordResetLinkRequest request) {
-        User user = resolvePasswordResetUser(request);
-        var response = emailVerificationService.sendPasswordResetCode(user.getEmail());
+        var response = emailVerificationService.sendPasswordResetCode(request.email());
         return new PasswordResetLinkResponse(response.email(), response.expiresInSeconds());
     }
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
-        User user = resolvePasswordResetUser(request.email(), request.name(), request.nickname());
-        emailVerificationService.consumePasswordResetCode(user.getEmail(), request.code());
+        emailVerificationService.consumePasswordResetCode(request.email(), request.code());
+
+        User user = userRepository.findByEmail(request.email())
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
 
         user.changePassword(passwordEncoder.encode(request.newPassword()));
         refreshTokenRepository.deleteAllByUserId(user.getId());
@@ -197,22 +186,6 @@ public class AuthService {
         if (userRepository.existsByPhoneNumber(request.phoneNumber())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Phone number already exists.");
         }
-    }
-
-    private User resolvePasswordResetUser(PasswordResetLinkRequest request) {
-        return resolvePasswordResetUser(request.email(), request.name(), request.nickname());
-    }
-
-    private User resolvePasswordResetUser(String email, String name, String nickname) {
-        if (nickname != null && !nickname.isBlank() && name != null && !name.isBlank()) {
-            return userRepository.findByNameAndNickname(name.trim(), nickname.trim())
-                    .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
-        }
-        if (email != null && !email.isBlank()) {
-            return userRepository.findByEmail(email.trim())
-                    .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
-        }
-        throw new BusinessException(HttpStatus.BAD_REQUEST, "loginId and name are required.");
     }
 
     private AuthResponse createAuthResponse(User user) {

@@ -37,8 +37,6 @@ export const API_ENDPOINTS = {
   // ========== 이메일 인증 ==========
   sendEmailCode: `${API_BASE_URL}/api/auth/email-verifications`,
   verifyEmailCode: `${API_BASE_URL}/api/auth/email-verifications/verify`,
-  sendPhoneCode: `${API_BASE_URL}/api/auth/phone-verifications`,
-  verifyPhoneCode: `${API_BASE_URL}/api/auth/phone-verifications/verify`,
 
   // ========== 중복 확인 ==========
   checkNickname: `${API_BASE_URL}/api/auth/nickname/check`,
@@ -151,8 +149,6 @@ function isPublicAuthEndpoint(url: string): boolean {
     '/api/auth/login',
     '/api/auth/email-verifications',
     '/api/auth/email-verifications/verify',
-    '/api/auth/phone-verifications',
-    '/api/auth/phone-verifications/verify',
     '/api/auth/nickname/check',
     '/api/auth/email/check',
     '/api/auth/phone/check',

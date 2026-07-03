@@ -23,19 +23,13 @@ export default function SignupScreen({
   const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
-  const [phoneVerificationCode, setPhoneVerificationCode] = useState('');
-  const [phoneSmsUri, setPhoneSmsUri] = useState('');
-  const [phoneMessage, setPhoneMessage] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isCodeSent, setIsCodeSent] = useState(false);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
-  const [isPhoneCodeSent, setIsPhoneCodeSent] = useState(false);
-  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [timer, setTimer] = useState(0);
-  const [phoneTimer, setPhoneTimer] = useState(0);
 
   useEffect(() => {
     if (timer <= 0) return;
@@ -43,26 +37,10 @@ export default function SignupScreen({
     return () => window.clearInterval(interval);
   }, [timer]);
 
-  useEffect(() => {
-    if (phoneTimer <= 0) return;
-    const interval = window.setInterval(() => setPhoneTimer((prev) => prev - 1), 1000);
-    return () => window.clearInterval(interval);
-  }, [phoneTimer]);
-
   const handleLoginIdChange = (value: string) => {
     setLoginId(value);
     setIsLoginIdChecked(false);
     setLoginIdError('');
-  };
-
-  const handlePhoneChange = (value: string) => {
-    setPhone(value);
-    setIsPhoneCodeSent(false);
-    setIsPhoneVerified(false);
-    setPhoneVerificationCode('');
-    setPhoneSmsUri('');
-    setPhoneMessage('');
-    setPhoneTimer(0);
   };
 
   const handleCheckLoginId = async () => {
@@ -125,47 +103,6 @@ export default function SignupScreen({
     }
   };
 
-  const handleSendPhoneVerification = async () => {
-    if (phone.replace(/[^0-9]/g, '').length < 10) {
-      alert('전화번호를 정확히 입력해주세요.');
-      return;
-    }
-
-    try {
-      const response = await apiRequest(API_ENDPOINTS.sendPhoneCode, {
-        method: 'POST',
-        body: JSON.stringify({ phoneNumber: phone }),
-      });
-      const data = response.data ?? response;
-      setPhoneVerificationCode(data.code || '');
-      setPhoneSmsUri(data.smsUri || '');
-      setPhoneMessage(data.message || '');
-      setIsPhoneCodeSent(true);
-      setPhoneTimer(data.expiresInSeconds || 600);
-
-      if (data.smsUri) {
-        window.location.href = data.smsUri;
-      }
-      alert('문자 앱이 열리면 작성된 인증 문자를 그대로 전송한 뒤, 전송 완료 확인을 눌러주세요.');
-    } catch (error: any) {
-      alert(error.message || '휴대폰 인증 문자 생성에 실패했습니다.');
-    }
-  };
-
-  const handleVerifyPhone = async () => {
-    try {
-      await apiRequest(API_ENDPOINTS.verifyPhoneCode, {
-        method: 'POST',
-        body: JSON.stringify({ phoneNumber: phone, code: phoneVerificationCode }),
-      });
-      setIsPhoneVerified(true);
-      setPhoneTimer(0);
-      alert('휴대폰 인증이 완료되었습니다.');
-    } catch (error: any) {
-      alert(error.message || '아직 인증 문자가 확인되지 않았습니다. 잠시 후 다시 눌러주세요.');
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -175,10 +112,6 @@ export default function SignupScreen({
     }
     if (!isEmailVerified) {
       alert('이메일 인증을 완료해주세요.');
-      return;
-    }
-    if (!isPhoneVerified) {
-      alert('휴대폰 인증을 완료해주세요.');
       return;
     }
     if (password.length < 8) {
@@ -233,7 +166,7 @@ export default function SignupScreen({
       <div className="flex-1 flex flex-col justify-center max-w-md w-full mx-auto pb-8">
         <div className="text-center mb-10">
           <h1 className="text-4xl mb-3 text-[#2d3748]" style={{ fontWeight: 600 }}>회원가입</h1>
-          <p className="text-[#718096] text-base">이메일과 휴대폰 인증 후 FoodShare를 시작하세요</p>
+          <p className="text-[#718096] text-base">이메일 인증 후 FoodShare를 시작하세요</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -342,67 +275,16 @@ export default function SignupScreen({
 
           <div>
             <label htmlFor="phone" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>전화번호</label>
-            <div className="flex gap-2">
-              <input
-                id="phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                placeholder="01012345678"
-                className="flex-1 px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
-                required
-                disabled={isPhoneVerified}
-              />
-              <button
-                type="button"
-                onClick={handleSendPhoneVerification}
-                disabled={isPhoneVerified || phone.replace(/[^0-9]/g, '').length < 10}
-                className="px-4 py-3.5 rounded-2xl bg-white border border-[#e2e8f0] text-[#2d3748] hover:border-[#bef264] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                style={{ fontWeight: 500 }}
-              >
-                {isPhoneVerified ? '인증완료' : isPhoneCodeSent ? '문자 다시 열기' : '휴대폰 인증'}
-              </button>
-            </div>
+            <input
+              id="phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="01012345678"
+              className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
+              required
+            />
           </div>
-
-          {isPhoneCodeSent && !isPhoneVerified && (
-            <div className="space-y-3 px-4 py-3 rounded-2xl bg-[#f7fafc] border border-[#e2e8f0]">
-              <p className="text-sm text-[#2d3748]">
-                문자 앱에서 아래 인증 문구가 수신용 이메일로 전송되면 서버가 발신 번호를 확인합니다.
-                {phoneTimer > 0 && <span className="text-[#e53e3e]"> ({formatTime(phoneTimer)})</span>}
-              </p>
-              {phoneMessage && (
-                <div className="text-sm text-[#4a5568] bg-white rounded-xl px-3 py-2 break-all">
-                  {phoneMessage}
-                </div>
-              )}
-              <div className="flex gap-2">
-                {phoneSmsUri && (
-                  <a
-                    href={phoneSmsUri}
-                    className="flex-1 text-center px-4 py-3 rounded-2xl bg-white border border-[#e2e8f0] text-[#2d3748] hover:border-[#bef264]"
-                    style={{ fontWeight: 500 }}
-                  >
-                    문자 앱 열기
-                  </a>
-                )}
-                <button
-                  type="button"
-                  onClick={handleVerifyPhone}
-                  className="flex-1 px-4 py-3 rounded-2xl bg-[#bef264] text-[#0a0a0a] hover:bg-[#a3e635]"
-                  style={{ fontWeight: 500 }}
-                >
-                  전송 완료 확인
-                </button>
-              </div>
-            </div>
-          )}
-
-          {isPhoneVerified && (
-            <div className="px-4 py-3 rounded-2xl bg-[#f0fff4] border border-[#bef264]">
-              <p className="text-sm text-[#0a0a0a]">휴대폰 인증이 완료되었습니다.</p>
-            </div>
-          )}
 
           <div>
             <label htmlFor="address" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>주소</label>

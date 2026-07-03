@@ -25,8 +25,11 @@ import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -40,10 +43,11 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailVerificationService emailVerificationService;
-    private final PhoneVerificationService phoneVerificationService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final SecureRandom secureRandom = new SecureRandom();
+    private final Map<String, VerificationCode> phoneVerificationCodes = new ConcurrentHashMap<>();
 
+    private static final Duration PHONE_CODE_TTL = Duration.ofMinutes(3);
     private static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(14);
 
     public AuthService(
@@ -51,14 +55,12 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider,
             EmailVerificationService emailVerificationService,
-            PhoneVerificationService phoneVerificationService,
             RefreshTokenRepository refreshTokenRepository
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.emailVerificationService = emailVerificationService;
-        this.phoneVerificationService = phoneVerificationService;
         this.refreshTokenRepository = refreshTokenRepository;
     }
 
@@ -66,7 +68,6 @@ public class AuthService {
     public AuthResponse signup(SignupRequest request) {
         validateDuplicateUser(request);
         emailVerificationService.consumeVerifiedEmail(request.email());
-        phoneVerificationService.consumeVerifiedPhone(request.phoneNumber());
 
         User user = User.create(
                 request.name(),
@@ -147,11 +148,28 @@ public class AuthService {
     }
 
     public PhoneVerificationSendResponse sendPhoneVerificationCode(PhoneVerificationSendRequest request) {
-        return phoneVerificationService.start(request);
+        String code = "%06d".formatted(secureRandom.nextInt(1_000_000));
+        phoneVerificationCodes.put(request.phoneNumber(), new VerificationCode(code, Instant.now().plus(PHONE_CODE_TTL)));
+
+        return new PhoneVerificationSendResponse(
+                request.phoneNumber(),
+                (int) PHONE_CODE_TTL.toSeconds(),
+                code
+        );
     }
 
     public PhoneVerificationVerifyResponse verifyPhoneCode(PhoneVerificationVerifyRequest request) {
-        return phoneVerificationService.verify(request);
+        VerificationCode verificationCode = phoneVerificationCodes.get(request.phoneNumber());
+        if (verificationCode == null || verificationCode.expiresAt().isBefore(Instant.now())) {
+            phoneVerificationCodes.remove(request.phoneNumber());
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is expired or not found.");
+        }
+        if (!verificationCode.code().equals(request.code())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is invalid.");
+        }
+
+        phoneVerificationCodes.remove(request.phoneNumber());
+        return new PhoneVerificationVerifyResponse(request.phoneNumber(), true);
     }
 
     public PasswordResetLinkResponse requestPasswordResetLink(PasswordResetLinkRequest request) {
@@ -211,5 +229,8 @@ public class AuthService {
         byte[] bytes = new byte[48];
         secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private record VerificationCode(String code, Instant expiresAt) {
     }
 }

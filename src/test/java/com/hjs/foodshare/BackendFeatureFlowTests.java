@@ -4,19 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.when;
 
 import com.hjs.foodshare.auth.dto.FindIdRequest;
 import com.hjs.foodshare.auth.dto.FindIdVerifyRequest;
 import com.hjs.foodshare.auth.dto.LoginRequest;
 import com.hjs.foodshare.auth.dto.PasswordResetLinkRequest;
-import com.hjs.foodshare.auth.dto.PhoneVerificationSendRequest;
-import com.hjs.foodshare.auth.dto.PhoneVerificationVerifyRequest;
 import com.hjs.foodshare.auth.dto.ResetPasswordRequest;
 import com.hjs.foodshare.auth.repository.EmailVerificationRepository;
 import com.hjs.foodshare.auth.service.AuthService;
 import com.hjs.foodshare.auth.service.MailService;
-import com.hjs.foodshare.auth.service.SmsEmailInboxVerifier;
 import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.fridge.dto.FridgeItemRequest;
 import com.hjs.foodshare.fridge.repository.FridgeItemRepository;
@@ -36,7 +32,6 @@ import com.hjs.foodshare.trade.service.TradeRequestService;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.time.LocalDate;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -90,9 +85,6 @@ class BackendFeatureFlowTests {
 
     @MockitoBean
     private MailService mailService;
-
-    @MockitoBean
-    private SmsEmailInboxVerifier smsEmailInboxVerifier;
 
     @Test
     void groupBuyAcceptIncreasesParticipantCountAndClosesWhenFull() {
@@ -252,33 +244,6 @@ class BackendFeatureFlowTests {
 
         var resetLoginResponse = authService.login(new LoginRequest("recover_id", "NewPassword123!"));
         assertEquals(user.getId(), resetLoginResponse.user().userId());
-    }
-
-    @Test
-    void phoneVerificationRequiresSmsEmailSenderMatchAndIsConsumedOnSignup() {
-        var sent = authService.sendPhoneVerificationCode(new PhoneVerificationSendRequest("010-1111-2222"));
-        when(smsEmailInboxVerifier.findSenderPhoneByCode(sent.code()))
-                .thenReturn(Optional.of("01011112222"));
-
-        var verified = authService.verifyPhoneCode(new PhoneVerificationVerifyRequest("010-1111-2222", sent.code()));
-        assertTrue(verified.verified());
-
-        emailVerificationRepository.save(com.hjs.foodshare.auth.domain.EmailVerification.create(
-                "phone-signup@foodshare.test",
-                "123456",
-                java.time.LocalDateTime.now().plusMinutes(10)
-        )).verify();
-
-        var response = authService.signup(new com.hjs.foodshare.auth.dto.SignupRequest(
-                "Phone Signup",
-                "phone_signup",
-                "phone-signup@foodshare.test",
-                "Password123!",
-                "010-1111-2222",
-                "Seoul"
-        ));
-
-        assertEquals("phone_signup", response.user().nickname());
     }
 
     @Test

@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import com.hjs.foodshare.global.exception.BusinessException;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,8 +33,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
 
         try {
-            if (authorization != null && authorization.startsWith(BEARER_PREFIX)) {
-                String token = authorization.substring(BEARER_PREFIX.length());
+            String token = extractBearerToken(authorization);
+            if (token != null) {
                 AuthUser authUser = jwtTokenProvider.parseAuthUser(token);
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         authUser,
@@ -52,5 +53,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private String extractBearerToken(String authorization) {
+        if (authorization == null || authorization.isBlank()) {
+            return null;
+        }
+
+        String token = authorization.trim();
+        while (token.toLowerCase(Locale.ROOT).startsWith(BEARER_PREFIX.toLowerCase(Locale.ROOT))) {
+            token = token.substring(BEARER_PREFIX.length()).trim();
+        }
+
+        if ((token.startsWith("\"") && token.endsWith("\"")) || (token.startsWith("'") && token.endsWith("'"))) {
+            token = token.substring(1, token.length() - 1).trim();
+        }
+
+        return token.isBlank() ? null : token;
     }
 }

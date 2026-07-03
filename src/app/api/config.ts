@@ -8,6 +8,32 @@ export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL
 ).replace(/\/+$/, '');
 
+function normalizeAuthToken(token: string | null): string | null {
+  if (!token) return null;
+
+  let normalized = token.trim();
+  while (normalized.toLowerCase().startsWith('bearer ')) {
+    normalized = normalized.slice('bearer '.length).trim();
+  }
+
+  if (
+    (normalized.startsWith('"') && normalized.endsWith('"')) ||
+    (normalized.startsWith("'") && normalized.endsWith("'"))
+  ) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+
+  return normalized || null;
+}
+
+function getAuthToken(): string | null {
+  const token = normalizeAuthToken(localStorage.getItem('authToken'));
+  if (token) {
+    localStorage.setItem('authToken', token);
+  }
+  return token;
+}
+
 export function resolveImageUrl(value?: string | null): string {
   if (!value) return '/assets/food-placeholder.png';
 
@@ -180,7 +206,7 @@ export async function apiRequest(
   url: string,
   options: RequestInit = {}
 ): Promise<any> {
-  const token = localStorage.getItem('authToken');
+  const token = getAuthToken();
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -294,7 +320,7 @@ export async function apiRequest(
 
 // 이미지 업로드 전용 헬퍼 (FormData 사용)
 export async function uploadImage(file: File): Promise<string> {
-  const token = localStorage.getItem('authToken');
+  const token = getAuthToken();
   const formData = new FormData();
   formData.append('image', file);
 

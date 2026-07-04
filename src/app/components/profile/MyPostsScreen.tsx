@@ -155,7 +155,7 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
         {filteredPosts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full px-5">
             <div className="w-20 h-20 rounded-full bg-[#e2e8f0] flex items-center justify-center mb-4">
-              <span className="text-4xl">?뱷</span>
+              <span className="text-4xl">📝</span>
             </div>
             <p className="text-[#718096] text-center mb-2" style={{ fontWeight: 500 }}>
               작성한 게시글이 없습니다

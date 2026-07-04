@@ -1,15 +1,27 @@
 package com.hjs.foodshare.trade.dto;
 
+import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.trade.domain.TradeRequest;
 import com.hjs.foodshare.trade.domain.TradeRequestStatus;
+import com.hjs.foodshare.user.domain.FreshnessGrade;
+import com.hjs.foodshare.user.domain.User;
 import java.time.LocalDateTime;
 
 public record TradeRequestResponse(
         Long requestId,
         Long postId,
         String postTitle,
+        PostType postType,
         Long requesterId,
         String requesterNickname,
+        String requesterProfileImage,
+        double requesterFreshness,
+        String requesterFreshnessLevel,
+        String requesterFreshnessIcon,
+        String requesterFreshnessLabel,
+        long requesterShareCompletedCount,
+        long requesterReceivedShareCount,
+        long requesterGroupBuyCount,
         TradeRequestStatus status,
         LocalDateTime createdAt,
         LocalDateTime respondedAt,
@@ -17,12 +29,33 @@ public record TradeRequestResponse(
 ) {
 
     public static TradeRequestResponse from(TradeRequest tradeRequest) {
+        return from(tradeRequest, 0, 0, 0);
+    }
+
+    public static TradeRequestResponse from(
+            TradeRequest tradeRequest,
+            long requesterShareCompletedCount,
+            long requesterReceivedShareCount,
+            long requesterGroupBuyCount
+    ) {
+        User requester = tradeRequest.getRequester();
+        double freshness = requester.getFreshnessScore();
+        FreshnessGrade freshnessGrade = FreshnessGrade.fromScore(freshness);
         return new TradeRequestResponse(
                 tradeRequest.getId(),
                 tradeRequest.getPost().getId(),
                 tradeRequest.getPost().getTitle(),
-                tradeRequest.getRequester().getId(),
-                tradeRequest.getRequester().getNickname(),
+                tradeRequest.getPost().getPostType(),
+                requester.getId(),
+                requester.getNickname(),
+                requester.getProfileImage(),
+                freshness,
+                freshnessGrade.name(),
+                freshnessGrade.getIcon(),
+                freshnessGrade.getLabel(),
+                requesterShareCompletedCount,
+                requesterReceivedShareCount,
+                requesterGroupBuyCount,
                 tradeRequest.getStatus(),
                 tradeRequest.getCreatedAt(),
                 tradeRequest.getRespondedAt(),

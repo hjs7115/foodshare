@@ -10,6 +10,9 @@ import com.hjs.foodshare.notification.dto.NotificationSettingsResponse;
 import com.hjs.foodshare.notification.dto.TestPushRequest;
 import com.hjs.foodshare.notification.dto.UnreadNotificationCountResponse;
 import com.hjs.foodshare.notification.repository.NotificationRepository;
+import com.hjs.foodshare.post.domain.PostType;
+import com.hjs.foodshare.trade.domain.TradeRequestStatus;
+import com.hjs.foodshare.trade.repository.TradeRequestRepository;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.util.List;
@@ -23,12 +26,14 @@ public class NotificationService {
 
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
+    private final TradeRequestRepository tradeRequestRepository;
     private final FcmPushService fcmPushService;
 
     public NotificationService(UserRepository userRepository, NotificationRepository notificationRepository,
-                               FcmPushService fcmPushService) {
+                               TradeRequestRepository tradeRequestRepository, FcmPushService fcmPushService) {
         this.userRepository = userRepository;
         this.notificationRepository = notificationRepository;
+        this.tradeRequestRepository = tradeRequestRepository;
         this.fcmPushService = fcmPushService;
     }
 
@@ -53,7 +58,7 @@ public class NotificationService {
         getUser(userId);
         return notificationRepository.findAllByUserIdOrderByCreatedAtDesc(userId)
                 .stream()
-                .map(NotificationResponse::from)
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -75,6 +80,23 @@ public class NotificationService {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Only the notification owner can read it.");
         }
         notification.markAsRead();
+    }
+
+    @Transactional
+    public void deleteNotification(Long userId, Long notificationId) {
+        getUser(userId);
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Notification not found."));
+        if (!notification.getUser().getId().equals(userId)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Only the notification owner can delete it.");
+        }
+        notificationRepository.delete(notification);
+    }
+
+    @Transactional
+    public void deleteReadNotifications(Long userId) {
+        getUser(userId);
+        notificationRepository.deleteAll(notificationRepository.findAllByUserIdAndReadTrue(userId));
     }
 
     @Transactional
@@ -117,6 +139,46 @@ public class NotificationService {
 
     private boolean valueOrCurrent(Boolean value, boolean current) {
         return value == null ? current : value;
+    }
+
+    private NotificationResponse toResponse(Notification notification) {
+        if (!"TRADE_REQUEST".equals(notification.getTargetType()) || notification.getTargetId() == null) {
+            return NotificationResponse.from(notification);
+        }
+
+        return tradeRequestRepository.findById(notification.getTargetId())
+                .map(tradeRequest -> NotificationResponse.from(
+                        notification,
+                        tradeRequest,
+                        countShareCompleted(tradeRequest.getRequester().getId()),
+                        countReceivedShare(tradeRequest.getRequester().getId()),
+                        countGroupBuyParticipation(tradeRequest.getRequester().getId())
+                ))
+                .orElseGet(() -> NotificationResponse.from(notification));
+    }
+
+    private long countShareCompleted(Long userId) {
+        return tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(
+                userId,
+                PostType.SHARE,
+                TradeRequestStatus.COMPLETED
+        );
+    }
+
+    private long countReceivedShare(Long userId) {
+        return tradeRequestRepository.countByRequesterIdAndPostTypeAndStatus(
+                userId,
+                PostType.SHARE,
+                TradeRequestStatus.COMPLETED
+        );
+    }
+
+    private long countGroupBuyParticipation(Long userId) {
+        return tradeRequestRepository.countByRequesterIdAndPostTypeAndStatus(
+                userId,
+                PostType.GROUP_BUY,
+                TradeRequestStatus.COMPLETED
+        );
     }
 
     private User getUser(Long userId) {

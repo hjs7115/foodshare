@@ -3,6 +3,7 @@ import { X, ChevronRight, Shield, Lock, Bell, Database, HelpCircle, FileText, Al
 import EditProfileScreen from './EditProfileScreen';
 import NotificationSettingsScreen from './NotificationSettingsScreen';
 import LocationSettingsScreen from './LocationSettingsScreen';
+import { clearAuthSession } from '../../auth/session';
 
 type SettingsView = 'main' | 'editProfile' | 'notifications' | 'location';
 
@@ -16,9 +17,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
       return;
     }
 
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('autoLogin');
-    localStorage.removeItem('userInfo');
+    clearAuthSession();
     localStorage.removeItem('userLocation');
     localStorage.removeItem('userLocationCoords');
     localStorage.removeItem('notificationSettings');

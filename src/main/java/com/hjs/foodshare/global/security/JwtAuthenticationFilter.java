@@ -21,6 +21,22 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final List<String> PUBLIC_AUTH_PATHS = List.of(
+            "/api/auth/signup",
+            "/api/auth/login",
+            "/api/auth/refresh",
+            "/api/auth/find-email",
+            "/api/auth/find-id",
+            "/api/auth/nickname/check",
+            "/api/auth/email/check",
+            "/api/auth/phone/check",
+            "/api/auth/email-verifications",
+            "/api/auth/email-verifications/verify",
+            "/api/auth/phone-verifications",
+            "/api/auth/phone-verifications/verify",
+            "/api/auth/password-reset-link",
+            "/api/auth/reset-password"
+    );
 
     private final JwtTokenProvider jwtTokenProvider;
 
@@ -57,6 +73,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
+        String path = request.getRequestURI();
+        return PUBLIC_AUTH_PATHS.stream().anyMatch(path::equals);
     }
 
     private String extractBearerToken(String authorization) {

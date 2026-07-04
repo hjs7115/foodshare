@@ -4,15 +4,19 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Home,
+  Bell,
+  Leaf,
   Package,
   Plus,
+  ShoppingCart,
   Snowflake,
   Trash2,
   User,
   X,
 } from 'lucide-react';
-import { apiRequest, API_ENDPOINTS } from '../../api/config';
+import CreatePostScreen from '../board/CreatePostScreen';
+import NotificationsScreen from '../common/NotificationsScreen';
+import { getNotifications } from '../../api/config';
 
 const FRIDGE_STORAGE_KEY = 'foodshareFridgeItems';
 
@@ -24,10 +28,6 @@ interface FridgeItem {
   storagePlace: string;
   memo: string;
   createdAt: string;
-  updatedAt?: string;
-  daysLeft?: number;
-  expired?: boolean;
-  expiringSoon?: boolean;
 }
 
 interface FridgeItemForm {
@@ -50,34 +50,46 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
   const [items, setItems] = useState<FridgeItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState('');
   const [showItemForm, setShowItemForm] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [editingItem, setEditingItem] = useState<FridgeItem | null>(null);
 
   useEffect(() => {
-    loadItems();
+    setItems(loadStoredFridgeItems());
+    loadUnreadNotifications();
   }, []);
 
-  const loadItems = async () => {
-    setIsLoading(true);
-    setErrorMessage('');
+  const getNotificationItems = (response: any): any[] => {
+    const candidates = [
+      response?.notifications,
+      response?.data?.notifications,
+      response?.data?.content,
+      response?.data?.items,
+      response?.content,
+      response?.items,
+      response?.data,
+      response,
+    ];
 
+    return candidates.find(Array.isArray) || [];
+  };
+
+  const isUnreadNotification = (notification: any) => !(
+    notification.isRead ||
+    notification.read ||
+    notification.readAt ||
+    notification.status === 'READ'
+  );
+
+  const loadUnreadNotifications = async () => {
     try {
-      const response = await apiRequest(API_ENDPOINTS.fridgeItems, { method: 'GET' });
-      const serverItems = unwrapItems(response);
-      setItems(sortItems(serverItems));
-
-      if (serverItems.length > 0) {
-        localStorage.removeItem(FRIDGE_STORAGE_KEY);
-      }
+      const response = await getNotifications(0, 10);
+      setHasUnreadNotifications(getNotificationItems(response).some(isUnreadNotification));
     } catch (error) {
-      console.warn('냉장고 목록 조회에 실패했습니다.', error);
-      const fallbackItems = loadStoredFridgeItems();
-      setItems(sortItems(fallbackItems));
-      setErrorMessage('서버 냉장고를 불러오지 못해 이 기기의 임시 기록을 표시합니다.');
-    } finally {
-      setIsLoading(false);
+      console.warn('읽지 않은 알림 조회에 실패했습니다.', error);
+      setHasUnreadNotifications(false);
     }
   };
 
@@ -106,6 +118,14 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
     month: 'long',
   });
 
+  const saveItems = (nextItems: FridgeItem[]) => {
+    const sortedItems = [...nextItems].sort(
+      (a, b) => parseDateKey(a.expiryDate).getTime() - parseDateKey(b.expiryDate).getTime()
+    );
+    setItems(sortedItems);
+    localStorage.setItem(FRIDGE_STORAGE_KEY, JSON.stringify(sortedItems));
+  };
+
   const openCreateForm = () => {
     setEditingItem(null);
     setShowItemForm(true);
@@ -116,7 +136,7 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
     setShowItemForm(true);
   };
 
-  const handleSaveItem = async (form: FridgeItemForm) => {
+  const handleSaveItem = (form: FridgeItemForm) => {
     const trimmedName = form.name.trim();
     const trimmedAmount = form.amount.trim();
 
@@ -125,56 +145,45 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
       return;
     }
 
-    const payload = {
-      name: trimmedName,
-      amount: trimmedAmount || '수량 미정',
-      expiryDate: form.expiryDate,
-      storagePlace: form.storagePlace || '냉장',
-      memo: form.memo.trim(),
-    };
-
-    try {
-      if (editingItem) {
-        const response = await apiRequest(API_ENDPOINTS.updateFridgeItem(editingItem.id), {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
-        const updatedItem = unwrapItem(response);
-        setItems((current) => sortItems(current.map((item) => item.id === editingItem.id ? updatedItem : item)));
-      } else {
-        const response = await apiRequest(API_ENDPOINTS.createFridgeItem, {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
-        const createdItem = unwrapItem(response);
-        setItems((current) => sortItems([...current, createdItem]));
-        setSelectedDate(parseDateKey(createdItem.expiryDate));
-        setCurrentMonth(parseDateKey(createdItem.expiryDate));
-      }
-
-      localStorage.removeItem(FRIDGE_STORAGE_KEY);
-      setShowItemForm(false);
-      setEditingItem(null);
-      setErrorMessage('');
-    } catch (error) {
-      console.error('냉장고 저장에 실패했습니다.', error);
-      alert('냉장고 저장에 실패했습니다. 로그인 상태와 서버 연결을 확인해주세요.');
+    if (editingItem) {
+      saveItems(items.map((item) => (
+        item.id === editingItem.id
+          ? {
+              ...item,
+              name: trimmedName,
+              amount: trimmedAmount || '수량 미정',
+              expiryDate: form.expiryDate,
+              storagePlace: form.storagePlace,
+              memo: form.memo.trim(),
+            }
+          : item
+      )));
+    } else {
+      saveItems([
+        ...items,
+        {
+          id: Date.now(),
+          name: trimmedName,
+          amount: trimmedAmount || '수량 미정',
+          expiryDate: form.expiryDate,
+          storagePlace: form.storagePlace,
+          memo: form.memo.trim(),
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      setSelectedDate(parseDateKey(form.expiryDate));
+      setCurrentMonth(parseDateKey(form.expiryDate));
     }
+
+    setShowItemForm(false);
+    setEditingItem(null);
   };
 
-  const handleDeleteItem = async (itemId: number) => {
+  const handleDeleteItem = (itemId: number) => {
     if (!confirm('이 식재료 기록을 삭제할까요?')) return;
-
-    try {
-      await apiRequest(API_ENDPOINTS.deleteFridgeItem(itemId), { method: 'DELETE' });
-      setItems((current) => current.filter((item) => item.id !== itemId));
-      setShowItemForm(false);
-      setEditingItem(null);
-      localStorage.removeItem(FRIDGE_STORAGE_KEY);
-    } catch (error) {
-      console.error('냉장고 삭제에 실패했습니다.', error);
-      alert('냉장고 삭제에 실패했습니다. 서버 연결을 확인해주세요.');
-    }
+    saveItems(items.filter((item) => item.id !== itemId));
+    setShowItemForm(false);
+    setEditingItem(null);
   };
 
   const moveMonth = (amount: number) => {
@@ -183,25 +192,27 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
 
   return (
     <div className="bg-[#f7fafc] size-full flex flex-col">
-      <div className="bg-white border-b border-[#e2e8f0] px-5 py-4 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-[#e0f2fe] to-[#0284c7] border-b-2 border-[#0284c7] px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#e0f2fe] flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]">
             <Snowflake size={22} className="text-[#0284c7]" />
           </div>
           <div>
             <h1 className="text-lg text-[#1a202c]" style={{ fontWeight: 800 }}>우리 냉장고</h1>
-            <p className="text-xs text-[#718096]">보유 식재료와 유통기한을 기록해요</p>
+            <p className="text-xs text-[#075985]">내 식재료와 유통기한을 기록해요</p>
           </div>
         </div>
+        <button onClick={() => setShowNotifications(true)} className="text-[#2d3748] relative" aria-label="알림 열기">
+          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-[#e2e8f0] hover:border-[#0284c7] transition-colors">
+            <Bell size={20} />
+          </div>
+          {hasUnreadNotifications && (
+            <div className="absolute top-0 right-0 w-2 h-2 bg-[#ef4444] rounded-full border-2 border-white" />
+          )}
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 pb-28">
-        {errorMessage && (
-          <div className="mb-4 rounded-2xl border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-xs text-[#92400e]">
-            {errorMessage}
-          </div>
-        )}
-
         <div className="mb-4 rounded-2xl border border-[#bae6fd] bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <button
@@ -281,11 +292,7 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
             <span className="text-xs text-[#718096]">{selectedItems.length}개</span>
           </div>
 
-          {isLoading ? (
-            <div className="rounded-2xl bg-white p-8 text-center text-sm text-[#718096]">
-              냉장고를 불러오는 중입니다.
-            </div>
-          ) : selectedItems.length === 0 ? (
+          {selectedItems.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[#cbd5e0] bg-white p-8 text-center">
               <Package size={32} className="mx-auto mb-3 text-[#94a3b8]" />
               <p className="text-sm text-[#2d3748]" style={{ fontWeight: 700 }}>이 날짜에는 식재료가 없어요</p>
@@ -325,10 +332,14 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
         <span className="text-sm" style={{ fontWeight: 800 }}>추가</span>
       </button>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-12 py-4 flex items-center justify-between z-40">
-        <button onClick={() => onNavigate('board')} className="flex flex-col items-center gap-1">
-          <Home size={24} className="text-[#2d3748]" />
-          <span className="text-xs text-[#2d3748]">홈</span>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-5 py-4 grid grid-cols-4 z-40">
+        <button onClick={() => onNavigate('나눔 및 판매')} className="flex flex-col items-center gap-1">
+          <Leaf size={24} className="text-[#bef264]" />
+          <span className="text-xs text-[#bef264]">나눔/판매</span>
+        </button>
+        <button onClick={() => onNavigate('공동구매')} className="flex flex-col items-center gap-1">
+          <ShoppingCart size={24} className="text-[#fbbf24]" />
+          <span className="text-xs text-[#fbbf24]">공동구매</span>
         </button>
         <button className="flex flex-col items-center gap-1">
           <Snowflake size={24} className="text-[#0284c7]" />
@@ -349,6 +360,24 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
           }}
           onSave={handleSaveItem}
           onDelete={editingItem ? () => handleDeleteItem(editingItem.id) : undefined}
+        />
+      )}
+
+      {showCreatePost && (
+        <CreatePostScreen
+          currentBoard="나눔 및 판매"
+          onClose={() => setShowCreatePost(false)}
+          onCreatePost={() => setShowCreatePost(false)}
+        />
+      )}
+
+      {showNotifications && (
+        <NotificationsScreen
+          onClose={() => {
+            setShowNotifications(false);
+            loadUnreadNotifications();
+          }}
+          onOpenTradeHistory={() => onNavigate('tradeHistory')}
         />
       )}
     </div>
@@ -489,7 +518,7 @@ function FridgeItemFormScreen({
               id="fridge-memo"
               value={form.memo}
               onChange={(event) => updateForm('memo', event.target.value)}
-              placeholder="구매처, 상태, 빨리 먹어야 하는 이유 등을 적어보세요"
+              placeholder="구매처, 상태, 빨리 먹어야 할 이유 등을 적어두세요"
               className="min-h-[130px] w-full resize-none rounded-2xl border-2 border-[#e2e8f0] bg-white px-4 py-3 text-[#1a202c] outline-none focus:border-[#7dd3fc]"
             />
           </div>
@@ -558,49 +587,12 @@ function FridgeItemRow({ item, onClick, compact = false }: { item: FridgeItem; o
   );
 }
 
-function unwrapItems(response: any): FridgeItem[] {
-  const data = response?.data ?? response;
-  if (Array.isArray(data)) return data.map(normalizeItem).filter(Boolean) as FridgeItem[];
-  if (Array.isArray(data?.items)) return data.items.map(normalizeItem).filter(Boolean) as FridgeItem[];
-  return [];
-}
-
-function unwrapItem(response: any): FridgeItem {
-  const item = normalizeItem(response?.data ?? response);
-  if (!item) throw new Error('냉장고 응답을 해석할 수 없습니다.');
-  return item;
-}
-
-function normalizeItem(item: any): FridgeItem | null {
-  if (!item?.name || !item?.expiryDate) return null;
-  return {
-    id: Number(item.id),
-    name: String(item.name),
-    amount: item.amount || '수량 미정',
-    expiryDate: String(item.expiryDate).slice(0, 10),
-    storagePlace: item.storagePlace || '냉장',
-    memo: item.memo || '',
-    createdAt: item.createdAt || new Date().toISOString(),
-    updatedAt: item.updatedAt,
-    daysLeft: item.daysLeft,
-    expired: item.expired,
-    expiringSoon: item.expiringSoon,
-  };
-}
-
-function sortItems(nextItems: FridgeItem[]): FridgeItem[] {
-  return [...nextItems].sort(
-    (a, b) => parseDateKey(a.expiryDate).getTime() - parseDateKey(b.expiryDate).getTime()
-      || a.name.localeCompare(b.name, 'ko-KR')
-  );
-}
-
 function loadStoredFridgeItems(): FridgeItem[] {
   try {
     const raw = localStorage.getItem(FRIDGE_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed)
-      ? parsed.map(normalizeItem).filter(Boolean) as FridgeItem[]
+      ? parsed.filter((item) => item?.name && item?.expiryDate)
       : [];
   } catch {
     localStorage.removeItem(FRIDGE_STORAGE_KEY);

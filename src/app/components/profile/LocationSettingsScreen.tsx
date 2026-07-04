@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, MapPin, Map } from 'lucide-react';
 import KakaoMapModal from '../KakaoMapModal';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
+import { getAuthToken } from '../../auth/session';
 
 declare global {
   interface Window {
@@ -48,7 +49,7 @@ export default function LocationSettingsScreen({ onClose }: { onClose: () => voi
     address: string,
     coords?: { lat: number; lng: number } | null
   ) => {
-    const token = localStorage.getItem('authToken');
+    const token = getAuthToken();
     if (!token) {
       alert('로그인 후 위치를 저장할 수 있습니다.');
       return false;

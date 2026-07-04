@@ -46,7 +46,6 @@ export const API_ENDPOINTS = {
   // ========== 아이디 / 비밀번호 찾기 ==========
   findEmail: `${API_BASE_URL}/api/auth/find-email`,
   findId: `${API_BASE_URL}/api/auth/find-id`,
-  verifyFindId: `${API_BASE_URL}/api/auth/find-id/verify`,
   sendPasswordResetLink: `${API_BASE_URL}/api/auth/password-reset-link`,
   resetPassword: `${API_BASE_URL}/api/auth/reset-password`,
 
@@ -91,13 +90,6 @@ export const API_ENDPOINTS = {
   notifications: `${API_BASE_URL}/api/notifications`,
   readNotification: (notificationId: number) => `${API_BASE_URL}/api/notifications/${notificationId}/read`,
   registerFcmToken: `${API_BASE_URL}/api/notifications/fcm-token`,
-  unreadNotificationCount: `${API_BASE_URL}/api/notifications/unread-count`,
-
-  // ========== 냉장고 ==========
-  fridgeItems: `${API_BASE_URL}/api/fridge/items`,
-  createFridgeItem: `${API_BASE_URL}/api/fridge/items`,
-  updateFridgeItem: (itemId: number) => `${API_BASE_URL}/api/fridge/items/${itemId}`,
-  deleteFridgeItem: (itemId: number) => `${API_BASE_URL}/api/fridge/items/${itemId}`,
 
   // ========== 관심 목록 ==========
   favorites: `${API_BASE_URL}/api/mypage/favorites`,
@@ -116,7 +108,7 @@ export const API_ENDPOINTS = {
 
 // 게시글 필터링 파라미터 타입
 export type PostType = 'SHARE' | 'SALE' | 'GROUP_BUY';
-export type SortType = 'LATEST' | 'EXPIRING_SOON' | 'FRESHNESS' | 'DISTANCE' | 'PRICE_LOW' | 'latest' | 'expiry' | 'rating' | 'distance' | 'price';
+export type SortType = 'LATEST' | 'EXPIRING_SOON' | 'DISTANCE';
 
 export interface PostQueryParams {
   postType?: PostType;
@@ -154,7 +146,6 @@ function isPublicAuthEndpoint(url: string): boolean {
     '/api/auth/phone/check',
     '/api/auth/find-email',
     '/api/auth/find-id',
-    '/api/auth/find-id/verify',
     '/api/auth/password-reset-link',
     '/api/auth/reset-password',
   ];

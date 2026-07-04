@@ -1,12 +1,12 @@
 ﻿import { useState, useEffect } from 'react';
-import { Bell, ArrowUpDown, MapPin, MessageCircle, Heart, Snowflake } from 'lucide-react';
+import { Bell, ArrowUpDown, MapPin, MessageCircle, Heart, Snowflake, ShoppingCart, User, Leaf } from 'lucide-react';
 import CreatePostScreen from './CreatePostScreen';
 import BoardSwitchModal from './BoardSwitchModal';
 import PostDetailScreen from './PostDetailScreen';
 import LocationSettingsScreen from '../profile/LocationSettingsScreen';
 import BackendImage from '../common/BackendImage';
 import NotificationsScreen from '../common/NotificationsScreen';
-import { API_ENDPOINTS, apiRequest, buildPostsUrl, resolveImageUrl } from '../../api/config';
+import { API_ENDPOINTS, apiRequest, buildPostsUrl, getNotifications, resolveImageUrl } from '../../api/config';
 
 interface FoodItem {
   id: number;
@@ -38,6 +38,7 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
   const [showPostDetail, setShowPostDetail] = useState(false);
   const [showLocationSettings, setShowLocationSettings] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,6 +51,7 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
   // 위치 정보 불러오기
   useEffect(() => {
     loadLocation();
+    loadUnreadNotifications();
   }, []);
 
   // 서버에서 게시글 목록 불러오기
@@ -57,9 +59,11 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
     loadPosts();
   }, []);
 
-  // 정렬 타입 변경 시 서버 기준으로 새로고침
+  // 정렬 타입 변경 시 재정렬
   useEffect(() => {
-    loadPosts();
+    if (foodItems.length > 0) {
+      setFoodItems(sortPosts(foodItems));
+    }
   }, [sortType]);
 
   // 반경 필터 변경 시 새로고침
@@ -74,9 +78,41 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
     }
   };
 
+  const getNotificationItems = (response: any): any[] => {
+    const candidates = [
+      response?.notifications,
+      response?.data?.notifications,
+      response?.data?.content,
+      response?.data?.items,
+      response?.content,
+      response?.items,
+      response?.data,
+      response,
+    ];
+
+    return candidates.find(Array.isArray) || [];
+  };
+
+  const isUnreadNotification = (notification: any) => !(
+    notification.isRead ||
+    notification.read ||
+    notification.readAt ||
+    notification.status === 'READ'
+  );
+
+  const loadUnreadNotifications = async () => {
+    try {
+      const response = await getNotifications(0, 10);
+      setHasUnreadNotifications(getNotificationItems(response).some(isUnreadNotification));
+    } catch (error) {
+      console.warn('읽지 않은 알림 조회에 실패했습니다.', error);
+      setHasUnreadNotifications(false);
+    }
+  };
+
   const getPostQueryParams = () => {
     const savedCoords = localStorage.getItem('userLocationCoords');
-    const params: any = { radiusKm, sort: sortType };
+    const params: any = { radiusKm };
 
     if (!savedCoords) return params;
 
@@ -123,7 +159,7 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
             freshness: Number(post.freshness ?? 50),
             freshnessLevel: post.freshnessLevel || '',
             freshnessIcon: post.freshnessIcon || '🌱',
-            freshnessLabel: post.freshnessLabel || '일반·신규 유저',
+            freshnessLabel: getFreshnessLabel(Number(post.freshness ?? 50)),
             commentCount: getCountValue(post, ['commentCount', 'commentsCount', 'replyCount', 'commentCnt']),
             favoriteCount: getCountValue(post, ['favoriteCount', 'favoritesCount', 'likeCount', 'likesCount', 'heartCount', 'wishCount']),
           };
@@ -268,28 +304,37 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
   };
 
   return (
-    <div className="bg-[#f7fafc] size-full flex flex-col">
+    <div className="bg-[#f7fafc] size-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-white to-[#f0fdf4] border-b-2 border-[#bef264] px-5 py-4 flex items-center justify-between">
-        <button onClick={() => setShowLocationSettings(true)} className="text-left flex items-center gap-2 bg-white px-3 py-2 rounded-full shadow-sm border border-[#e2e8f0] hover:border-[#bef264] transition-colors max-w-[70%]">
-          <span className="text-lg flex-shrink-0">📍</span>
-          <div className="min-w-0 flex-1">
-            <div className="text-xs text-[#718096]">내 위치</div>
-            <div className="text-sm text-[#2d3748] truncate" style={{ fontWeight: 600 }}>{location}</div>
+      <div className="bg-gradient-to-r from-[#f0fdf4] to-[#bef264] border-b-2 border-[#bef264] px-5 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]">
+            <Leaf size={22} className="text-[#65a30d]" />
           </div>
-        </button>
+          <div>
+            <h1 className="text-lg text-[#1a202c]" style={{ fontWeight: 800 }}>나눔 및 판매</h1>
+            <p className="text-xs text-[#365314]">이웃과 식재료를 나누고 거래해요</p>
+          </div>
+        </div>
         <button onClick={() => setShowNotifications(true)} className="text-[#2d3748] relative" aria-label="알림 열기">
           <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-[#e2e8f0] hover:border-[#bef264] transition-colors">
             <Bell size={20} />
           </div>
-          <div className="absolute top-0 right-0 w-2 h-2 bg-[#ef4444] rounded-full border-2 border-white"></div>
+          {hasUnreadNotifications && (
+            <div className="absolute top-0 right-0 w-2 h-2 bg-[#ef4444] rounded-full border-2 border-white" />
+          )}
         </button>
       </div>
 
       {/* Sort Options */}
       <div className="px-5 py-3 bg-white border-b border-[#e2e8f0]">
         <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+          <button onClick={() => setShowLocationSettings(true)} className="min-w-0 flex-1 text-left flex items-center gap-2 px-3 py-2 bg-[#f7fafc] border border-[#e2e8f0] rounded-full hover:border-[#bef264] transition-colors">
+            <span className="text-base flex-shrink-0">📍</span>
+            <span className="min-w-0 text-sm text-[#2d3748] truncate" style={{ fontWeight: 500 }}>{location}</span>
+          </button>
+
+          <div className="relative shrink-0">
             <button
               onClick={() => {
                 setShowSortMenu(!showSortMenu);
@@ -364,7 +409,7 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
           </div>
 
           {/* Radius Filter */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <button
               onClick={() => {
                 setShowRadiusFilter(!showRadiusFilter);
@@ -436,7 +481,7 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
       </div>
 
       {/* Food Items List */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 pb-28">
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-28">
         {foodItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-20">
             <div className="w-32 h-32 bg-gradient-to-br from-[#dcfce7] to-[#bef264] rounded-full flex items-center justify-center mb-6 shadow-lg">
@@ -495,14 +540,8 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-[#718096]">
                       <span className="flex items-center gap-1 text-[#16a34a]" style={{ fontWeight: 600 }}>
                         <span>{item.freshnessIcon || '🌱'}</span>
-                        <span>신선도 {Math.round(item.freshness ?? 50)}%</span>
+                        <span>신선도 {Math.round(item.freshness ?? 50)}% · {stripFreshnessIcon(item.freshnessLabel || '')}</span>
                       </span>
-                      {item.freshnessLabel && (
-                        <>
-                          <span>·</span>
-                          <span>{item.freshnessLabel}</span>
-                        </>
-                      )}
                       <span>·</span>
                       {neighborhood && (
                         <>
@@ -553,21 +592,21 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
       </button>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-12 py-4 flex items-center justify-between z-40">
-        <button onClick={() => setShowBoardSwitch(true)} className="flex flex-col items-center gap-1">
-          <svg className="w-6 h-6 text-[#bef264]" fill="currentColor" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-          </svg>
-          <span className="text-xs text-[#bef264]">홈</span>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-5 py-4 grid grid-cols-4 z-40">
+        <button onClick={() => onSwitchBoard('나눔 및 판매')} className="flex flex-col items-center gap-1">
+          <Leaf size={24} className="text-[#bef264]" />
+          <span className="text-xs text-[#bef264]">나눔/판매</span>
+        </button>
+        <button onClick={() => onSwitchBoard('공동구매')} className="flex flex-col items-center gap-1">
+          <ShoppingCart size={24} className="text-[#fbbf24]" />
+          <span className="text-xs text-[#fbbf24]">공동구매</span>
         </button>
         <button onClick={() => onNavigate('fridge')} className="flex flex-col items-center gap-1">
-          <Snowflake size={24} className="text-[#2d3748]" />
-          <span className="text-xs text-[#2d3748]">냉장고</span>
+          <Snowflake size={24} className="text-[#0284c7]" />
+          <span className="text-xs text-[#0284c7]">냉장고</span>
         </button>
         <button onClick={() => onNavigate('profile')} className="flex flex-col items-center gap-1">
-          <svg className="w-6 h-6 text-[#2d3748]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
+          <User size={24} className="text-[#2d3748]" />
           <span className="text-xs text-[#2d3748]">내정보</span>
         </button>
       </div>
@@ -613,7 +652,11 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
 
       {showNotifications && (
         <NotificationsScreen
-          onClose={() => setShowNotifications(false)}
+          onClose={() => {
+            setShowNotifications(false);
+            loadUnreadNotifications();
+          }}
+          onOpenTradeHistory={() => onNavigate('tradeHistory')}
           onOpenPost={(postId) => {
             setSelectedPostId(postId);
             setShowPostDetail(true);
@@ -622,4 +665,19 @@ export default function SharingBoard({ onSwitchBoard, onNavigate }: { onSwitchBo
       )}
     </div>
   );
+}
+
+function getFreshnessLabel(value: number) {
+  if (value >= 95) return '👑 전설 반띵러';
+  if (value >= 85) return '💎 모범 반띵러';
+  if (value >= 70) return '✨ 든든한 반띵러';
+  if (value >= 55) return '🌿 성장 반띵러';
+  if (value >= 40) return '🌱 일반 반띵러';
+  if (value >= 30) return '🍂 주의 반띵러';
+  if (value >= 20) return '⚠️ 위험 반띵러';
+  return '🤮 제한 반띵러';
+}
+
+function stripFreshnessIcon(label: string) {
+  return label.replace(/^[^\w가-힣]+/u, '').trim();
 }

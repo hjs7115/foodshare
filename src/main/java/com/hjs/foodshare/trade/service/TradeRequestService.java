@@ -59,23 +59,25 @@ public class TradeRequestService {
                     post.getWriter().getId(),
                     "TRADE_REQUEST",
                     "거래 요청",
-                    requester.getNickname() + "님이 '" + post.getTitle() + "' 게시글에 거래를 요청했습니다."
+                    requester.getNickname() + "님이 '" + post.getTitle() + "' 게시글에 거래를 요청했습니다.",
+                    "TRADE_REQUEST",
+                    savedRequest.getId()
             );
         }
-        return TradeRequestResponse.from(savedRequest);
+        return toResponse(savedRequest);
     }
 
     public List<TradeRequestResponse> getMyRequests(Long requesterId) {
         return tradeRequestRepository.findAllByRequesterIdOrderByCreatedAtDesc(requesterId)
                 .stream()
-                .map(TradeRequestResponse::from)
+                .map(this::toResponse)
                 .toList();
     }
 
     public List<TradeRequestResponse> getReceivedRequests(Long writerId) {
         return tradeRequestRepository.findAllByPostWriterIdOrderByCreatedAtDesc(writerId)
                 .stream()
-                .map(TradeRequestResponse::from)
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -86,7 +88,7 @@ public class TradeRequestService {
         }
         return tradeRequestRepository.findAllByPostIdOrderByCreatedAtDesc(postId)
                 .stream()
-                .map(TradeRequestResponse::from)
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -104,10 +106,12 @@ public class TradeRequestService {
                     tradeRequest.getRequester().getId(),
                     "TRADE_ACCEPTED",
                     "거래 요청 수락",
-                    "'" + tradeRequest.getPost().getTitle() + "' 거래 요청이 수락되었습니다."
+                    "'" + tradeRequest.getPost().getTitle() + "' 거래 요청이 수락되었습니다.",
+                    "TRADE_REQUEST",
+                    tradeRequest.getId()
             );
         }
-        return TradeRequestResponse.from(tradeRequest);
+        return toResponse(tradeRequest);
     }
 
     @Transactional
@@ -117,7 +121,7 @@ public class TradeRequestService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Only pending requests can be rejected.");
         }
         tradeRequest.reject();
-        return TradeRequestResponse.from(tradeRequest);
+        return toResponse(tradeRequest);
     }
 
     @Transactional
@@ -135,7 +139,7 @@ public class TradeRequestService {
 
         tradeRequest.complete();
         notifyTradeCompleted(tradeRequest);
-        return TradeRequestResponse.from(tradeRequest);
+        return toResponse(tradeRequest);
     }
 
     private void applyAcceptedTradePolicy(TradeRequest acceptedRequest) {
@@ -157,8 +161,56 @@ public class TradeRequestService {
         Long requesterId = tradeRequest.getRequester().getId();
         String message = "'" + tradeRequest.getPost().getTitle() + "' 거래가 완료되었습니다.";
 
-        notificationService.createNotification(writerId, "TRADE_COMPLETED", "거래 완료", message);
-        notificationService.createNotification(requesterId, "TRADE_COMPLETED", "거래 완료", message);
+        notificationService.createNotification(
+                writerId,
+                "TRADE_COMPLETED",
+                "거래 완료",
+                message,
+                "TRADE_REQUEST",
+                tradeRequest.getId()
+        );
+        notificationService.createNotification(
+                requesterId,
+                "TRADE_COMPLETED",
+                "거래 완료",
+                message,
+                "TRADE_REQUEST",
+                tradeRequest.getId()
+        );
+    }
+
+    private TradeRequestResponse toResponse(TradeRequest tradeRequest) {
+        Long requesterId = tradeRequest.getRequester().getId();
+        return TradeRequestResponse.from(
+                tradeRequest,
+                countShareCompleted(requesterId),
+                countReceivedShare(requesterId),
+                countGroupBuyParticipation(requesterId)
+        );
+    }
+
+    private long countShareCompleted(Long userId) {
+        return tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(
+                userId,
+                PostType.SHARE,
+                TradeRequestStatus.COMPLETED
+        );
+    }
+
+    private long countReceivedShare(Long userId) {
+        return tradeRequestRepository.countByRequesterIdAndPostTypeAndStatus(
+                userId,
+                PostType.SHARE,
+                TradeRequestStatus.COMPLETED
+        );
+    }
+
+    private long countGroupBuyParticipation(Long userId) {
+        return tradeRequestRepository.countByRequesterIdAndPostTypeAndStatus(
+                userId,
+                PostType.GROUP_BUY,
+                TradeRequestStatus.COMPLETED
+        );
     }
 
     private void validateRequestablePost(Post post) {

@@ -277,7 +277,17 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
   const getFreshnessIcon = (source: any): string => source?.freshnessIcon || '🌱';
 
-  const getFreshnessLabel = (source: any): string => source?.freshnessLabel || '일반·신규 유저';
+  const getFreshnessLabel = (source: any): string => {
+    const value = getFreshnessPercent(source);
+    if (value >= 95) return '👑 전설 반띵러';
+    if (value >= 85) return '💎 모범 반띵러';
+    if (value >= 70) return '✨ 든든한 반띵러';
+    if (value >= 55) return '🌿 성장 반띵러';
+    if (value >= 40) return '🌱 일반 반띵러';
+    if (value >= 30) return '🍂 주의 반띵러';
+    if (value >= 20) return '⚠️ 위험 반띵러';
+    return '🤮 제한 반띵러';
+  };
 
   const formatKoreanDate = (value?: string): string => {
     if (!value) return '';
@@ -700,10 +710,9 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
                 <div className="flex items-center gap-1 bg-[#dcfce7] px-2 py-0.5 rounded-full">
                   <span className="text-xs">{postFreshnessIcon}</span>
                   <span className="text-xs text-[#16a34a]" style={{ fontWeight: 600 }}>
-                    신선도 {Math.round(postFreshness)}%
+                    신선도 {Math.round(postFreshness)}% · {stripFreshnessIcon(postFreshnessLabel)}
                   </span>
                 </div>
-                <span className="text-xs text-[#718096]">{postFreshnessLabel}</span>
               </div>
             </div>
             {!isMyPost && (
@@ -941,4 +950,8 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       </div>
     </div>
   );
+}
+
+function stripFreshnessIcon(label: string) {
+  return label.replace(/^[^\w가-힣]+/u, '').trim();
 }

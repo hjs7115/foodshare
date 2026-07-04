@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -83,6 +84,23 @@ public class NotificationController {
     ) {
         notificationService.markAsRead(authUser.userId(), notificationId);
         return ResponseEntity.ok(ApiResponse.ok("Notification read.", null));
+    }
+
+    @DeleteMapping("/api/notifications/read")
+    public ResponseEntity<ApiResponse<Void>> deleteReadNotifications(
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        notificationService.deleteReadNotifications(authUser.userId());
+        return ResponseEntity.ok(ApiResponse.ok("Read notifications deleted.", null));
+    }
+
+    @DeleteMapping("/api/notifications/{notificationId}")
+    public ResponseEntity<ApiResponse<Void>> deleteNotification(
+            @PathVariable Long notificationId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        notificationService.deleteNotification(authUser.userId(), notificationId);
+        return ResponseEntity.ok(ApiResponse.ok("Notification deleted.", null));
     }
 
     @PostMapping("/api/notifications/fcm-token")

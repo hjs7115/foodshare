@@ -1,6 +1,7 @@
 ﻿import { useState, useRef } from 'react';
 import { X, Camera } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl, uploadImage } from '../../api/config';
+import { getStoredUserInfo } from '../../auth/session';
 
 interface CreatePostScreenProps {
   onClose: () => void;
@@ -69,7 +70,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
     }
   };
 
-  const getCurrentUser = () => JSON.parse(localStorage.getItem('userInfo') || '{}');
+  const getCurrentUser = () => getStoredUserInfo() || {};
 
   const getUserId = (user: any): number | undefined => {
     const id = user?.id ?? user?.userId ?? user?.memberId;
@@ -180,7 +181,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
           getUserId({ id: serverPost.userId ?? serverPost.authorId ?? serverPost.writerId ?? serverPost.memberId }) ??
           getUserId(currentUser),
         nickname: serverPost.nickname || serverPost.user?.nickname || serverPost.author?.nickname || getUserNickname(currentUser),
-        rating: getRatingValue(serverPost) || getRatingValue(currentUser) || 4.5,
+        rating: getRatingValue(serverPost) || getRatingValue(currentUser) || 0,
         tradeLocation: serverPost.tradeLocation || authorLocation.tradeLocation,
         latitude: serverPost.latitude || authorLocation.latitude,
         longitude: serverPost.longitude || authorLocation.longitude,

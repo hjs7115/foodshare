@@ -8,7 +8,7 @@ public enum FreshnessGrade {
     NORMAL("🌱", "일반 반띵러"),
     CAUTION("🍂", "주의 반띵러"),
     DANGER("⚠️", "위험 반띵러"),
-    RESTRICTED("🚫", "제한 반띵러");
+    RESTRICTED("🤮", "제한 반띵러");
 
     private final String icon;
     private final String label;

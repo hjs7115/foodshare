@@ -19,6 +19,23 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('landing');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [mainView, setMainView] = useState<MainView>('board');
+  const [profileTradeHistorySignal, setProfileTradeHistorySignal] = useState(0);
+
+  const handleMainNavigate = (screen: string) => {
+    if (screen === '나눔 및 판매' || screen === '공동구매') {
+      setSelectedCategory(screen);
+      setMainView('board');
+      return;
+    }
+
+    if (screen === 'tradeHistory') {
+      setMainView('profile');
+      setProfileTradeHistorySignal((value) => value + 1);
+      return;
+    }
+
+    setMainView(screen as MainView);
+  };
 
   useEffect(() => {
     if (hasAuthSession()) {
@@ -85,20 +102,20 @@ export default function App() {
   }
 
   if (mainView === 'profile') {
-    return <ProfileScreen onNavigate={(screen) => setMainView(screen as MainView)} />;
+    return <ProfileScreen onNavigate={handleMainNavigate} openTransactionHistorySignal={profileTradeHistorySignal} />;
   }
 
   if (mainView === 'fridge') {
-    return <FridgeScreen onNavigate={(screen) => setMainView(screen as MainView)} />;
+    return <FridgeScreen onNavigate={handleMainNavigate} />;
   }
 
   if (selectedCategory === '나눔 및 판매') {
-    return <SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={(screen) => setMainView(screen as MainView)} />;
+    return <SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} />;
   }
 
   if (selectedCategory === '공동구매') {
-    return <GroupBuyingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={(screen) => setMainView(screen as MainView)} />;
+    return <GroupBuyingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} />;
   }
 
-  return <SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={(screen) => setMainView(screen as MainView)} />;
+  return <SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} />;
 }

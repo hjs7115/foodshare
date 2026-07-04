@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, isSupported } from 'firebase/messaging';
 import { API_ENDPOINTS, apiRequest } from './api/config';
+import { getAuthToken } from './auth/session';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyCJb7J--Z4oCbmLZFNFCS-sWxa87j9zmDY',
@@ -15,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export async function registerFirebaseMessaging(): Promise<void> {
-  const authToken = localStorage.getItem('authToken');
+  const authToken = getAuthToken();
   const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
   if (!authToken || !vapidKey || !('Notification' in window) || !('serviceWorker' in navigator)) {

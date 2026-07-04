@@ -8,9 +8,12 @@ import {
   RefreshCw,
   ShoppingBag,
   Star,
+  Trash2,
+  User,
   X,
 } from 'lucide-react';
-import { getNotifications, readNotification } from '../../api/config';
+import { getNotifications, readNotification, resolveImageUrl } from '../../api/config';
+import BackendImage from './BackendImage';
 
 interface NotificationItem {
   id: number;
@@ -20,11 +23,20 @@ interface NotificationItem {
   isRead: boolean;
   createdAt?: string;
   postId?: number;
+  requesterNickname?: string;
+  requesterProfileImage?: string;
+  requesterFreshness?: number;
+  requesterFreshnessLabel?: string;
+  requesterShareCompletedCount?: number;
+  requesterReceivedShareCount?: number;
+  requesterGroupBuyCount?: number;
+  boardType?: 'sharing' | 'group';
 }
 
 interface NotificationsScreenProps {
   onClose: () => void;
   onOpenPost?: (postId: number) => void;
+  onOpenTradeHistory?: () => void;
 }
 
 function getArrayPayload(response: any): any[] {
@@ -64,7 +76,74 @@ function normalizeNotification(raw: any): NotificationItem {
     isRead: Boolean(raw.isRead || raw.read || raw.readAt || raw.status === 'READ'),
     createdAt: raw.createdAt || raw.createdDate || raw.sentAt || raw.regDate,
     postId,
+    requesterNickname:
+      raw.requesterNickname ||
+      raw.requester?.nickname ||
+      raw.senderNickname ||
+      raw.sender?.nickname ||
+      raw.userNickname ||
+      raw.user?.nickname,
+    requesterProfileImage:
+      raw.requesterProfileImage ||
+      raw.requester?.profileImage ||
+      raw.requester?.profileImageUrl ||
+      raw.senderProfileImage ||
+      raw.sender?.profileImage ||
+      raw.sender?.profileImageUrl ||
+      raw.user?.profileImage ||
+      raw.user?.profileImageUrl,
+    requesterFreshness: getNumberValue(
+      raw.requesterFreshness ||
+      raw.requester?.freshness ||
+      raw.senderFreshness ||
+      raw.sender?.freshness ||
+      raw.user?.freshness
+    ),
+    requesterFreshnessLabel:
+      raw.requesterFreshnessLabel ||
+      raw.requester?.freshnessLabel ||
+      raw.senderFreshnessLabel ||
+      raw.sender?.freshnessLabel ||
+      raw.user?.freshnessLabel,
+    requesterShareCompletedCount: getNumberValue(
+      raw.requesterShareCompletedCount ||
+      raw.requester?.shareCompletedCount ||
+      raw.requester?.shareCount ||
+      raw.sender?.shareCompletedCount ||
+      raw.user?.shareCompletedCount
+    ),
+    requesterReceivedShareCount: getNumberValue(
+      raw.requesterReceivedShareCount ||
+      raw.requester?.receivedShareCount ||
+      raw.sender?.receivedShareCount ||
+      raw.user?.receivedShareCount
+    ),
+    requesterGroupBuyCount: getNumberValue(
+      raw.requesterGroupBuyCount ||
+      raw.requester?.groupBuyCount ||
+      raw.requester?.groupPurchaseCount ||
+      raw.sender?.groupBuyCount ||
+      raw.user?.groupBuyCount
+    ),
+    boardType: getBoardType(raw),
   };
+}
+
+function getBoardType(raw: any): 'sharing' | 'group' | undefined {
+  const value = String(
+    raw.boardType ||
+    raw.board ||
+    raw.postType ||
+    raw.post?.postType ||
+    raw.post?.type ||
+    raw.post?.category ||
+    raw.category ||
+    ''
+  ).toUpperCase();
+
+  if (value.includes('GROUP') || value.includes('공동구매')) return 'group';
+  if (value.includes('SHARE') || value.includes('SALE') || value.includes('나눔') || value.includes('판매')) return 'sharing';
+  return undefined;
 }
 
 function getDefaultTitle(type?: string): string {
@@ -89,6 +168,44 @@ function getTypeIcon(type: string) {
   return Bell;
 }
 
+function isTradeNotification(notification: NotificationItem): boolean {
+  const normalizedType = notification.type.toUpperCase();
+  return normalizedType.includes('TRADE') || notification.title.includes('거래');
+}
+
+function hasRequesterProfile(notification: NotificationItem): boolean {
+  return Boolean(
+    notification.requesterNickname ||
+    notification.requesterProfileImage ||
+    notification.requesterFreshness !== undefined ||
+    notification.requesterFreshnessLabel
+  );
+}
+
+function getBoardTone(boardType?: 'sharing' | 'group') {
+  if (boardType === 'group') {
+    return {
+      card: 'bg-[#fffbeb] border-[#fbbf24] shadow-sm hover:shadow-md',
+      profileBorder: 'border-[#fbbf24]',
+      profileButton: 'border-[#fbbf24] text-[#92400e] hover:bg-[#fef3c7]',
+      actionButton: 'bg-[#fbbf24] hover:bg-[#f59e0b]',
+      stats: 'border-[#fbbf24] bg-gradient-to-r from-[#fef3c7] to-[#fde68a]',
+      statsTitle: 'text-[#92400e]',
+      divider: 'border-[#fbbf24]/30',
+    };
+  }
+
+  return {
+    card: 'bg-[#f0fdf4] border-[#bef264] shadow-sm hover:shadow-md',
+    profileBorder: 'border-[#bef264]',
+    profileButton: 'border-[#bef264] text-[#65a30d] hover:bg-[#f0fdf4]',
+    actionButton: 'bg-[#bef264] hover:bg-[#a3e635]',
+    stats: 'border-[#bef264] bg-gradient-to-r from-[#f0fff4] to-[#ecfccb]',
+    statsTitle: 'text-[#65a30d]',
+    divider: 'border-[#bef264]/30',
+  };
+}
+
 function formatDate(value?: string): string {
   if (!value) return '';
 
@@ -110,13 +227,18 @@ function formatDate(value?: string): string {
   });
 }
 
-export default function NotificationsScreen({ onClose, onOpenPost }: NotificationsScreenProps) {
+export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHistory }: NotificationsScreenProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<NotificationItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.isRead).length,
+    [notifications]
+  );
+  const readCount = useMemo(
+    () => notifications.filter((notification) => notification.isRead).length,
     [notifications]
   );
 
@@ -155,10 +277,21 @@ export default function NotificationsScreen({ onClose, onOpenPost }: Notificatio
       }
     }
 
-    if (notification.postId && onOpenPost) {
+    if (!isTradeNotification(notification) && notification.postId && onOpenPost) {
       onOpenPost(notification.postId);
       onClose();
     }
+  };
+
+  const handleDeleteReadNotifications = () => {
+    if (readCount === 0) return;
+    if (!confirm('읽은 알림을 삭제할까요?')) return;
+
+    setNotifications((prev) => prev.filter((notification) => !notification.isRead));
+  };
+
+  const handleDeleteNotification = (notificationId: number) => {
+    setNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
   };
 
   return (
@@ -176,6 +309,15 @@ export default function NotificationsScreen({ onClose, onOpenPost }: Notificatio
           </p>
         </div>
           <div className="flex items-center gap-1">
+            <button
+              onClick={handleDeleteReadNotifications}
+              disabled={readCount === 0}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#f7fafc] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              aria-label="읽은 알림 삭제"
+              title="읽은 알림 삭제"
+            >
+              <Trash2 size={17} className="text-[#718096]" />
+            </button>
             <button
               onClick={loadNotifications}
               className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#f7fafc] transition-colors"
@@ -221,15 +363,18 @@ export default function NotificationsScreen({ onClose, onOpenPost }: Notificatio
           <div className="space-y-3">
             {notifications.map((notification) => {
               const Icon = getTypeIcon(notification.type);
+              const tone = getBoardTone(notification.boardType);
 
               return (
-                <button
+                <div
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification)}
+                  role="button"
+                  tabIndex={0}
                   className={`w-full rounded-2xl border p-4 text-left transition-all ${
                     notification.isRead
                       ? 'bg-white border-[#e2e8f0] hover:border-[#cbd5e0]'
-                      : 'bg-[#f0fdf4] border-[#bef264] shadow-sm hover:shadow-md'
+                      : tone.card
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -243,14 +388,59 @@ export default function NotificationsScreen({ onClose, onOpenPost }: Notificatio
                         <h2 className="text-sm text-[#1a202c]" style={{ fontWeight: notification.isRead ? 600 : 800 }}>
                           {notification.title}
                         </h2>
-                        {!notification.isRead && (
-                          <span className="mt-1 w-2 h-2 rounded-full bg-[#ef4444] flex-shrink-0" />
-                        )}
+                        <div className="flex items-center gap-2">
+                          {!notification.isRead && (
+                            <span className="w-2 h-2 rounded-full bg-[#ef4444] flex-shrink-0" />
+                          )}
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDeleteNotification(notification.id);
+                            }}
+                            className="flex size-7 items-center justify-center rounded-full text-[#a0aec0] hover:bg-[#f7fafc] hover:text-[#e53e3e]"
+                            aria-label="알림 삭제"
+                            title="알림 삭제"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
                       </div>
                       <p className="mt-1 text-sm leading-5 text-[#4a5568]">
                         {notification.message}
                       </p>
-                      <div className="mt-3 flex items-center justify-between">
+                      {isTradeNotification(notification) && hasRequesterProfile(notification) && (
+                        <div className={`mt-3 flex items-center gap-3 rounded-xl border bg-white/80 px-3 py-2 ${tone.profileBorder}`}>
+                          <div className="w-9 h-9 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {notification.requesterProfileImage ? (
+                              <BackendImage
+                                src={resolveImageUrl(notification.requesterProfileImage)}
+                                alt={notification.requesterNickname || '요청자'}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <User size={18} className="text-[#718096]" />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm text-[#2d3748]" style={{ fontWeight: 700 }}>
+                              {notification.requesterNickname || '요청자'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedProfile(notification);
+                            }}
+                            className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${tone.profileButton}`}
+                            style={{ fontWeight: 700 }}
+                          >
+                            프로필보기
+                          </button>
+                        </div>
+                      )}
+                      <div className="mt-3 flex items-center justify-between gap-3">
                         <span className="text-xs text-[#94a3b8]">
                           {formatDate(notification.createdAt)}
                         </span>
@@ -261,14 +451,99 @@ export default function NotificationsScreen({ onClose, onOpenPost }: Notificatio
                           </span>
                         )}
                       </div>
+                      {isTradeNotification(notification) && onOpenTradeHistory && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleNotificationClick(notification);
+                            onOpenTradeHistory();
+                            onClose();
+                          }}
+                          className={`mt-3 w-full rounded-xl px-4 py-2.5 text-sm text-[#0a0a0a] transition-colors ${tone.actionButton}`}
+                          style={{ fontWeight: 700 }}
+                        >
+                          거래 내역 보기
+                        </button>
+                      )}
                     </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
         )}
         </div>
+
+        {selectedProfile && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 px-4" onClick={() => setSelectedProfile(null)}>
+            <div
+              className="w-full max-w-sm rounded-3xl border border-[#e2e8f0] bg-white p-5 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {selectedProfile.requesterProfileImage ? (
+                      <BackendImage
+                        src={resolveImageUrl(selectedProfile.requesterProfileImage)}
+                        alt={selectedProfile.requesterNickname || '요청자'}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User size={32} className="text-[#718096]" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <h2 className="truncate text-lg text-[#2d3748]" style={{ fontWeight: 700 }}>
+                        {selectedProfile.requesterNickname || '요청자'}
+                      </h2>
+                      <div className="flex items-center gap-1 rounded-full bg-[#dcfce7] px-2 py-1">
+                        <span className="text-xs">🌱</span>
+                        <span className="text-xs text-[#16a34a]" style={{ fontWeight: 600 }}>
+                          신선도 {Math.round(selectedProfile.requesterFreshness ?? 50)}% · {stripFreshnessIcon(getFreshnessLabel(selectedProfile.requesterFreshness ?? 50))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedProfile(null)}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#f7fafc] text-[#718096] hover:bg-[#e2e8f0]"
+                  aria-label="프로필 닫기"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className={`rounded-2xl border p-4 ${getBoardTone(selectedProfile.boardType).stats}`}>
+                <h3 className={`mb-3 text-xs ${getBoardTone(selectedProfile.boardType).statsTitle}`} style={{ fontWeight: 600 }}>활동 통계</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center">
+                    <p className="mb-1 text-2xl text-[#2d3748]" style={{ fontWeight: 700 }}>
+                      {selectedProfile.requesterShareCompletedCount ?? 0}
+                    </p>
+                    <p className="text-xs text-[#718096]">나눔 완료</p>
+                  </div>
+                  <div className={`border-x text-center ${getBoardTone(selectedProfile.boardType).divider}`}>
+                    <p className="mb-1 text-2xl text-[#2d3748]" style={{ fontWeight: 700 }}>
+                      {selectedProfile.requesterReceivedShareCount ?? 0}
+                    </p>
+                    <p className="text-xs text-[#718096]">받은 나눔</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="mb-1 text-2xl text-[#2d3748]" style={{ fontWeight: 700 }}>
+                      {selectedProfile.requesterGroupBuyCount ?? 0}
+                    </p>
+                    <p className="text-xs text-[#718096]">공구 참여</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {!isLoading && notifications.length > 0 && errorMessage && (
           <div className="px-4 pb-4">
@@ -281,4 +556,19 @@ export default function NotificationsScreen({ onClose, onOpenPost }: Notificatio
       </div>
     </div>
   );
+}
+
+function getFreshnessLabel(value: number) {
+  if (value >= 95) return '👑 전설 반띵러';
+  if (value >= 85) return '💎 모범 반띵러';
+  if (value >= 70) return '✨ 든든한 반띵러';
+  if (value >= 55) return '🌿 성장 반띵러';
+  if (value >= 40) return '🌱 일반 반띵러';
+  if (value >= 30) return '🍂 주의 반띵러';
+  if (value >= 20) return '⚠️ 위험 반띵러';
+  return '🤮 제한 반띵러';
+}
+
+function stripFreshnessIcon(label: string) {
+  return label.replace(/^[^\w가-힣]+/u, '').trim();
 }

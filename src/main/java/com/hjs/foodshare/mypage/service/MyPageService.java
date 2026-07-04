@@ -10,10 +10,13 @@ import com.hjs.foodshare.mypage.dto.LocationUpdateRequest;
 import com.hjs.foodshare.mypage.dto.MyPageResponse;
 import com.hjs.foodshare.mypage.dto.ProfileUpdateRequest;
 import com.hjs.foodshare.post.dto.PostResponse;
+import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.post.repository.PostRepository;
 import com.hjs.foodshare.review.dto.RatingSummaryResponse;
 import com.hjs.foodshare.review.repository.ReviewRepository;
 import com.hjs.foodshare.review.service.ReviewService;
+import com.hjs.foodshare.trade.domain.TradeRequest;
+import com.hjs.foodshare.trade.domain.TradeRequestStatus;
 import com.hjs.foodshare.trade.dto.TradeRequestResponse;
 import com.hjs.foodshare.trade.repository.TradeRequestRepository;
 import com.hjs.foodshare.user.domain.User;
@@ -91,14 +94,14 @@ public class MyPageService {
     public List<TradeRequestResponse> getMyTradeRequests(Long userId) {
         return tradeRequestRepository.findAllByRequesterIdOrderByCreatedAtDesc(userId)
                 .stream()
-                .map(TradeRequestResponse::from)
+                .map(this::toTradeRequestResponse)
                 .toList();
     }
 
     public List<TradeRequestResponse> getReceivedTradeRequests(Long userId) {
         return tradeRequestRepository.findAllByPostWriterIdOrderByCreatedAtDesc(userId)
                 .stream()
-                .map(TradeRequestResponse::from)
+                .map(this::toTradeRequestResponse)
                 .toList();
     }
 
@@ -119,5 +122,39 @@ public class MyPageService {
     private User getUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+    }
+
+    private TradeRequestResponse toTradeRequestResponse(TradeRequest tradeRequest) {
+        Long requesterId = tradeRequest.getRequester().getId();
+        return TradeRequestResponse.from(
+                tradeRequest,
+                countShareCompleted(requesterId),
+                countReceivedShare(requesterId),
+                countGroupBuyParticipation(requesterId)
+        );
+    }
+
+    private long countShareCompleted(Long userId) {
+        return tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(
+                userId,
+                PostType.SHARE,
+                TradeRequestStatus.COMPLETED
+        );
+    }
+
+    private long countReceivedShare(Long userId) {
+        return tradeRequestRepository.countByRequesterIdAndPostTypeAndStatus(
+                userId,
+                PostType.SHARE,
+                TradeRequestStatus.COMPLETED
+        );
+    }
+
+    private long countGroupBuyParticipation(Long userId) {
+        return tradeRequestRepository.countByRequesterIdAndPostTypeAndStatus(
+                userId,
+                PostType.GROUP_BUY,
+                TradeRequestStatus.COMPLETED
+        );
     }
 }

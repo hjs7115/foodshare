@@ -1,5 +1,6 @@
 package com.hjs.foodshare.trade.repository;
 
+import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.trade.domain.TradeRequest;
 import com.hjs.foodshare.trade.domain.TradeRequestStatus;
 import java.util.List;
@@ -21,6 +22,32 @@ public interface TradeRequestRepository extends JpaRepository<TradeRequest, Long
     List<TradeRequest> findAllByPostIdAndStatus(Long postId, TradeRequestStatus status);
 
     long countByStatus(TradeRequestStatus status);
+
+    @Query("""
+            select count(tr)
+            from TradeRequest tr
+            where tr.post.writer.id = :userId
+              and tr.post.postType = :postType
+              and tr.status = :status
+            """)
+    long countByPostWriterIdAndPostTypeAndStatus(
+            @Param("userId") Long userId,
+            @Param("postType") PostType postType,
+            @Param("status") TradeRequestStatus status
+    );
+
+    @Query("""
+            select count(tr)
+            from TradeRequest tr
+            where tr.requester.id = :userId
+              and tr.post.postType = :postType
+              and tr.status = :status
+            """)
+    long countByRequesterIdAndPostTypeAndStatus(
+            @Param("userId") Long userId,
+            @Param("postType") PostType postType,
+            @Param("status") TradeRequestStatus status
+    );
 
     @Query("""
             select count(tr)

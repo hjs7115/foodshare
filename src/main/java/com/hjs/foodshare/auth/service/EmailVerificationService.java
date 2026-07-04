@@ -51,9 +51,9 @@ public class EmailVerificationService {
 
         EmailVerification verification = createAndSendCode(
                 email,
-                "FoodShare email verification",
-                "Enter this verification code on the signup screen.",
-                "[FoodShare] Email verification code"
+                "인증코드를 입력하세요",
+                "아래의 6자리 코드를 회원가입 화면에 입력하세요.",
+                "[반띵] 이메일 인증코드"
         );
 
         return new EmailVerificationSendResponse(verification.getEmail(), (int) codeTtl.toSeconds());
@@ -69,9 +69,9 @@ public class EmailVerificationService {
 
         EmailVerification verification = createAndSendCode(
                 normalizedEmail,
-                "FoodShare password reset",
-                "Enter this verification code on the password reset screen.",
-                "[FoodShare] Password reset code"
+                "인증코드를 입력하세요",
+                "아래의 6자리 코드를 비밀번호 재설정 화면에 입력하세요.",
+                "[반띵] 비밀번호 재설정 인증코드"
         );
 
         return new EmailVerificationSendResponse(verification.getEmail(), (int) codeTtl.toSeconds());
@@ -144,11 +144,17 @@ public class EmailVerificationService {
 
     private void sendVerificationMail(String email, String code, String title, String description, String subject) {
         String html = """
-                <div style="font-family:Arial,sans-serif;line-height:1.6">
-                  <h2>%s</h2>
-                  <p>%s</p>
-                  <p style="font-size:28px;font-weight:700;letter-spacing:4px">%s</p>
-                  <p>This code expires in %d minutes.</p>
+                <div style="margin:0;padding:40px 16px;background:#ffffff;font-family:Arial,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#222;text-align:center">
+                  <div style="max-width:520px;margin:0 auto">
+                    <div style="font-size:36px;font-weight:700;letter-spacing:-1px;margin-bottom:48px">반띵</div>
+                    <h1 style="font-size:30px;line-height:1.35;margin:0 0 22px;font-weight:800;color:#222">%s</h1>
+                    <p style="font-size:17px;line-height:1.6;margin:0 0 22px;color:#666">%s</p>
+                    <div style="display:inline-block;min-width:160px;padding:22px 30px;margin:0 0 28px;border-radius:18px;background:#e8e8e8;font-size:28px;font-weight:500;letter-spacing:2px;color:#333">%s</div>
+                    <p style="font-size:15px;line-height:1.7;margin:0;color:#8a8a8a">
+                      이 이메일을 요청하지 않으셨다면 걱정마세요!<br>
+                      이 코드는 %d분 후 만료되며, 요청하지 않으셨다면 무시하셔도 됩니다.
+                    </p>
+                  </div>
                 </div>
                 """.formatted(title, description, code, codeTtl.toMinutes());
 

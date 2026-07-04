@@ -3,8 +3,6 @@ package com.hjs.foodshare.review.service;
 public final class FreshnessCalculator {
 
     private static final double BASE_FRESHNESS = 50.0;
-    private static final double POSITIVE_ALPHA = 0.04;
-    private static final double NEGATIVE_ALPHA = 0.12;
 
     private FreshnessCalculator() {
     }
@@ -27,21 +25,21 @@ public final class FreshnessCalculator {
     private static double toTargetScore(int rating) {
         return switch (rating) {
             case 5 -> 100.0;
-            case 4 -> 70.0;
-            case 2 -> 20.0;
+            case 4 -> 80.0;
+            case 2 -> 30.0;
             case 1 -> 0.0;
             default -> BASE_FRESHNESS;
         };
     }
 
     private static double toAlpha(int rating) {
-        if (rating >= 4) {
-            return POSITIVE_ALPHA;
-        }
-        if (rating <= 2) {
-            return NEGATIVE_ALPHA;
-        }
-        return 0.0;
+        return switch (rating) {
+            case 5 -> 0.04;
+            case 4 -> 0.03;
+            case 2 -> 0.10;
+            case 1 -> 0.14;
+            default -> 0.0;
+        };
     }
 
     private static double bound(double freshness) {

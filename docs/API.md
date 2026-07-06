@@ -162,6 +162,33 @@ GET /api/auth/email/check?email=user@example.com
 GET /api/auth/phone/check?phoneNumber=01012345678
 ```
 
+### Phone Verification
+
+The verification code is stored server-side and is not returned in the API response.
+
+```http
+POST /api/auth/phone-verifications
+Content-Type: application/json
+```
+
+```json
+{
+  "phoneNumber": "01012345678"
+}
+```
+
+```http
+POST /api/auth/phone-verifications/verify
+Content-Type: application/json
+```
+
+```json
+{
+  "phoneNumber": "01012345678",
+  "code": "123456"
+}
+```
+
 ## Posts
 
 `postType`: `SHARE`, `SALE`, `GROUP_BUY`
@@ -301,7 +328,45 @@ PATCH /api/trade-requests/{requestId}/complete
 Authorization: Bearer {accessToken}
 ```
 
-For normal share/sale posts, accepting a request closes the post and rejects other pending requests. For group-buy posts, accepting a request increases `currentParticipantCount`; the post closes when the target count is reached.
+For normal share/sale posts, accepting a request closes the post and rejects other pending requests. For group-buy posts, the writer can accept individual requests or close recruitment to open a 1:1/group chat room with the current participants.
+
+```http
+POST /api/posts/{postId}/group-buy/close-recruitment
+PATCH /api/posts/{postId}/group-buy/close-recruitment
+PUT /api/posts/{postId}/group-buy/close-recruitment
+Authorization: Bearer {accessToken}
+```
+
+## Fridge
+
+Fridge items are stored in MySQL per user.
+
+```http
+GET /api/fridge/items
+Authorization: Bearer {accessToken}
+```
+
+```http
+POST /api/fridge/items
+Content-Type: application/json
+Authorization: Bearer {accessToken}
+```
+
+```json
+{
+  "name": "양배추",
+  "amount": "반 통",
+  "expiryDate": "2026-07-10",
+  "storagePlace": "냉장",
+  "memo": "빨리 먹기"
+}
+```
+
+```http
+PUT /api/fridge/items/{itemId}
+DELETE /api/fridge/items/{itemId}
+Authorization: Bearer {accessToken}
+```
 
 ## Notifications
 

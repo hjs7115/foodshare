@@ -44,6 +44,8 @@ export const API_ENDPOINTS = {
   checkNickname: `${API_BASE_URL}/api/auth/nickname/check`,
   checkEmail: `${API_BASE_URL}/api/auth/email/check`,
   checkPhone: `${API_BASE_URL}/api/auth/phone/check`,
+  sendPhoneVerificationCode: `${API_BASE_URL}/api/auth/phone-verifications`,
+  verifyPhoneVerificationCode: `${API_BASE_URL}/api/auth/phone-verifications/verify`,
 
   // ========== 아이디 / 비밀번호 찾기 ==========
   findEmail: `${API_BASE_URL}/api/auth/find-email`,
@@ -105,6 +107,10 @@ export const API_ENDPOINTS = {
   pinChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/pin`,
   muteChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/mute`,
 
+  // ========== 냉장고 ==========
+  fridgeItems: `${API_BASE_URL}/api/fridge/items`,
+  fridgeItem: (itemId: number) => `${API_BASE_URL}/api/fridge/items/${itemId}`,
+
   // ========== 관심 목록 ==========
   favorites: `${API_BASE_URL}/api/mypage/favorites`,
   addFavorite: (postId: number) => `${API_BASE_URL}/api/posts/${postId}/favorite`,
@@ -122,7 +128,7 @@ export const API_ENDPOINTS = {
 
 // 게시글 필터링 파라미터 타입
 export type PostType = 'SHARE' | 'SALE' | 'GROUP_BUY';
-export type SortType = 'LATEST' | 'EXPIRING_SOON' | 'DISTANCE';
+export type SortType = 'LATEST' | 'EXPIRING_SOON' | 'DISTANCE' | 'FRESHNESS' | 'PRICE_LOW';
 
 export interface PostQueryParams {
   postType?: PostType;
@@ -155,6 +161,8 @@ function isPublicAuthEndpoint(url: string): boolean {
     '/api/auth/login',
     '/api/auth/email-verifications',
     '/api/auth/email-verifications/verify',
+    '/api/auth/phone-verifications',
+    '/api/auth/phone-verifications/verify',
     '/api/auth/nickname/check',
     '/api/auth/email/check',
     '/api/auth/phone/check',
@@ -429,6 +437,40 @@ export async function getNotifications(page = 0, size = 20): Promise<any> {
   const url = `${API_ENDPOINTS.notifications}?page=${page}&size=${size}`;
   return apiRequest(url, {
     method: 'GET',
+  });
+}
+
+export interface FridgeItemPayload {
+  name: string;
+  amount?: string;
+  expiryDate: string;
+  storagePlace?: string;
+  memo?: string;
+}
+
+export async function getFridgeItems(): Promise<any> {
+  return apiRequest(API_ENDPOINTS.fridgeItems, {
+    method: 'GET',
+  });
+}
+
+export async function createFridgeItem(payload: FridgeItemPayload): Promise<any> {
+  return apiRequest(API_ENDPOINTS.fridgeItems, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateFridgeItem(itemId: number, payload: FridgeItemPayload): Promise<any> {
+  return apiRequest(API_ENDPOINTS.fridgeItem(itemId), {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteFridgeItem(itemId: number): Promise<any> {
+  return apiRequest(API_ENDPOINTS.fridgeItem(itemId), {
+    method: 'DELETE',
   });
 }
 

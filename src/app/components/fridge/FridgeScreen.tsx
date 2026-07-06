@@ -18,10 +18,15 @@ import {
 import CreatePostScreen from '../board/CreatePostScreen';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
-import { getNotifications } from '../../api/config';
+import {
+  createFridgeItem,
+  deleteFridgeItem,
+  getFridgeItems,
+  getNotifications,
+  updateFridgeItem,
+  type FridgeItemPayload,
+} from '../../api/config';
 import { showToast, showConfirm } from '../../utils/feedback';
-
-const FRIDGE_STORAGE_KEY = 'foodshareFridgeItems';
 
 interface FridgeItem {
   id: number;
@@ -64,9 +69,10 @@ export default function FridgeScreen({
   const [showNotifications, setShowNotifications] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [editingItem, setEditingItem] = useState<FridgeItem | null>(null);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
 
   useEffect(() => {
-    setItems(loadStoredFridgeItems());
+    loadFridgeItems();
     loadUnreadNotifications();
   }, []);
 
@@ -127,12 +133,24 @@ export default function FridgeScreen({
     month: 'long',
   });
 
-  const saveItems = (nextItems: FridgeItem[]) => {
-    const sortedItems = [...nextItems].sort(
+  const setSortedItems = (nextItems: FridgeItem[]) => {
+    setItems([...nextItems].sort(
       (a, b) => parseDateKey(a.expiryDate).getTime() - parseDateKey(b.expiryDate).getTime()
-    );
-    setItems(sortedItems);
-    localStorage.setItem(FRIDGE_STORAGE_KEY, JSON.stringify(sortedItems));
+    ));
+  };
+
+  const loadFridgeItems = async () => {
+    setIsLoadingItems(true);
+    try {
+      const response = await getFridgeItems();
+      setSortedItems(extractFridgeItems(response));
+    } catch (error) {
+      console.warn('냉장고 식재료 조회에 실패했습니다.', error);
+      showToast('냉장고 식재료를 불러오지 못했습니다. 다시 로그인하거나 서버 상태를 확인해주세요.');
+      setItems([]);
+    } finally {
+      setIsLoadingItems(false);
+    }
   };
 
   const openCreateForm = () => {
@@ -145,7 +163,7 @@ export default function FridgeScreen({
     setShowItemForm(true);
   };
 
-  const handleSaveItem = (form: FridgeItemForm) => {
+  const handleSaveItem = async (form: FridgeItemForm) => {
     const trimmedName = form.name.trim();
     const trimmedAmount = form.amount.trim();
 
@@ -154,45 +172,46 @@ export default function FridgeScreen({
       return;
     }
 
-    if (editingItem) {
-      saveItems(items.map((item) => (
-        item.id === editingItem.id
-          ? {
-              ...item,
-              name: trimmedName,
-              amount: trimmedAmount || '수량 미정',
-              expiryDate: form.expiryDate,
-              storagePlace: form.storagePlace,
-              memo: form.memo.trim(),
-            }
-          : item
-      )));
-    } else {
-      saveItems([
-        ...items,
-        {
-          id: Date.now(),
-          name: trimmedName,
-          amount: trimmedAmount || '수량 미정',
-          expiryDate: form.expiryDate,
-          storagePlace: form.storagePlace,
-          memo: form.memo.trim(),
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-      setSelectedDate(parseDateKey(form.expiryDate));
-      setCurrentMonth(parseDateKey(form.expiryDate));
-    }
+    const payload: FridgeItemPayload = {
+      name: trimmedName,
+      amount: trimmedAmount || '수량 미정',
+      expiryDate: form.expiryDate,
+      storagePlace: form.storagePlace,
+      memo: form.memo.trim(),
+    };
 
-    setShowItemForm(false);
-    setEditingItem(null);
+    try {
+      if (editingItem) {
+        await updateFridgeItem(editingItem.id, payload);
+        showToast('식재료를 수정했습니다.');
+      } else {
+        await createFridgeItem(payload);
+        showToast('식재료를 추가했습니다.');
+        setSelectedDate(parseDateKey(form.expiryDate));
+        setCurrentMonth(parseDateKey(form.expiryDate));
+      }
+
+      await loadFridgeItems();
+      setShowItemForm(false);
+      setEditingItem(null);
+    } catch (error) {
+      console.warn('냉장고 식재료 저장에 실패했습니다.', error);
+      showToast('식재료 저장에 실패했습니다. 로그인 상태와 서버 연결을 확인해주세요.');
+    }
   };
 
   const handleDeleteItem = async (itemId: number) => {
     if (!(await showConfirm('이 식재료 기록을 삭제할까요?', '식재료 삭제', '삭제'))) return;
-    saveItems(items.filter((item) => item.id !== itemId));
-    setShowItemForm(false);
-    setEditingItem(null);
+    try {
+      await deleteFridgeItem(itemId);
+      await loadFridgeItems();
+      showToast('식재료를 삭제했습니다.');
+      setShowItemForm(false);
+      setEditingItem(null);
+    } catch (error) {
+      console.warn('냉장고 식재료 삭제에 실패했습니다.', error);
+      showToast('식재료 삭제에 실패했습니다. 다시 시도해주세요.');
+    }
   };
 
   const moveMonth = (amount: number) => {
@@ -301,7 +320,12 @@ export default function FridgeScreen({
             <span className="text-xs text-[#718096]">{selectedItems.length}개</span>
           </div>
 
-          {selectedItems.length === 0 ? (
+          {isLoadingItems ? (
+            <div className="rounded-2xl border border-[#cbd5e0] bg-white p-8 text-center">
+              <Package size={32} className="mx-auto mb-3 text-[#94a3b8]" />
+              <p className="text-sm text-[#2d3748]" style={{ fontWeight: 700 }}>냉장고를 불러오는 중입니다</p>
+            </div>
+          ) : selectedItems.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[#cbd5e0] bg-white p-8 text-center">
               <Package size={32} className="mx-auto mb-3 text-[#94a3b8]" />
               <p className="text-sm text-[#2d3748]" style={{ fontWeight: 700 }}>이 날짜에는 식재료가 없어요</p>
@@ -607,17 +631,44 @@ function FridgeItemRow({ item, onClick, compact = false }: { item: FridgeItem; o
   );
 }
 
-function loadStoredFridgeItems(): FridgeItem[] {
-  try {
-    const raw = localStorage.getItem(FRIDGE_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed)
-      ? parsed.filter((item) => item?.name && item?.expiryDate)
-      : [];
-  } catch {
-    localStorage.removeItem(FRIDGE_STORAGE_KEY);
-    return [];
+function extractFridgeItems(response: any): FridgeItem[] {
+  const candidates = [
+    response?.data?.items,
+    response?.data?.content,
+    response?.data,
+    response?.items,
+    response?.content,
+    response,
+  ];
+
+  const rawItems = candidates.find(Array.isArray) || [];
+  return rawItems
+    .map(normalizeFridgeItem)
+    .filter((item): item is FridgeItem => Boolean(item));
+}
+
+function normalizeFridgeItem(raw: any): FridgeItem | null {
+  if (!raw) {
+    return null;
   }
+
+  const id = Number(raw.id);
+  const name = String(raw.name || '').trim();
+  const expiryDate = String(raw.expiryDate || raw.expirationDate || '').slice(0, 10);
+
+  if (!Number.isFinite(id) || !name || !expiryDate) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    amount: raw.amount || raw.quantity || '수량 미정',
+    expiryDate,
+    storagePlace: raw.storagePlace || raw.storage || '냉장',
+    memo: raw.memo || '',
+    createdAt: raw.createdAt || new Date().toISOString(),
+  };
 }
 
 function buildCalendarDays(date: Date) {

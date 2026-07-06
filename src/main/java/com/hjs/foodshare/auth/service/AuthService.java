@@ -141,8 +141,7 @@ public class AuthService {
 
         return new PhoneVerificationSendResponse(
                 request.phoneNumber(),
-                (int) PHONE_CODE_TTL.toSeconds(),
-                code
+                (int) PHONE_CODE_TTL.toSeconds()
         );
     }
 

@@ -29,8 +29,8 @@
 | `GET` | `/api/auth/phone/check?phoneNumber={phoneNumber}` | 전화번호 중복 확인 | - | { success, message, data: { available } } |
 | `POST` | `/api/auth/find-email` | 이메일 찾기 | { name, phoneNumber } | { success, message, data: { email } } |
 | `POST` | `/api/auth/find-id` | 아이디 찾기 | { name, phoneNumber } | { success, message, data: { email } } |
-| `POST` | `/api/auth/password-reset-link` | 비밀번호 재설정 링크 발송 | { email } | { success, message, data: null } |
-| `POST` | `/api/auth/reset-password` | 비밀번호 재설정 | { token, password } | { success, message, data: null } |
+| `POST` | `/api/auth/password-reset-link` | 비밀번호 재설정 인증 코드 발송 | { email } | { success, message, data: { email, expiresInSeconds } } |
+| `POST` | `/api/auth/reset-password` | 이메일 인증 코드 기반 비밀번호 재설정 | { email, code, newPassword } | { success, message, data: null } |
 | `GET` | `/api/posts` | 게시글 목록 조회 | Query: postType, keyword, sort, lat, lng, radiusKm | { success, message, data: { posts } } |
 | `POST` | `/api/posts` | 게시글 작성 | { title, content, amount, price, postType, board, category, imageUrl, expiry, targetCount, currentCount, deadline } | { success, message, data: { post } } |
 | `POST` | `/api/posts/create` | 게시글 작성 레거시 호환 | { title, content, amount, price, postType } | { success, message, data: { post } } |

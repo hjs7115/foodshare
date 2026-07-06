@@ -371,6 +371,8 @@ Authorization: Bearer {accessToken}
 | POST | `/api/auth/find-id` | 아이디 찾기 |
 | POST | `/api/auth/password-reset-link` | 비밀번호 재설정 인증 코드 발송 |
 | POST | `/api/auth/reset-password` | 이메일 인증 코드 기반 비밀번호 재설정 |
+| POST | `/api/auth/phone-verifications` | 휴대폰 인증번호 발송 |
+| POST | `/api/auth/phone-verifications/verify` | 휴대폰 인증번호 검증 |
 | GET | `/api/auth/nickname/check` | 닉네임 중복 확인 |
 | GET | `/api/auth/email/check` | 이메일 중복 확인 |
 | GET | `/api/auth/phone/check` | 전화번호 중복 확인 |
@@ -454,6 +456,15 @@ sort=LATEST | EXPIRING_SOON | DISTANCE | FRESHNESS | PRICE_LOW
 | PATCH | `/api/chat/rooms/{roomId}/read` | 채팅방 읽음 처리 |
 | PATCH | `/api/chat/rooms/{roomId}/pin` | 채팅방 상단 고정/해제 |
 | PATCH | `/api/chat/rooms/{roomId}/mute` | 채팅방 알림 끄기/켜기 |
+
+### Fridge
+
+| Method | URL | 설명 |
+|------|------|------|
+| GET | `/api/fridge/items` | 내 냉장고 식재료 조회 |
+| POST | `/api/fridge/items` | 냉장고 식재료 등록 |
+| PUT | `/api/fridge/items/{itemId}` | 냉장고 식재료 수정 |
+| DELETE | `/api/fridge/items/{itemId}` | 냉장고 식재료 삭제 |
 
 ### Reviews
 

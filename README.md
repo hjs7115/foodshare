@@ -242,12 +242,20 @@ graph TB
 ```bash
 foodshare/
 ├── docs/
+│   ├── README.md                      # 문서 모음 안내
 │   ├── API.md                         # API 명세 문서
-│   ├── images/                        # 설계 이미지
+│   ├── deployment/                    # Docker/AWS 배포 문서
+│   ├── images/                        # 아키텍처, ERD, 시퀀스 이미지
 │   └── design/                        # 소프트웨어 설계서
 │
+├── docker/                            # 프론트엔드 Nginx 설정
+├── nginx/                             # 통합 배포용 Reverse Proxy 설정
+├── scripts/                           # 동기화 및 문서 보조 스크립트
+│
 ├── public/
-│   └── assets/                        # 정적 이미지 자산
+│   ├── assets/                        # PWA 아이콘, 기본 이미지 자산
+│   ├── manifest.webmanifest           # PWA 매니페스트
+│   └── firebase-messaging-sw.js       # PWA/FCM 서비스워커
 │
 ├── src/
 │   ├── app/                           # React 화면, 컴포넌트, API 클라이언트
@@ -285,6 +293,10 @@ foodshare/
 │
 ├── package.json                       # 프론트엔드 실행 / 빌드
 ├── build.gradle                       # 서버 실행 / 빌드
+├── docker-compose.yml                 # 로컬 Docker 통합 실행
+├── docker-compose.rds.yml             # AWS RDS 연동 Docker 실행 예시
+├── Dockerfile.backend                 # Spring Boot 컨테이너 빌드
+├── Dockerfile.frontend                # React 정적 빌드/Nginx 컨테이너 빌드
 ├── gradlew
 ├── gradlew.bat
 └── README.md

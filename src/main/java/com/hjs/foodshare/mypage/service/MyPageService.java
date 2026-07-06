@@ -1,5 +1,6 @@
 package com.hjs.foodshare.mypage.service;
 
+import com.hjs.foodshare.chat.service.ChatService;
 import com.hjs.foodshare.favorite.repository.FavoriteRepository;
 import com.hjs.foodshare.auth.dto.UserResponse;
 import com.hjs.foodshare.comment.dto.CommentResponse;
@@ -37,11 +38,12 @@ public class MyPageService {
     private final ReviewRepository reviewRepository;
     private final TradeRequestRepository tradeRequestRepository;
     private final ReviewService reviewService;
+    private final ChatService chatService;
 
     public MyPageService(UserRepository userRepository, PostRepository postRepository,
                          CommentRepository commentRepository, FavoriteRepository favoriteRepository,
                          ReviewRepository reviewRepository, TradeRequestRepository tradeRequestRepository,
-                         ReviewService reviewService) {
+                         ReviewService reviewService, ChatService chatService) {
         this.userRepository = userRepository;
         this.postRepository = postRepository;
         this.commentRepository = commentRepository;
@@ -49,6 +51,7 @@ public class MyPageService {
         this.reviewRepository = reviewRepository;
         this.tradeRequestRepository = tradeRequestRepository;
         this.reviewService = reviewService;
+        this.chatService = chatService;
     }
 
     public MyPageResponse getMyPage(Long userId) {
@@ -130,7 +133,8 @@ public class MyPageService {
                 tradeRequest,
                 countShareCompleted(requesterId),
                 countReceivedShare(requesterId),
-                countGroupBuyParticipation(requesterId)
+                countGroupBuyParticipation(requesterId),
+                chatService.findRoomIdByTradeRequestId(tradeRequest.getId())
         );
     }
 

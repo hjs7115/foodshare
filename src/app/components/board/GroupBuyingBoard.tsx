@@ -1,11 +1,12 @@
 ﻿import { useState, useEffect } from 'react';
-import { Bell, ArrowUpDown, MapPin, Snowflake, Leaf, User, ShoppingCart } from 'lucide-react';
+import { Bell, ArrowUpDown, MapPin, MessageCircle, Snowflake, Leaf, User, ShoppingCart } from 'lucide-react';
 import CreatePostScreen from './CreatePostScreen';
 import BoardSwitchModal from './BoardSwitchModal';
 import PostDetailScreen from './PostDetailScreen';
 import LocationSettingsScreen from '../profile/LocationSettingsScreen';
 import BackendImage from '../common/BackendImage';
 import NotificationsScreen from '../common/NotificationsScreen';
+import BottomNavIcon from '../common/BottomNavIcon';
 import { API_ENDPOINTS, apiRequest, buildPostsUrl, getNotifications, resolveImageUrl } from '../../api/config';
 
 interface GroupItem {
@@ -29,7 +30,15 @@ interface GroupItem {
 
 type GroupSortType = 'latest' | 'deadline' | 'rating' | 'distance' | 'participation';
 
-export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwitchBoard: (board: string) => void; onNavigate: (screen: string) => void }) {
+export default function GroupBuyingBoard({
+  onSwitchBoard,
+  onNavigate,
+  chatUnreadCount = 0,
+}: {
+  onSwitchBoard: (board: string) => void;
+  onNavigate: (screen: string) => void;
+  chatUnreadCount?: number;
+}) {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showBoardSwitch, setShowBoardSwitch] = useState(false);
   const [showPostDetail, setShowPostDetail] = useState(false);
@@ -399,8 +408,8 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-28">
         {groupItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-20">
-            <div className="w-32 h-32 bg-gradient-to-br from-[#fef3c7] to-[#fbbf24] rounded-full flex items-center justify-center mb-6 shadow-lg">
-              <div className="text-6xl">🛒</div>
+            <div className="mb-6 flex h-32 w-32 items-center justify-center">
+              <ShoppingCart size={78} strokeWidth={2.35} className="text-[#f59e0b]" />
             </div>
             <p className="text-xl text-[#2d3748] mb-2" style={{ fontWeight: 600 }}>
               진행 중인 공동구매가 없어요
@@ -503,22 +512,33 @@ export default function GroupBuyingBoard({ onSwitchBoard, onNavigate }: { onSwit
       </button>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-5 py-4 grid grid-cols-4 z-40">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-3 py-4 grid grid-cols-5 z-40">
         <button onClick={() => onSwitchBoard('나눔 및 판매')} className="flex flex-col items-center gap-1">
-          <Leaf size={24} className="text-[#bef264]" />
-          <span className="text-xs text-[#bef264]">나눔/판매</span>
+          <BottomNavIcon icon={Leaf} color="#65a30d" borderColor="#bef264" />
+          <span className="text-[11px] text-[#bef264]">나눔/판매</span>
         </button>
         <button onClick={() => onSwitchBoard('공동구매')} className="flex flex-col items-center gap-1">
-          <ShoppingCart size={24} className="text-[#fbbf24]" />
-          <span className="text-xs text-[#fbbf24]">공동구매</span>
+          <BottomNavIcon icon={ShoppingCart} color="#f59e0b" borderColor="#fbbf24" />
+          <span className="text-[11px] text-[#fbbf24]">공동구매</span>
+        </button>
+        <button onClick={() => onNavigate('chat')} className="relative flex flex-col items-center gap-1">
+          <span className="relative">
+            <BottomNavIcon icon={MessageCircle} color="#14b8a6" borderColor="#99f6e4" />
+            {chatUnreadCount > 0 && (
+              <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] leading-none text-white">
+                {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+              </span>
+            )}
+          </span>
+          <span className="text-[11px] text-[#14b8a6]">채팅</span>
         </button>
         <button onClick={() => onNavigate('fridge')} className="flex flex-col items-center gap-1">
-          <Snowflake size={24} className="text-[#0284c7]" />
-          <span className="text-xs text-[#0284c7]">냉장고</span>
+          <BottomNavIcon icon={Snowflake} color="#0284c7" borderColor="#bae6fd" />
+          <span className="text-[11px] text-[#0284c7]">냉장고</span>
         </button>
         <button onClick={() => onNavigate('profile')} className="flex flex-col items-center gap-1">
-          <User size={24} className="text-[#2d3748]" />
-          <span className="text-xs text-[#2d3748]">내정보</span>
+          <BottomNavIcon icon={User} color="#2d3748" borderColor="#cbd5e0" />
+          <span className="text-[11px] text-[#2d3748]">내정보</span>
         </button>
       </div>
 

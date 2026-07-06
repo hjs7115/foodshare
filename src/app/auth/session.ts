@@ -37,6 +37,9 @@ export function getStoredUserInfo<T = any>(): T | null {
   if (!rawUserInfo) return null;
 
   try {
+    if (!sessionStorage.getItem(USER_INFO_KEY)) {
+      sessionStorage.setItem(USER_INFO_KEY, rawUserInfo);
+    }
     return JSON.parse(rawUserInfo) as T;
   } catch {
     return null;

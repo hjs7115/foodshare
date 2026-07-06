@@ -6,7 +6,11 @@ export function registerPwaServiceWorker(): void {
   if (import.meta.env.DEV) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.getRegistrations()
-        .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+        .then((registrations) => Promise.all(
+          registrations
+            .filter((registration) => !registration.active?.scriptURL.endsWith('/firebase-messaging-sw.js'))
+            .map((registration) => registration.unregister())
+        ))
         .catch((error) => {
           console.warn('Service worker cleanup failed.', error);
         });

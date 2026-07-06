@@ -19,7 +19,10 @@
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className="text-lg">🥬 나눔 및 판매</span>
+              <span className="flex items-center gap-2 text-lg">
+                <img src="/assets/app-brand-mark.png" alt="" className="h-8 w-10 object-contain" />
+                나눔 및 판매
+              </span>
               {currentBoard === '나눔 및 판매' && (
                 <span className="text-sm text-[#718096]">현재 게시판</span>
               )}

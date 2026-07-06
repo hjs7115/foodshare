@@ -100,7 +100,7 @@ class BackendFeatureFlowTests {
         Post post = postRepository.findById(postId).orElseThrow();
         assertEquals(2, post.getCurrentParticipantCount());
         assertEquals(PostStatus.CLOSED, post.getStatus());
-        assertEquals(1, notificationRepository.findAllByUserIdOrderByCreatedAtDesc(requester.getId()).size());
+        assertEquals(2, notificationRepository.findAllByUserIdOrderByCreatedAtDesc(requester.getId()).size());
     }
 
     @Test

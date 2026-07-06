@@ -3,12 +3,13 @@ import { Eye, EyeOff } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
 import { registerFirebaseMessaging } from '../../firebase';
 import { saveAuthSession } from '../../auth/session';
+import { showToast } from '../../utils/feedback';
 
 export default function LoginScreen({ onLogin, onBack, onFindId, onFindPassword, onShowSignup }: { onLogin: () => void; onBack: () => void; onFindId: () => void; onFindPassword: () => void; onShowSignup: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [autoLogin, setAutoLogin] = useState(false);
+  const [autoLogin, setAutoLogin] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +28,7 @@ export default function LoginScreen({ onLogin, onBack, onFindId, onFindPassword,
       onLogin();
       void registerFirebaseMessaging();
     } catch (error: any) {
-      alert(error.message || '이메일 또는 비밀번호가 일치하지 않습니다.');
+      showToast(error.message || '이메일 또는 비밀번호가 일치하지 않습니다.');
     }
   };
 

@@ -15,7 +15,9 @@ import com.hjs.foodshare.trade.domain.TradeRequestStatus;
 import com.hjs.foodshare.trade.repository.TradeRequestRepository;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -114,7 +116,23 @@ public class NotificationService {
     public void createNotification(Long userId, String type, String title, String message, String targetType, Long targetId) {
         User user = getUser(userId);
         notificationRepository.save(Notification.create(user, type, title, message, targetType, targetId));
-        clearInvalidFcmTokenIfNeeded(user, fcmPushService.sendPush(user.getFcmToken(), title, message));
+        clearInvalidFcmTokenIfNeeded(user, fcmPushService.sendPush(
+                user.getFcmToken(),
+                title,
+                message,
+                pushData(type, targetType, targetId)
+        ));
+    }
+
+    @Transactional
+    public void sendPushOnly(Long userId, String type, String title, String message, String targetType, Long targetId) {
+        User user = getUser(userId);
+        clearInvalidFcmTokenIfNeeded(user, fcmPushService.sendPush(
+                user.getFcmToken(),
+                title,
+                message,
+                pushData(type, targetType, targetId)
+        ));
     }
 
     @Transactional
@@ -139,6 +157,34 @@ public class NotificationService {
 
     private boolean valueOrCurrent(Boolean value, boolean current) {
         return value == null ? current : value;
+    }
+
+    private Map<String, String> pushData(String type, String targetType, Long targetId) {
+        Map<String, String> data = new HashMap<>();
+        data.put("type", type == null ? "" : type);
+        data.put("targetType", targetType == null ? "" : targetType);
+        data.put("targetId", targetId == null ? "" : String.valueOf(targetId));
+        data.put("clickAction", clickAction(type, targetType, targetId));
+        return data;
+    }
+
+    private String clickAction(String type, String targetType, Long targetId) {
+        if ("CHAT_ROOM".equals(targetType) && targetId != null) {
+            return "/?screen=chat&roomId=" + targetId;
+        }
+        if ("TRADE_REQUEST".equals(targetType)) {
+            return "/?screen=tradeHistory";
+        }
+        if ("POST".equals(targetType) && targetId != null) {
+            return "/?screen=post&postId=" + targetId;
+        }
+        if ("COMMENT".equals(type)) {
+            return "/?screen=notifications";
+        }
+        if ("REVIEW".equals(type) || "RATING".equals(type)) {
+            return "/?screen=profile";
+        }
+        return "/";
     }
 
     private NotificationResponse toResponse(Notification notification) {

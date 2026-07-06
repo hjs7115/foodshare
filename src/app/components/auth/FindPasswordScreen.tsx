@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
+import { showToast } from '../../utils/feedback';
 
 type ResetStep = 'email' | 'code' | 'password';
 
@@ -30,7 +31,7 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
     event?.preventDefault();
 
     if (!email.trim()) {
-      alert('이메일을 입력해주세요.');
+      showToast('이메일을 입력해주세요.');
       return;
     }
 
@@ -46,9 +47,9 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
       setStep('code');
       setTimer(300);
       setTimeout(() => codeInputRefs.current[0]?.focus(), 0);
-      alert('비밀번호 재설정 인증코드를 이메일로 보냈습니다.');
+      showToast('비밀번호 재설정 인증코드를 이메일로 보냈습니다.');
     } catch (error: any) {
-      alert(error.message || '인증코드 발송에 실패했습니다.');
+      showToast(error.message || '인증코드 발송에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -81,16 +82,16 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
     event.preventDefault();
 
     if (code.length < 4) {
-      alert('인증코드를 입력해주세요.');
+      showToast('인증코드를 입력해주세요.');
       setStep('code');
       return;
     }
     if (newPassword.length < 8) {
-      alert('비밀번호는 8자 이상이어야 합니다.');
+      showToast('비밀번호는 8자 이상이어야 합니다.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      alert('비밀번호가 일치하지 않습니다.');
+      showToast('비밀번호가 일치하지 않습니다.');
       return;
     }
 
@@ -106,10 +107,10 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
         }),
       });
 
-      alert('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.');
+      showToast('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.');
       onBack();
     } catch (error: any) {
-      alert(error.message || '비밀번호 변경에 실패했습니다.');
+      showToast(error.message || '비밀번호 변경에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -207,7 +208,7 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
 
             <button
               type="button"
-              onClick={() => (code.length >= 4 ? setStep('password') : alert('인증코드를 입력해주세요.'))}
+              onClick={() => (code.length >= 4 ? setStep('password') : showToast('인증코드를 입력해주세요.'))}
               className="w-full bg-[#bef264] text-[#0a0a0a] py-4 rounded-2xl hover:bg-[#a3e635] transition-colors shadow-sm"
               style={{ fontWeight: 600 }}
             >

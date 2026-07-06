@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Ban, RefreshCw, User, X } from 'lucide-react';
 import { getBlockedUsers, unblockUser, resolveImageUrl } from '../../api/config';
 import BackendImage from '../common/BackendImage';
+import { showToast, showConfirm } from '../../utils/feedback';
 
 interface BlockedUsersScreenProps {
   onClose: () => void;
@@ -66,15 +67,15 @@ export default function BlockedUsersScreen({ onClose }: BlockedUsersScreenProps)
   };
 
   const handleUnblock = async (user: BlockedUser) => {
-    if (!confirm(`${user.nickname}님 차단을 해제하시겠습니까?`)) return;
+    if (!(await showConfirm(`${user.nickname}님 차단을 해제하시겠습니까?`, '차단 해제', '해제'))) return;
 
     setProcessingId(user.id);
     try {
       await unblockUser(user.id);
       setBlockedUsers((prevUsers) => prevUsers.filter((blockedUser) => blockedUser.id !== user.id));
-      alert('차단을 해제했습니다.');
+      showToast('차단을 해제했습니다.');
     } catch (error: any) {
-      alert(error.message || '차단 해제에 실패했습니다.');
+      showToast(error.message || '차단 해제에 실패했습니다.');
     } finally {
       setProcessingId(null);
     }
@@ -134,6 +135,7 @@ export default function BlockedUsersScreen({ onClose }: BlockedUsersScreenProps)
                       src={resolveImageUrl(user.profileImage)}
                       alt={user.nickname}
                       className="w-full h-full object-cover"
+                      fallbackSrc="/assets/profile-placeholder.svg"
                     />
                   ) : (
                     <User size={22} className="text-[#718096]" />

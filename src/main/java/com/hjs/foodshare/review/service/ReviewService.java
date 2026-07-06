@@ -2,6 +2,7 @@ package com.hjs.foodshare.review.service;
 
 import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.global.response.PageResponse;
+import com.hjs.foodshare.notification.service.NotificationService;
 import com.hjs.foodshare.review.domain.Review;
 import com.hjs.foodshare.review.dto.RatingSummaryResponse;
 import com.hjs.foodshare.review.dto.ReviewCreateRequest;
@@ -26,11 +27,18 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final TradeRequestRepository tradeRequestRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
-    public ReviewService(ReviewRepository reviewRepository, TradeRequestRepository tradeRequestRepository, UserRepository userRepository) {
+    public ReviewService(
+            ReviewRepository reviewRepository,
+            TradeRequestRepository tradeRequestRepository,
+            UserRepository userRepository,
+            NotificationService notificationService
+    ) {
         this.reviewRepository = reviewRepository;
         this.tradeRequestRepository = tradeRequestRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -62,7 +70,16 @@ public class ReviewService {
         targetUser.updateFreshnessScore(
                 FreshnessCalculator.update(targetUser.getFreshnessScore(), request.rating())
         );
-        return ReviewResponse.from(reviewRepository.save(review));
+        Review savedReview = reviewRepository.save(review);
+        notificationService.createNotification(
+                targetUser.getId(),
+                "REVIEW",
+                "새 평가",
+                reviewer.getNickname() + "님이 거래 평가를 남겼습니다.",
+                "REVIEW",
+                savedReview.getId()
+        );
+        return ReviewResponse.from(savedReview);
     }
 
     @Transactional

@@ -10,6 +10,8 @@ export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL
 ).replace(/\/+$/, '');
 
+export const WS_BASE_URL = API_BASE_URL.replace(/^http/i, 'ws');
+
 export function resolveImageUrl(value?: string | null): string {
   if (!value) return '/assets/food-placeholder.png';
 
@@ -69,6 +71,7 @@ export const API_ENDPOINTS = {
   acceptTradeRequest: (tradeRequestId: number) => `${API_BASE_URL}/api/trade-requests/${tradeRequestId}/accept`,
   rejectTradeRequest: (tradeRequestId: number) => `${API_BASE_URL}/api/trade-requests/${tradeRequestId}/reject`,
   completeTradeRequest: (tradeRequestId: number) => `${API_BASE_URL}/api/trade-requests/${tradeRequestId}/complete`,
+  closeGroupBuyRecruitment: (postId: number) => `${API_BASE_URL}/api/posts/${postId}/group-buy/close-recruitment`,
 
   // ========== 마이페이지 ==========
   mypage: `${API_BASE_URL}/api/mypage`,
@@ -89,7 +92,15 @@ export const API_ENDPOINTS = {
   notificationSettings: `${API_BASE_URL}/api/mypage/notifications/settings`,
   notifications: `${API_BASE_URL}/api/notifications`,
   readNotification: (notificationId: number) => `${API_BASE_URL}/api/notifications/${notificationId}/read`,
+  deleteNotification: (notificationId: number) => `${API_BASE_URL}/api/notifications/${notificationId}`,
+  deleteReadNotifications: `${API_BASE_URL}/api/notifications/read`,
   registerFcmToken: `${API_BASE_URL}/api/notifications/fcm-token`,
+
+  // ========== 채팅 ==========
+  chatRooms: `${API_BASE_URL}/api/chat/rooms`,
+  chatRoomByTradeRequest: (tradeRequestId: number) => `${API_BASE_URL}/api/chat/rooms/by-trade-request/${tradeRequestId}`,
+  chatMessages: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/messages`,
+  readChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/read`,
 
   // ========== 관심 목록 ==========
   favorites: `${API_BASE_URL}/api/mypage/favorites`,
@@ -162,6 +173,12 @@ function translateApiErrorMessage(message: string): string {
     'Only pending requests can be rejected.': '대기 중인 요청만 거절할 수 있습니다.',
     'Only accepted requests can be completed.': '수락된 거래만 완료 처리할 수 있습니다.',
     'Only trade participants can complete this request.': '거래 참여자만 완료 처리할 수 있습니다.',
+    'Email already exists.': '이미 가입된 이메일입니다.',
+    'Email already exists': '이미 가입된 이메일입니다.',
+    'Nickname already exists.': '이미 사용 중인 닉네임입니다.',
+    'Nickname already exists': '이미 사용 중인 닉네임입니다.',
+    'Phone number already exists.': '이미 가입된 전화번호입니다.',
+    'Phone number already exists': '이미 가입된 전화번호입니다.',
   };
 
   return translations[message] || message;
@@ -415,5 +432,17 @@ export async function getNotifications(page = 0, size = 20): Promise<any> {
 export async function readNotification(notificationId: number): Promise<any> {
   return apiRequest(API_ENDPOINTS.readNotification(notificationId), {
     method: 'PATCH',
+  });
+}
+
+export async function deleteNotification(notificationId: number): Promise<any> {
+  return apiRequest(API_ENDPOINTS.deleteNotification(notificationId), {
+    method: 'DELETE',
+  });
+}
+
+export async function deleteReadNotifications(): Promise<any> {
+  return apiRequest(API_ENDPOINTS.deleteReadNotifications, {
+    method: 'DELETE',
   });
 }

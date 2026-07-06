@@ -12,8 +12,15 @@ import {
   User,
   X,
 } from 'lucide-react';
-import { getNotifications, readNotification, resolveImageUrl } from '../../api/config';
+import {
+  deleteNotification,
+  deleteReadNotifications,
+  getNotifications,
+  readNotification,
+  resolveImageUrl,
+} from '../../api/config';
 import BackendImage from './BackendImage';
+import { showConfirm, showToast } from '../../utils/feedback';
 
 interface NotificationItem {
   id: number;
@@ -283,15 +290,31 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
     }
   };
 
-  const handleDeleteReadNotifications = () => {
+  const handleDeleteReadNotifications = async () => {
     if (readCount === 0) return;
-    if (!confirm('읽은 알림을 삭제할까요?')) return;
+    if (!(await showConfirm('읽은 알림을 삭제할까요?', '알림 삭제', '삭제'))) return;
 
+    const previousNotifications = notifications;
     setNotifications((prev) => prev.filter((notification) => !notification.isRead));
+
+    try {
+      await deleteReadNotifications();
+    } catch (error: any) {
+      setNotifications(previousNotifications);
+      showToast(error?.message || '읽은 알림 삭제에 실패했습니다.', 'error');
+    }
   };
 
-  const handleDeleteNotification = (notificationId: number) => {
+  const handleDeleteNotification = async (notificationId: number) => {
+    const previousNotifications = notifications;
     setNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
+
+    try {
+      await deleteNotification(notificationId);
+    } catch (error: any) {
+      setNotifications(previousNotifications);
+      showToast(error?.message || '알림 삭제에 실패했습니다.', 'error');
+    }
   };
 
   return (
@@ -417,6 +440,7 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
                                 src={resolveImageUrl(notification.requesterProfileImage)}
                                 alt={notification.requesterNickname || '요청자'}
                                 className="w-full h-full object-cover"
+                                fallbackSrc="/assets/profile-placeholder.svg"
                               />
                             ) : (
                               <User size={18} className="text-[#718096]" />
@@ -489,6 +513,7 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
                         src={resolveImageUrl(selectedProfile.requesterProfileImage)}
                         alt={selectedProfile.requesterNickname || '요청자'}
                         className="w-full h-full object-cover"
+                        fallbackSrc="/assets/profile-placeholder.svg"
                       />
                     ) : (
                       <User size={32} className="text-[#718096]" />

@@ -1,3 +1,4 @@
+import { showToast } from '../../utils/feedback';
 ﻿import { useState, useEffect } from 'react';
 import { X, Heart } from 'lucide-react';
 import BackendImage from '../common/BackendImage';
@@ -49,7 +50,7 @@ export default function FavoritesScreen({ onClose }: { onClose: () => void }) {
       await apiRequest(API_ENDPOINTS.removeFavorite(id), { method: 'DELETE' });
       setFavorites((currentFavorites) => currentFavorites.filter((fav) => fav.id !== id));
     } catch (error: any) {
-      alert(error.message || '관심 목록 삭제에 실패했습니다.');
+      showToast(error.message || '관심 목록 삭제에 실패했습니다.');
     }
   };
 

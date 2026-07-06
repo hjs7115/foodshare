@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
+import { showToast } from '../../utils/feedback';
 
 export default function FindIdScreen({ onBack }: { onBack: () => void }) {
   const [name, setName] = useState('');
@@ -18,7 +19,7 @@ export default function FindIdScreen({ onBack }: { onBack: () => void }) {
       const email = response.email || response.data?.email || response.data;
       setFoundEmail(String(email || '가입된 이메일을 찾지 못했습니다.'));
     } catch (error: any) {
-      alert(error.message || '이메일 찾기에 실패했습니다.');
+      showToast(error.message || '이메일 찾기에 실패했습니다.');
     }
   };
 

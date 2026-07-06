@@ -1,3 +1,4 @@
+import { showConfirm } from '../utils/feedback';
 ﻿import { useState, useEffect } from 'react';
 import { API_BASE_URL, testServerConnection } from '../api/config';
 
@@ -133,8 +134,8 @@ export default function ServerConnectionCheck({ children }: { children: React.Re
             </button>
 
             <button
-              onClick={() => {
-                if (confirm('서버 연결 없이 계속하면 대부분의 기능이 작동하지 않습니다.\n정말 계속하시겠습니까?')) {
+              onClick={async () => {
+                if (await showConfirm('서버 연결 없이 계속하면 대부분의 기능이 작동하지 않습니다.\n정말 계속하시겠습니까?', '서버 연결 없이 계속', '계속')) {
                   setIsConnected(true);
                   setError(null);
                 }

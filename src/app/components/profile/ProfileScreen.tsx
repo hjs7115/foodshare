@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Ban, Bell, ChevronRight, FileText, Heart, History, Leaf, LogOut, MapPin, Plus, Settings, ShoppingCart, Snowflake, Star, Trophy, User } from 'lucide-react';
+import { Ban, Bell, ChevronRight, FileText, Heart, History, Leaf, LogOut, MessageCircle, Plus, Settings, ShoppingCart, Snowflake, Star, Trophy, User } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, getNotifications, resolveImageUrl } from '../../api/config';
 import { clearAuthSession, getAuthToken, getStoredUserInfo, saveStoredUserInfo } from '../../auth/session';
 import EditProfileScreen from './EditProfileScreen';
 import BackendImage from '../common/BackendImage';
-import NotificationSettingsScreen from './NotificationSettingsScreen';
-import LocationSettingsScreen from './LocationSettingsScreen';
 import FavoritesScreen from './FavoritesScreen';
 import MyPostsScreen from './MyPostsScreen';
 import SettingsScreen from './SettingsScreen';
@@ -14,6 +12,8 @@ import TransactionHistoryScreen from './TransactionHistoryScreen';
 import BadgesScreen from './BadgesScreen';
 import BlockedUsersScreen from './BlockedUsersScreen';
 import NotificationsScreen from '../common/NotificationsScreen';
+import BottomNavIcon from '../common/BottomNavIcon';
+import { showConfirm } from '../../utils/feedback';
 
 interface UserInfo {
   name: string;
@@ -31,16 +31,16 @@ interface UserInfo {
 export default function ProfileScreen({
   onNavigate,
   openTransactionHistorySignal = 0,
+  chatUnreadCount = 0,
 }: {
   onNavigate: (screen: string) => void;
   openTransactionHistorySignal?: number;
+  chatUnreadCount?: number;
 }) {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-  const [showLocationSettings, setShowLocationSettings] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
   const [showMyPosts, setShowMyPosts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -150,8 +150,6 @@ export default function ProfileScreen({
     { icon: Star, label: '나의 신선도', action: () => setShowRatingDetail(true) },
     { icon: History, label: '거래 내역', badge: pendingReceivedRequestCount, action: () => setShowTransactionHistory(true) },
     { icon: Trophy, label: '매너 뱃지', action: () => setShowBadges(true) },
-    { icon: Bell, label: '알림 설정', action: () => setShowNotificationSettings(true) },
-    { icon: MapPin, label: '위치 설정', action: () => setShowLocationSettings(true) },
     { icon: Heart, label: '관심 목록', action: () => setShowFavorites(true) },
     { icon: Ban, label: '차단 목록', action: () => setShowBlockedUsers(true) },
     { icon: FileText, label: '내 게시글', action: () => setShowMyPosts(true) },
@@ -159,7 +157,7 @@ export default function ProfileScreen({
   ];
 
   const logout = async () => {
-    if (!confirm('로그아웃 하시겠습니까?')) return;
+    if (!(await showConfirm('로그아웃 하시겠습니까?', '로그아웃', '로그아웃'))) return;
 
     try {
       await apiRequest(API_ENDPOINTS.logout, { method: 'POST' });
@@ -202,6 +200,7 @@ export default function ProfileScreen({
                   src={resolveImageUrl(userInfo.profileImage)}
                   alt="Profile"
                   className="w-full h-full object-cover"
+                  fallbackSrc="/assets/profile-placeholder.svg"
                 />
               ) : (
                 <User size={32} className="text-[#718096]" />
@@ -279,22 +278,33 @@ export default function ProfileScreen({
         </section>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-5 py-4 grid grid-cols-4 z-40">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-3 py-4 grid grid-cols-5 z-40">
         <button onClick={() => onNavigate('나눔 및 판매')} className="flex flex-col items-center gap-1">
-          <Leaf size={24} className="text-[#bef264]" />
-          <span className="text-xs text-[#bef264]">나눔/판매</span>
+          <BottomNavIcon icon={Leaf} color="#65a30d" borderColor="#bef264" />
+          <span className="text-[11px] text-[#bef264]">나눔/판매</span>
         </button>
         <button onClick={() => onNavigate('공동구매')} className="flex flex-col items-center gap-1">
-          <ShoppingCart size={24} className="text-[#fbbf24]" />
-          <span className="text-xs text-[#fbbf24]">공동구매</span>
+          <BottomNavIcon icon={ShoppingCart} color="#f59e0b" borderColor="#fbbf24" />
+          <span className="text-[11px] text-[#fbbf24]">공동구매</span>
+        </button>
+        <button onClick={() => onNavigate('chat')} className="relative flex flex-col items-center gap-1">
+          <span className="relative">
+            <BottomNavIcon icon={MessageCircle} color="#14b8a6" borderColor="#99f6e4" />
+            {chatUnreadCount > 0 && (
+              <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] leading-none text-white">
+                {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+              </span>
+            )}
+          </span>
+          <span className="text-[11px] text-[#14b8a6]">채팅</span>
         </button>
         <button onClick={() => onNavigate('fridge')} className="flex flex-col items-center gap-1">
-          <Snowflake size={24} className="text-[#0284c7]" />
-          <span className="text-xs text-[#0284c7]">냉장고</span>
+          <BottomNavIcon icon={Snowflake} color="#0284c7" borderColor="#bae6fd" />
+          <span className="text-[11px] text-[#0284c7]">냉장고</span>
         </button>
         <button className="flex flex-col items-center gap-1">
-          <User size={24} className="text-[#2d3748]" />
-          <span className="text-xs text-[#2d3748]">내정보</span>
+          <BottomNavIcon icon={User} color="#2d3748" borderColor="#cbd5e0" />
+          <span className="text-[11px] text-[#2d3748]">내정보</span>
         </button>
       </div>
 
@@ -305,18 +315,6 @@ export default function ProfileScreen({
             setShowEditProfile(false);
             loadUserInfo();
           }}
-        />
-      )}
-
-      {showNotificationSettings && (
-        <NotificationSettingsScreen
-          onClose={() => setShowNotificationSettings(false)}
-        />
-      )}
-
-      {showLocationSettings && (
-        <LocationSettingsScreen
-          onClose={() => setShowLocationSettings(false)}
         />
       )}
 

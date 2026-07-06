@@ -1,3 +1,4 @@
+import { showToast, showConfirm, showPrompt } from '../../utils/feedback';
 ﻿import { useState, useEffect } from 'react';
 import { X, Heart, MessageCircle, Send, User, Leaf, MoreVertical, Edit2, Trash2, Flag, Ban } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl, createReport, blockUser, type ReportTargetType } from '../../api/config';
@@ -11,6 +12,7 @@ interface Post {
   price: string;
   amount: string;
   postType: 'SHARE' | 'SALE' | 'GROUP_BUY';
+  status?: 'OPEN' | 'CLOSED';
   image: string;
   emoji?: string;
   createdAt: string;
@@ -86,6 +88,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   const [isCommentSubmitting, setIsCommentSubmitting] = useState(false);
   const [tradeRequestStatus, setTradeRequestStatus] = useState<TradeRequestStatus | null>(null);
   const [isTradeRequestSubmitting, setIsTradeRequestSubmitting] = useState(false);
+  const [isClosingRecruitment, setIsClosingRecruitment] = useState(false);
   const [isSafetyActionSubmitting, setIsSafetyActionSubmitting] = useState(false);
 
   useEffect(() => {
@@ -107,6 +110,21 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
   const normalizePostDetail = (serverPost: Post): Post => ({
     ...serverPost,
+    status: (serverPost as any).status,
+    currentCount: Number(
+      (serverPost as any).currentCount ??
+      (serverPost as any).currentParticipantCount ??
+      1
+    ),
+    targetCount: Number(
+      (serverPost as any).targetCount ??
+      (serverPost as any).targetParticipantCount ??
+      5
+    ),
+    deadline:
+      (serverPost as any).deadline ||
+      (serverPost as any).deadlineDate ||
+      serverPost.deadline,
     image: resolveImageUrl(
       (serverPost as any).image ||
       (serverPost as any).imageUrl ||
@@ -371,7 +389,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       setComments(extractComments(response));
     } catch (error: any) {
       console.error('댓글 조회 실패:', error);
-      alert(error.message || '댓글을 불러오지 못했습니다.');
+      showToast(error.message || '댓글을 불러오지 못했습니다.');
       setComments([]);
     }
   };
@@ -399,21 +417,21 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       setComments((prevComments) => [...prevComments, comment]);
       setNewComment('');
     } catch (error: any) {
-      alert(error.message || '댓글 작성에 실패했습니다.');
+      showToast(error.message || '댓글 작성에 실패했습니다.');
     } finally {
       setIsCommentSubmitting(false);
     }
   };
 
   const handleDeleteComment = async (commentId: number) => {
-    if (!confirm('댓글을 삭제하시겠습니까?')) return;
+    if (!(await showConfirm('댓글을 삭제하시겠습니까?', '댓글 삭제', '삭제'))) return;
 
     try {
       await apiRequest(API_ENDPOINTS.deleteComment(commentId), { method: 'DELETE' });
       setComments((prevComments) => prevComments.filter((c) => c.id !== commentId));
       setShowMenuForComment(null);
     } catch (error: any) {
-      alert(error.message || '댓글 삭제에 실패했습니다.');
+      showToast(error.message || '댓글 삭제에 실패했습니다.');
     }
   };
 
@@ -441,7 +459,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       setEditingCommentId(null);
       setEditingContent('');
     } catch (error: any) {
-      alert(error.message || '댓글 수정에 실패했습니다.');
+      showToast(error.message || '댓글 수정에 실패했습니다.');
     }
   };
 
@@ -460,14 +478,14 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
         setIsFavorite(true);
       }
     } catch (error: any) {
-      alert(error.message || '관심 목록 처리에 실패했습니다.');
+      showToast(error.message || '관심 목록 처리에 실패했습니다.');
     }
   };
 
   const handleCreateReport = async (targetType: ReportTargetType, targetId: number, targetLabel: string) => {
     if (isSafetyActionSubmitting) return;
 
-    const reason = prompt(`${targetLabel} 신고 사유를 입력해주세요.`);
+    const reason = await showPrompt(`${targetLabel} 신고 사유를 입력해주세요.`, '신고하기', '신고 사유');
     if (!reason?.trim()) return;
 
     setIsSafetyActionSubmitting(true);
@@ -477,10 +495,10 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
         targetId,
         reason: reason.trim(),
       });
-      alert('신고가 접수되었습니다.');
+      showToast('신고가 접수되었습니다.');
       setShowMenuForComment(null);
     } catch (error: any) {
-      alert(error.message || '신고 접수에 실패했습니다.');
+      showToast(error.message || '신고 접수에 실패했습니다.');
     } finally {
       setIsSafetyActionSubmitting(false);
     }
@@ -488,19 +506,19 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
   const handleBlockUser = async (userId: number | undefined, nickname: string) => {
     if (!userId || isSafetyActionSubmitting) {
-      if (!userId) alert('차단할 사용자 정보를 찾을 수 없습니다.');
+      if (!userId) showToast('차단할 사용자 정보를 찾을 수 없습니다.');
       return;
     }
 
-    if (!confirm(`${nickname || '사용자'}님을 차단하시겠습니까?`)) return;
+    if (!(await showConfirm(`${nickname || '사용자'}님을 차단하시겠습니까?`, '사용자 차단', '차단'))) return;
 
     setIsSafetyActionSubmitting(true);
     try {
       await blockUser(userId);
-      alert('사용자를 차단했습니다.');
+      showToast('사용자를 차단했습니다.');
       onClose();
     } catch (error: any) {
-      alert(error.message || '사용자 차단에 실패했습니다.');
+      showToast(error.message || '사용자 차단에 실패했습니다.');
     } finally {
       setIsSafetyActionSubmitting(false);
     }
@@ -544,7 +562,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
     const userInfo = getCurrentUser();
 
     if (!userInfo.nickname) {
-      alert('로그인이 필요합니다.');
+      showToast('로그인이 필요합니다.');
       return;
     }
 
@@ -558,31 +576,59 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       (!!currentUserNickname && postAuthor === currentUserNickname);
 
     if (isMyPost) {
-      alert('본인 게시글에는 거래 요청할 수 없습니다.');
+      showToast('본인 게시글에는 거래 요청할 수 없습니다.');
       return;
     }
 
     if (tradeRequestStatus) {
-      alert('이미 이 게시글에 거래 요청을 보냈습니다.');
+      showToast('이미 이 게시글에 거래 요청을 보냈습니다.');
       return;
     }
 
     const typeLabel = post?.postType === 'SHARE' ? '나눔' : post?.postType === 'SALE' ? '구매' : '공동구매 참여';
 
-    if (!confirm(`${typeLabel} 요청을 보내시겠습니까?`)) return;
+    if (!(await showConfirm(`${typeLabel} 요청을 보내시겠습니까?`, '거래 요청', '요청'))) return;
 
     setIsTradeRequestSubmitting(true);
     try {
-      await apiRequest(API_ENDPOINTS.createTradeRequest(postId), { method: 'POST' });
-      setTradeRequestStatus('PENDING');
-      alert(`${typeLabel} 요청이 전송되었습니다.\n게시글 작성자가 확인 후 연락드릴 예정입니다.`);
+      const response = await apiRequest(API_ENDPOINTS.createTradeRequest(postId), { method: 'POST' });
+      const tradeRequest = response?.data || response?.tradeRequest || response;
+      const nextStatus = tradeRequest?.status || 'PENDING';
+      setTradeRequestStatus(nextStatus);
+      await loadPost();
+      if (nextStatus === 'ACCEPTED' && tradeRequest?.chatRoomId) {
+        showToast('목표 인원이 모여 공동구매 채팅방이 개설되었습니다.');
+      } else {
+        showToast(`${typeLabel} 요청이 전송되었습니다.\n게시글 작성자가 확인 후 연락드릴 예정입니다.`);
+      }
     } catch (error: any) {
       if (error.message === '이미 이 게시글에 거래 요청을 보냈습니다.') {
         setTradeRequestStatus('PENDING');
       }
-      alert(error.message || `${typeLabel} 요청에 실패했습니다.`);
+      showToast(error.message || `${typeLabel} 요청에 실패했습니다.`);
     } finally {
       setIsTradeRequestSubmitting(false);
+    }
+  };
+
+  const handleCloseGroupBuyRecruitment = async () => {
+    if (!post || post.postType !== 'GROUP_BUY') return;
+    if (!(await showConfirm('현재 참여 요청자들과 공동구매 채팅방을 만들고 모집을 마감할까요?', '모집마감', '마감'))) return;
+
+    setIsClosingRecruitment(true);
+    try {
+      const response = await apiRequest(API_ENDPOINTS.closeGroupBuyRecruitment(post.id), { method: 'POST' });
+      const openedRequests = response?.data || response?.tradeRequests || response || [];
+      await loadPost();
+      showToast(
+        Array.isArray(openedRequests) && openedRequests.length > 0
+          ? `모집을 마감했습니다.\n${openedRequests.length}개의 채팅방이 개설되었습니다.`
+          : '모집을 마감했습니다.'
+      );
+    } catch (error: any) {
+      showToast(error.message || '모집마감에 실패했습니다.');
+    } finally {
+      setIsClosingRecruitment(false);
     }
   };
 
@@ -638,6 +684,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   const postFreshnessLabel = getFreshnessLabel(post);
   const postLocation = getPostLocation(post);
   const postAuthorImage = getProfileImage(post) || (isMyPost ? getProfileImage(currentUser) : '');
+  const isGroupBuyClosed = post.postType === 'GROUP_BUY' && post.status === 'CLOSED';
 
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col">
@@ -698,6 +745,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
                     src={postAuthorImage}
                     alt={postAuthor}
                     className="w-full h-full object-cover"
+                    fallbackSrc="/assets/profile-placeholder.svg"
                   />
                 ) : (
                   <User size={16} className="text-[#718096]" />
@@ -803,6 +851,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
                           src={comment.authorImage}
                           alt={comment.author}
                           className="w-full h-full object-cover"
+                          fallbackSrc="/assets/profile-placeholder.svg"
                         />
                       ) : (
                         <User size={16} className="text-[#718096]" />
@@ -931,12 +980,23 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
       <div className="bg-white border-t border-[#e2e8f0] px-5 py-4">
         {isMyPost ? (
-          <div
-            className="w-full bg-[#f1f5f9] text-[#718096] py-4 rounded-2xl text-center"
-            style={{ fontWeight: 600 }}
-          >
-            내 게시글입니다
-          </div>
+          post.postType === 'GROUP_BUY' ? (
+            <button
+              onClick={handleCloseGroupBuyRecruitment}
+              disabled={isClosingRecruitment || isGroupBuyClosed}
+              className="w-full bg-[#bef264] text-[#0a0a0a] py-4 rounded-2xl hover:bg-[#a3e635] disabled:bg-[#e2e8f0] disabled:text-[#718096] disabled:cursor-not-allowed transition-colors shadow-sm"
+              style={{ fontWeight: 600 }}
+            >
+              {isGroupBuyClosed ? '모집 마감됨' : isClosingRecruitment ? '마감 중' : '모집마감'}
+            </button>
+          ) : (
+            <div
+              className="w-full bg-[#f1f5f9] text-[#718096] py-4 rounded-2xl text-center"
+              style={{ fontWeight: 600 }}
+            >
+              내 게시글입니다
+            </div>
+          )
         ) : (
           <button
             onClick={handleTradeRequest}

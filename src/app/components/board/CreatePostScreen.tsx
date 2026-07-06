@@ -1,3 +1,4 @@
+import { showToast } from '../../utils/feedback';
 ﻿import { useState, useRef } from 'react';
 import { X, Camera } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl, uploadImage } from '../../api/config';
@@ -119,13 +120,13 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
     if (isSubmitting) return;
 
     if (!title || !amount) {
-      alert('제목과 수량은 필수 입력 항목입니다.');
+      showToast('제목과 수량은 필수 입력 항목입니다.');
       return;
     }
     if (images.length === 0) {
       const message = '게시글 사진을 최소 1장 첨부해주세요.';
       setImageError(message);
-      alert(message);
+      showToast(message);
       return;
     }
 
@@ -236,10 +237,10 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
           };
 
       onCreatePost(localPost);
-      alert('게시글이 작성되었습니다.');
+      showToast('게시글이 작성되었습니다.');
       onClose();
     } catch (error: any) {
-      alert(error.message || '게시글 작성에 실패했습니다.');
+      showToast(error.message || '게시글 작성에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }

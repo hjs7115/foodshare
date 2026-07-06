@@ -38,7 +38,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "http://172.*.*.*:3000",
                         "http://172.*.*.*:5173",
                         "https://*.ngrok-free.dev",
-                        "https://*.ngrok-free.app"
+                        "https://*.ngrok-free.app",
+                        "https://*.trycloudflare.com"
                 )
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 .allowedHeaders("*")

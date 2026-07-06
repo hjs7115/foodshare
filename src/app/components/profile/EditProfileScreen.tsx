@@ -3,6 +3,7 @@ import { X, Camera, User } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl, uploadImage } from '../../api/config';
 import BackendImage from '../common/BackendImage';
 import { getStoredUserInfo, saveStoredUserInfo } from '../../auth/session';
+import { showToast } from '../../utils/feedback';
 
 interface UserInfo {
   name: string;
@@ -75,10 +76,10 @@ export default function EditProfileScreen({ onClose, onSave }: EditProfileScreen
       setProfileImage(resolveImageUrl(updatedUserInfo.profileImage || ''));
       setSelectedImageFile(null);
 
-      alert('프로필이 수정되었습니다.');
+      showToast('프로필이 수정되었습니다.');
       onSave();
     } catch (error: any) {
-      alert(error.message || '프로필 수정에 실패했습니다.');
+      showToast(error.message || '프로필 수정에 실패했습니다.');
     }
   };
 
@@ -106,7 +107,12 @@ export default function EditProfileScreen({ onClose, onSave }: EditProfileScreen
             <div className="relative">
               <div className="w-28 h-28 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden">
                 {profileImage ? (
-                  <BackendImage src={profileImage} alt="프로필 사진" className="w-full h-full object-cover" />
+                  <BackendImage
+                    src={profileImage}
+                    alt="프로필 사진"
+                    className="w-full h-full object-cover"
+                    fallbackSrc="/assets/profile-placeholder.svg"
+                  />
                 ) : (
                   <User size={56} className="text-[#718096]" />
                 )}

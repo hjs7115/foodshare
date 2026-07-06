@@ -1,13 +1,21 @@
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
-const CACHE_NAME = 'foodshare-pwa-v1';
+<<<<<<< HEAD
+const CACHE_NAME = 'foodshare-pwa-v2';
+=======
+const CACHE_NAME = 'foodshare-pwa-v3';
+>>>>>>> d899545 (앱 내 아이콘 수정)
 const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/assets/food-placeholder.png',
-  '/assets/app-icon.svg',
+  '/assets/app-icon-192.png',
+  '/assets/app-icon-512.png',
+  '/assets/favicon-32.png',
+  '/assets/notification-icon-192.png',
+  '/assets/notification-badge-96.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -90,12 +98,43 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || 'FoodShare';
+  const title = payload.notification?.title || payload.data?.title || '반띵';
+  const clickAction = payload.data?.clickAction || '/';
   const options = {
-    body: payload.notification?.body || '',
+<<<<<<< HEAD
+    body: payload.notification?.body || payload.data?.body || '',
     icon: '/assets/app-icon.svg',
     badge: '/assets/app-icon.svg',
+=======
+    body: payload.notification?.body || '',
+    icon: '/assets/notification-icon-192.png',
+    badge: '/assets/notification-badge-96.png',
+>>>>>>> d899545 (앱 내 아이콘 수정)
+    data: {
+      clickAction,
+      type: payload.data?.type || '',
+      targetType: payload.data?.targetType || '',
+      targetId: payload.data?.targetId || '',
+    },
   };
 
   self.registration.showNotification(title, options);
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const clickAction = event.notification.data?.clickAction || '/';
+  const targetUrl = new URL(clickAction, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const existingClient = clients.find((client) => client.url.startsWith(self.location.origin));
+      if (existingClient) {
+        existingClient.focus();
+        existingClient.navigate(targetUrl);
+        return;
+      }
+      return self.clients.openWindow(targetUrl);
+    })
+  );
 });

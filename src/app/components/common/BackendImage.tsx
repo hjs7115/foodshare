@@ -5,13 +5,14 @@ const imageCache = new Map<string, string>();
 
 type BackendImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
   src?: string | null;
+  fallbackSrc?: string;
 };
 
-export default function BackendImage({ src, ...props }: BackendImageProps) {
-  const [displaySrc, setDisplaySrc] = useState(() => resolveImageUrl(src));
+export default function BackendImage({ src, fallbackSrc = '/assets/food-placeholder.png', ...props }: BackendImageProps) {
+  const [displaySrc, setDisplaySrc] = useState(() => src ? resolveImageUrl(src) : fallbackSrc);
 
   useEffect(() => {
-    const resolvedSrc = resolveImageUrl(src);
+    const resolvedSrc = src ? resolveImageUrl(src) : fallbackSrc;
     setDisplaySrc(resolvedSrc);
 
     if (!resolvedSrc.startsWith(`${API_BASE_URL}/uploads/`)) {
@@ -46,14 +47,14 @@ export default function BackendImage({ src, ...props }: BackendImageProps) {
       })
       .catch(() => {
         if (isMounted) {
-          setDisplaySrc('/assets/food-placeholder.png');
+          setDisplaySrc(fallbackSrc);
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [src]);
+  }, [fallbackSrc, src]);
 
   return <img src={displaySrc} {...props} />;
 }

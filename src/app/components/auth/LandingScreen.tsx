@@ -10,7 +10,11 @@ export default function LandingScreen({
       <section className="w-full max-w-md rounded-3xl border border-[#e2e8f0] bg-white px-6 py-12 shadow-sm">
         <div className="flex flex-col items-center justify-center w-full">
           <div className="text-center">
-            <h1 className="text-7xl mb-4">🥬</h1>
+            <img
+              src="/assets/app-brand-mark.png"
+              alt="반띵"
+              className="mx-auto mb-1 w-48 object-contain translate-y-16"
+            />
             <h2 className="text-5xl text-[#2d3748] mb-3 mt-8" style={{ fontWeight: 600 }}>반 띵</h2>
             <p className="text-[#718096] text-lg">식재료를 이웃과 나누세요</p>
           </div>

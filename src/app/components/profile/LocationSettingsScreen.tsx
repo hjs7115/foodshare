@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { X, MapPin, Map } from 'lucide-react';
-import KakaoMapModal from '../KakaoMapModal';
+import KakaoMapModal, { loadKakaoMaps } from '../KakaoMapModal';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
 import { getAuthToken } from '../../auth/session';
+import { showToast } from '../../utils/feedback';
 
 declare global {
   interface Window {
@@ -51,7 +52,7 @@ export default function LocationSettingsScreen({ onClose }: { onClose: () => voi
   ) => {
     const token = getAuthToken();
     if (!token) {
-      alert('로그인 후 위치를 저장할 수 있습니다.');
+      showToast('로그인 후 위치를 저장할 수 있습니다.');
       return false;
     }
 
@@ -79,7 +80,7 @@ export default function LocationSettingsScreen({ onClose }: { onClose: () => voi
 
       return true;
     } catch (error: any) {
-      alert(error.message || '위치 저장에 실패했습니다.');
+      showToast(error.message || '위치 저장에 실패했습니다.');
       return false;
     } finally {
       setIsSaving(false);
@@ -104,34 +105,6 @@ export default function LocationSettingsScreen({ onClose }: { onClose: () => voi
     if (saved) {
       setShowMapModal(false);
     }
-  };
-
-  const loadKakaoMaps = (): Promise<void> => {
-    if (window.kakao?.maps?.services) {
-      return new Promise((resolve) => {
-        window.kakao.maps.load(resolve);
-      });
-    }
-
-    return new Promise((resolve, reject) => {
-      const handleLoad = () => {
-        window.kakao.maps.load(resolve);
-      };
-
-      const existingScript = document.querySelector<HTMLScriptElement>('script[src*="dapi.kakao.com"]');
-      if (existingScript) {
-        existingScript.addEventListener('load', handleLoad, { once: true });
-        existingScript.addEventListener('error', () => reject(new Error('카카오맵을 불러올 수 없습니다.')), { once: true });
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = '//dapi.kakao.com/v2/maps/sdk.js?appkey=7e9bc3aa2da453cb1966f25b7230c34c&libraries=services&autoload=false';
-      script.async = true;
-      script.onload = handleLoad;
-      script.onerror = () => reject(new Error('카카오맵을 불러올 수 없습니다.'));
-      document.head.appendChild(script);
-    });
   };
 
   const getAddressFromCoords = async (lat: number, lng: number): Promise<string> => {
@@ -161,7 +134,7 @@ export default function LocationSettingsScreen({ onClose }: { onClose: () => voi
 
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
-      alert('브라우저가 위치 정보를 지원하지 않습니다.');
+      showToast('브라우저가 위치 정보를 지원하지 않습니다.');
       return;
     }
 
@@ -176,14 +149,18 @@ export default function LocationSettingsScreen({ onClose }: { onClose: () => voi
           const currentAddress = await getAddressFromCoords(coords.lat, coords.lng);
           const saved = await saveLocation(currentAddress, coords);
           if (saved) {
-            alert(`현재 위치가 설정되었습니다:\n${currentAddress}`);
+            showToast(`현재 위치가 설정되었습니다:\n${currentAddress}`);
           }
-        } catch (error: any) {
-          alert(error.message || '현재 위치의 주소를 가져올 수 없습니다.');
+        } catch {
+          const fallbackAddress = `현재 위치 (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)})`;
+          const saved = await saveLocation(fallbackAddress, coords);
+          if (saved) {
+            showToast('카카오맵 주소 변환은 실패했지만 현재 위치 좌표로 저장했습니다.');
+          }
         }
       },
       (error) => {
-        alert('위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.');
+        showToast('위치 정보를 가져올 수 없습니다. 위치 권한을 확인해주세요.');
       }
     );
   };

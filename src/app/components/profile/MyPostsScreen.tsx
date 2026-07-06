@@ -1,3 +1,4 @@
+import { showToast, showConfirm } from '../../utils/feedback';
 ﻿import { useState, useEffect } from 'react';
 import { X, Trash2 } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl } from '../../api/config';
@@ -50,15 +51,15 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
     }
   };
   const deletePost = async (id: number) => {
-    if (!confirm('게시글을 삭제하시겠습니까?')) return;
+    if (!(await showConfirm('게시글을 삭제하시겠습니까?', '게시글 삭제', '삭제'))) return;
 
     setDeletingPostId(id);
     try {
       await apiRequest(API_ENDPOINTS.deletePost(id), { method: 'DELETE' });
       setMyPosts((currentPosts) => currentPosts.filter((post) => post.id !== id));
-      alert('게시글이 삭제되었습니다.');
+      showToast('게시글이 삭제되었습니다.');
     } catch (error: any) {
-      alert(error.message || '게시글 삭제에 실패했습니다.');
+      showToast(error.message || '게시글 삭제에 실패했습니다.');
     } finally {
       setDeletingPostId(null);
     }

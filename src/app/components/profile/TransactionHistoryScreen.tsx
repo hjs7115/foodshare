@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { X, ArrowDownLeft, ArrowUpRight, CheckCircle2, XCircle, RefreshCw, User } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl } from '../../api/config';
 import BackendImage from '../common/BackendImage';
+import { showToast, showConfirm } from '../../utils/feedback';
 
 interface TransactionHistoryScreenProps {
   onClose: () => void;
@@ -22,11 +23,49 @@ interface TradeRequest {
   requesterShareCompletedCount?: number;
   requesterReceivedShareCount?: number;
   requesterGroupBuyCount?: number;
+  chatRoomId?: number;
   boardType?: 'sharing' | 'group';
   status: TradeStatus;
   createdAt: string;
   respondedAt?: string | null;
   completedAt?: string | null;
+}
+
+interface TradeRequestGroup {
+  key: string;
+  postId: number;
+  postTitle: string;
+  boardType?: 'sharing' | 'group';
+  status: TradeStatus;
+  date?: string | null;
+  requests: TradeRequest[];
+}
+
+function toSingleRequestGroup(request: TradeRequest, key = `request-${request.requestId}`): TradeRequestGroup {
+  return {
+    key,
+    postId: request.postId,
+    postTitle: request.postTitle,
+    boardType: request.boardType,
+    status: request.status,
+    date: getGroupDate([request]),
+    requests: [request],
+  };
+}
+
+function getGroupStatus(requests: TradeRequest[]): TradeStatus {
+  if (requests.some((request) => request.status === 'PENDING')) return 'PENDING';
+  if (requests.some((request) => request.status === 'ACCEPTED')) return 'ACCEPTED';
+  if (requests.every((request) => request.status === 'COMPLETED')) return 'COMPLETED';
+  return requests[0]?.status || 'PENDING';
+}
+
+function getGroupDate(requests: TradeRequest[]): string | null | undefined {
+  const dates = requests
+    .map((request) => request.completedAt || request.respondedAt || request.createdAt)
+    .filter(Boolean)
+    .sort();
+  return dates[dates.length - 1];
 }
 
 export default function TransactionHistoryScreen({ onClose }: TransactionHistoryScreenProps) {
@@ -36,6 +75,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
   const [selectedProfile, setSelectedProfile] = useState<TradeRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [processingGroupKey, setProcessingGroupKey] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
@@ -80,6 +120,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       request.requester?.groupPurchaseCount ??
       request.user?.groupBuyCount
     ),
+    chatRoomId: getNumberValue(request.chatRoomId ?? request.chatRoom?.id),
     boardType: getBoardType(request),
     status: request.status ?? 'PENDING',
     createdAt: request.createdAt,
@@ -198,6 +239,30 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     return completedRequests;
   }, [activeTab, completedRequests, receivedRequests, sentRequests]);
 
+  const visibleGroups = useMemo(() => {
+    if (activeTab !== 'received') {
+      return visibleRequests.map((request) => toSingleRequestGroup(request));
+    }
+
+    const groups = new Map<string, TradeRequestGroup>();
+    visibleRequests.forEach((request) => {
+      const shouldGroup = request.boardType === 'group';
+      const key = shouldGroup ? `post-${request.postId || request.postTitle}` : `request-${request.requestId}`;
+      const existing = groups.get(key);
+
+      if (!existing) {
+        groups.set(key, toSingleRequestGroup(request, key));
+        return;
+      }
+
+      existing.requests.push(request);
+      existing.status = getGroupStatus(existing.requests);
+      existing.date = getGroupDate(existing.requests);
+    });
+
+    return Array.from(groups.values());
+  }, [activeTab, visibleRequests]);
+
   const completedCount = completedRequests.length;
   const pendingReceivedCount = receivedRequests.filter((request) => request.status === 'PENDING').length;
 
@@ -206,7 +271,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     action: 'accept' | 'reject' | 'complete'
   ) => {
     const actionLabel = action === 'accept' ? '수락' : action === 'reject' ? '거절' : '거래 완료';
-    if (!confirm(`${actionLabel} 처리하시겠습니까?`)) return;
+    if (!(await showConfirm(`${actionLabel} 처리하시겠습니까?`, '거래 요청 처리', actionLabel))) return;
 
     setProcessingId(requestId);
     try {
@@ -217,13 +282,52 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
             ? API_ENDPOINTS.rejectTradeRequest(requestId)
             : API_ENDPOINTS.completeTradeRequest(requestId);
 
-      await apiRequest(endpoint, { method: 'POST' });
-      alert(`${actionLabel} 처리했습니다.`);
+      const response = await apiRequest(endpoint, { method: 'POST' });
+      if (action === 'accept') {
+        const chatRoomId = response?.data?.chatRoomId ?? response?.chatRoomId;
+        showToast(chatRoomId ? '수락 처리했습니다.\n채팅방이 개설되었습니다.' : '수락 처리했습니다.');
+      } else {
+        showToast(`${actionLabel} 처리했습니다.`);
+      }
       await loadTradeRequests();
     } catch (error: any) {
-      alert(error.message || `${actionLabel} 처리에 실패했습니다.`);
+      showToast(error.message || `${actionLabel} 처리에 실패했습니다.`);
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleGroupAction = async (
+    group: TradeRequestGroup,
+    action: 'closeRecruitment' | 'complete'
+  ) => {
+    const actionLabel = action === 'closeRecruitment' ? '모집마감' : '거래 완료';
+    if (!(await showConfirm(`${actionLabel} 처리하시겠습니까?`, '거래 요청 처리', actionLabel))) return;
+
+    setProcessingGroupKey(group.key);
+    try {
+      if (action === 'closeRecruitment') {
+        const response = await apiRequest(API_ENDPOINTS.closeGroupBuyRecruitment(group.postId), { method: 'POST' });
+        const openedRequests = response?.data || response?.tradeRequests || response || [];
+        showToast(
+          Array.isArray(openedRequests) && openedRequests.length > 0
+            ? `모집을 마감했습니다.\n${openedRequests.length}개의 채팅방이 개설되었습니다.`
+            : '모집을 마감했습니다.'
+        );
+      } else {
+        const acceptedRequests = group.requests.filter((request) => request.status === 'ACCEPTED');
+        await Promise.all(
+          acceptedRequests.map((request) =>
+            apiRequest(API_ENDPOINTS.completeTradeRequest(request.requestId), { method: 'POST' })
+          )
+        );
+        showToast('거래 완료 처리했습니다.');
+      }
+      await loadTradeRequests();
+    } catch (error: any) {
+      showToast(error.message || `${actionLabel} 처리에 실패했습니다.`);
+    } finally {
+      setProcessingGroupKey(null);
     }
   };
 
@@ -325,6 +429,44 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     return null;
   };
 
+  const renderGroupActions = (group: TradeRequestGroup) => {
+    if (group.requests.length === 1 && group.boardType !== 'group') {
+      return renderActions(group.requests[0]);
+    }
+
+    const isProcessing = processingGroupKey === group.key;
+    const hasPending = group.requests.some((request) => request.status === 'PENDING');
+    const hasAccepted = group.requests.some((request) => request.status === 'ACCEPTED');
+
+    if (activeTab === 'received' && group.boardType === 'group' && hasPending) {
+      return (
+        <button
+          onClick={() => handleGroupAction(group, 'closeRecruitment')}
+          disabled={isProcessing}
+          className="mt-3 w-full rounded-xl bg-[#bef264] py-2.5 text-sm text-[#0a0a0a] disabled:opacity-50"
+          style={{ fontWeight: 600 }}
+        >
+          모집마감
+        </button>
+      );
+    }
+
+    if (hasAccepted) {
+      return (
+        <button
+          onClick={() => handleGroupAction(group, 'complete')}
+          disabled={isProcessing}
+          className="mt-3 w-full rounded-xl bg-[#bef264] py-2.5 text-sm text-[#0a0a0a] disabled:opacity-50"
+          style={{ fontWeight: 600 }}
+        >
+          거래 완료
+        </button>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col">
       <div className="bg-white border-b border-[#e2e8f0] px-5 py-4 flex items-center justify-between">
@@ -394,7 +536,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
               <RefreshCw size={36} className="mx-auto mb-4 text-[#a0aec0] animate-spin" />
               <p className="text-sm text-[#718096]">거래 내역을 불러오는 중입니다</p>
             </div>
-          ) : visibleRequests.length === 0 ? (
+          ) : visibleGroups.length === 0 ? (
             <div className="text-center py-20">
               <div className="text-6xl mb-4">!</div>
               <p className="text-lg text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
@@ -406,56 +548,64 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
             </div>
           ) : (
             <div className="space-y-3">
-              {visibleRequests.map((request) => {
-                const tone = getBoardTone(request.boardType);
+              {visibleGroups.map((group) => {
+                const tone = getBoardTone(group.boardType);
 
                 return (
                 <div
-                  key={`${activeTab}-${request.requestId}`}
+                  key={`${activeTab}-${group.key}`}
                   className={`rounded-2xl border p-4 ${tone.card}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs ${getStatusClassName(request.status)}`}>
-                          {getStatusLabel(request.status)}
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${getStatusClassName(group.status)}`}>
+                          {getStatusLabel(group.status)}
                         </span>
                         <span className="text-xs text-[#a0aec0]">
-                          {formatDate(request.completedAt || request.respondedAt || request.createdAt)}
+                          {formatDate(group.date)}
                         </span>
                       </div>
                       <h3 className="text-sm text-[#2d3748] mb-1 truncate" style={{ fontWeight: 600 }}>
-                        {request.postTitle || '게시글 제목 없음'}
+                        {group.postTitle || '게시글 제목 없음'}
                       </h3>
-                      <div className={`mt-3 flex items-center gap-3 rounded-xl border bg-white px-3 py-2 ${tone.profileBorder}`}>
-                        <div className="w-9 h-9 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {request.requesterProfileImage ? (
-                            <BackendImage
-                              src={resolveImageUrl(request.requesterProfileImage)}
-                              alt={request.requesterNickname || '요청자'}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <User size={18} className="text-[#718096]" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm text-[#2d3748]" style={{ fontWeight: 700 }}>
-                            {request.requesterNickname || '사용자'}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedProfile(request)}
-                          className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${tone.profileButton}`}
-                          style={{ fontWeight: 700 }}
-                        >
-                          프로필보기
-                        </button>
+                      <div className="mt-3 space-y-2">
+                        {group.requests.map((request) => (
+                          <div
+                            key={request.requestId}
+                            className={`flex items-center gap-3 rounded-xl border bg-white px-3 py-2 ${tone.profileBorder}`}
+                          >
+                            <div className="w-9 h-9 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden flex-shrink-0">
+                              {request.requesterProfileImage ? (
+                                <BackendImage
+                                  src={resolveImageUrl(request.requesterProfileImage)}
+                                  alt={request.requesterNickname || '요청자'}
+                                  className="w-full h-full object-cover"
+                                  fallbackSrc="/assets/profile-placeholder.svg"
+                                />
+                              ) : (
+                                <User size={18} className="text-[#718096]" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm text-[#2d3748]" style={{ fontWeight: 700 }}>
+                                {request.requesterNickname || '사용자'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedProfile(request)}
+                              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${tone.profileButton}`}
+                              style={{ fontWeight: 700 }}
+                            >
+                              프로필보기
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
-                  {renderActions(request)}
+                  {renderGroupActions(group)}
                 </div>
               );
               })}
@@ -478,6 +628,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
                       src={resolveImageUrl(selectedProfile.requesterProfileImage)}
                       alt={selectedProfile.requesterNickname || '요청자'}
                       className="w-full h-full object-cover"
+                      fallbackSrc="/assets/profile-placeholder.svg"
                     />
                   ) : (
                     <User size={32} className="text-[#718096]" />

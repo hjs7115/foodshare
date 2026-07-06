@@ -3,6 +3,7 @@ import { Check, ChevronRight, Eye, EyeOff, Search, X } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
 import KakaoMapModal from '../KakaoMapModal';
 import { clearAuthSession } from '../../auth/session';
+import { showToast } from '../../utils/feedback';
 
 const PASSWORD_REQUIREMENT_MESSAGE = '영문, 숫자, 특수문자 포함 8자 이상';
 
@@ -46,6 +47,23 @@ function isValidPassword(password: string) {
     && /[^A-Za-z0-9]/.test(password);
 }
 
+function includesAny(value: string | undefined, patterns: string[]) {
+  const normalized = (value || '').toLowerCase();
+  return patterns.some((pattern) => normalized.includes(pattern.toLowerCase()));
+}
+
+function isDuplicateEmailError(message?: string) {
+  return includesAny(message, ['Email already exists', '이미 사용 중인 이메일', '이미 가입된 이메일']);
+}
+
+function isDuplicatePhoneError(message?: string) {
+  return includesAny(message, ['Phone number already exists', '이미 사용 중인 전화번호', '이미 가입된 전화번호']);
+}
+
+function isDuplicateNicknameError(message?: string) {
+  return includesAny(message, ['Nickname already exists', '이미 사용 중인 닉네임', '중복된 닉네임']);
+}
+
 export default function SignupScreen({
   onSignup,
   onBack,
@@ -61,7 +79,9 @@ export default function SignupScreen({
   const [isNicknameChecked, setIsNicknameChecked] = useState(false);
   const [nicknameError, setNicknameError] = useState('');
   const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [address, setAddress] = useState('');
   const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -101,11 +121,12 @@ export default function SignupScreen({
   const handleSendCode = async () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      alert('올바른 이메일 형식을 입력해주세요.');
+      setEmailError('올바른 이메일 형식을 입력해주세요.');
       return;
     }
 
     try {
+      setEmailError('');
       await apiRequest(API_ENDPOINTS.sendEmailCode, {
         method: 'POST',
         body: JSON.stringify({ email }),
@@ -114,9 +135,13 @@ export default function SignupScreen({
       setIsCodeSent(true);
       setTimer(300);
       setStep(2);
-      alert(`${email}으로 인증번호가 전송되었습니다.`);
+      showToast(`${email}으로 인증번호가 전송되었습니다.`);
     } catch (error: any) {
-      alert(error.message || '인증번호 전송에 실패했습니다.');
+      if (isDuplicateEmailError(error.message)) {
+        setEmailError('이미 가입된 이메일입니다.');
+        return;
+      }
+      showToast(error.message || '인증번호 전송에 실패했습니다.');
     }
   };
 
@@ -130,15 +155,15 @@ export default function SignupScreen({
       setIsEmailVerified(true);
       setTimer(0);
       setStep(3);
-      alert('이메일 인증이 완료되었습니다.');
+      showToast('이메일 인증이 완료되었습니다.');
     } catch (error: any) {
-      alert(error.message || '인증번호가 일치하지 않습니다.');
+      showToast(error.message || '인증번호가 일치하지 않습니다.');
     }
   };
 
   const handleCheckNickname = async () => {
     if (!nickname.trim()) {
-      alert('닉네임을 입력해주세요.');
+      setNicknameError('닉네임을 입력해주세요.');
       return;
     }
 
@@ -152,14 +177,17 @@ export default function SignupScreen({
       if (available) {
         setNicknameError('');
         setIsNicknameChecked(true);
-        alert('사용 가능한 닉네임입니다.');
       } else {
-        setNicknameError('중복된 닉네임입니다.');
+        setNicknameError('이미 사용 중인 닉네임입니다.');
         setIsNicknameChecked(false);
-        alert('이미 사용 중인 닉네임입니다.');
       }
     } catch (error: any) {
-      alert(error.message || '닉네임 중복 확인에 실패했습니다.');
+      if (isDuplicateNicknameError(error.message)) {
+        setNicknameError('이미 사용 중인 닉네임입니다.');
+        setIsNicknameChecked(false);
+        return;
+      }
+      showToast(error.message || '닉네임 중복 확인에 실패했습니다.');
     }
   };
 
@@ -171,27 +199,27 @@ export default function SignupScreen({
 
   const validateMemberInfo = () => {
     if (!name.trim()) {
-      alert('이름을 입력해주세요.');
+      showToast('이름을 입력해주세요.');
       return false;
     }
     if (!phone.trim()) {
-      alert('전화번호를 입력해주세요.');
+      setPhoneError('전화번호를 입력해주세요.');
       return false;
     }
     if (!address.trim()) {
-      alert('주소를 검색해주세요.');
+      showToast('주소를 검색해주세요.');
       return false;
     }
     if (!isValidPassword(password)) {
-      alert(`비밀번호는 ${PASSWORD_REQUIREMENT_MESSAGE}이어야 합니다.`);
+      showToast(`비밀번호는 ${PASSWORD_REQUIREMENT_MESSAGE}이어야 합니다.`);
       return false;
     }
     if (password !== confirmPassword) {
-      alert('비밀번호가 일치하지 않습니다.');
+      showToast('비밀번호가 일치하지 않습니다.');
       return false;
     }
     if (!allTermsAgreed) {
-      alert('필수 이용약관에 모두 동의해주세요.');
+      showToast('필수 이용약관에 모두 동의해주세요.');
       return false;
     }
     return true;
@@ -205,7 +233,7 @@ export default function SignupScreen({
 
   const handleSubmit = async () => {
     if (!isEmailVerified) {
-      alert('이메일 인증을 완료해주세요.');
+      showToast('이메일 인증을 완료해주세요.');
       setStep(isCodeSent ? 2 : 1);
       return;
     }
@@ -214,11 +242,14 @@ export default function SignupScreen({
       return;
     }
     if (!isNicknameChecked) {
-      alert('닉네임 중복확인을 해주세요.');
+      showToast('닉네임 중복확인을 해주세요.');
       return;
     }
 
     try {
+      setEmailError('');
+      setPhoneError('');
+      setNicknameError('');
       await apiRequest(API_ENDPOINTS.signup, {
         method: 'POST',
         body: JSON.stringify({
@@ -239,13 +270,23 @@ export default function SignupScreen({
         localStorage.setItem('userLocationCoords', JSON.stringify(addressCoords));
       }
 
-      alert('회원가입이 완료되었습니다!');
+      showToast('회원가입이 완료되었습니다!');
       onSignup();
     } catch (error: any) {
-      if (error.message?.includes('password') || error.message?.includes('비밀번호')) {
-        alert('비밀번호는 8자 이상이어야 합니다.');
+      if (isDuplicateEmailError(error.message)) {
+        setEmailError('이미 가입된 이메일입니다.');
+        setStep(1);
+      } else if (isDuplicatePhoneError(error.message)) {
+        setPhoneError('이미 가입된 전화번호입니다.');
+        setStep(3);
+      } else if (isDuplicateNicknameError(error.message)) {
+        setNicknameError('이미 사용 중인 닉네임입니다.');
+        setIsNicknameChecked(false);
+        setStep(4);
+      } else if (error.message?.includes('password') || error.message?.includes('비밀번호')) {
+        showToast('비밀번호는 8자 이상이어야 합니다.');
       } else {
-        alert(error.message || '회원가입에 실패했습니다.');
+        showToast(error.message || '회원가입에 실패했습니다.');
       }
     }
   };
@@ -308,6 +349,7 @@ export default function SignupScreen({
                   value={email}
                   onChange={(event) => {
                     setEmail(event.target.value);
+                    setEmailError('');
                     setIsCodeSent(false);
                     setIsEmailVerified(false);
                     setVerificationCode('');
@@ -316,6 +358,7 @@ export default function SignupScreen({
                   className={inputClassName}
                   disabled={isEmailVerified}
                 />
+                {emailError && <p className="mt-2 text-sm text-[#ff6b6b]">{emailError}</p>}
               </div>
 
               <button
@@ -393,6 +436,7 @@ export default function SignupScreen({
                     <Check size={18} strokeWidth={3} />
                   </span>
                 </div>
+                {emailError && <p className="mt-2 text-sm text-[#ff6b6b]">{emailError}</p>}
               </div>
 
               <div>
@@ -413,10 +457,14 @@ export default function SignupScreen({
                   id="phone"
                   type="tel"
                   value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
+                  onChange={(event) => {
+                    setPhone(event.target.value);
+                    setPhoneError('');
+                  }}
                   placeholder="01012345678"
                   className={inputClassName}
                 />
+                {phoneError && <p className="mt-2 text-sm text-[#ff6b6b]">{phoneError}</p>}
               </div>
 
               <div>

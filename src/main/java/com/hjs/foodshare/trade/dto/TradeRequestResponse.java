@@ -22,6 +22,7 @@ public record TradeRequestResponse(
         long requesterShareCompletedCount,
         long requesterReceivedShareCount,
         long requesterGroupBuyCount,
+        Long chatRoomId,
         TradeRequestStatus status,
         LocalDateTime createdAt,
         LocalDateTime respondedAt,
@@ -29,14 +30,15 @@ public record TradeRequestResponse(
 ) {
 
     public static TradeRequestResponse from(TradeRequest tradeRequest) {
-        return from(tradeRequest, 0, 0, 0);
+        return from(tradeRequest, 0, 0, 0, null);
     }
 
     public static TradeRequestResponse from(
             TradeRequest tradeRequest,
             long requesterShareCompletedCount,
             long requesterReceivedShareCount,
-            long requesterGroupBuyCount
+            long requesterGroupBuyCount,
+            Long chatRoomId
     ) {
         User requester = tradeRequest.getRequester();
         double freshness = requester.getFreshnessScore();
@@ -56,6 +58,7 @@ public record TradeRequestResponse(
                 requesterShareCompletedCount,
                 requesterReceivedShareCount,
                 requesterGroupBuyCount,
+                chatRoomId,
                 tradeRequest.getStatus(),
                 tradeRequest.getCreatedAt(),
                 tradeRequest.getRespondedAt(),

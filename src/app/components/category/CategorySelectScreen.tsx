@@ -1,3 +1,4 @@
+import { Leaf, ShoppingCart } from 'lucide-react';
 export default function CategorySelectScreen({
   onSelectCategory,
 }: {
@@ -17,7 +18,9 @@ export default function CategorySelectScreen({
             className="w-full bg-gradient-to-br from-[#f0fdf4] to-[#bef264] text-[#0a0a0a] py-8 rounded-2xl border-2 border-[#bef264] hover:from-[#dcfce7] hover:to-[#a3e635] transition-colors shadow-sm"
           >
             <div className="text-center">
-              <div className="text-4xl mb-3">🥬</div>
+              <div className="mb-3 flex justify-center">
+                <Leaf size={50} strokeWidth={2.4} className="text-[#65a30d]" />
+              </div>
               <div className="text-xl mb-2" style={{ fontWeight: 600 }}>나눔 및 판매</div>
               <div className="text-sm text-[#365314]">식재료 나눔과 소분 판매</div>
             </div>
@@ -28,7 +31,9 @@ export default function CategorySelectScreen({
             className="w-full bg-gradient-to-br from-[#fef3c7] to-[#fbbf24] text-[#0a0a0a] py-8 rounded-2xl border-2 border-[#fbbf24] hover:from-[#fde68a] hover:to-[#f59e0b] transition-colors shadow-sm"
           >
             <div className="text-center">
-              <div className="text-4xl mb-3">🛒</div>
+              <div className="mb-3 flex justify-center">
+                <ShoppingCart size={50} strokeWidth={2.4} className="text-[#f59e0b]" />
+              </div>
               <div className="text-xl mb-2" style={{ fontWeight: 600 }}>공동구매</div>
               <div className="text-sm text-[#92400e]">이웃과 함께 공동구매</div>
             </div>

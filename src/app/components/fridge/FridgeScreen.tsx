@@ -6,6 +6,7 @@ import {
   Clock,
   Bell,
   Leaf,
+  MessageCircle,
   Package,
   Plus,
   ShoppingCart,
@@ -16,7 +17,9 @@ import {
 } from 'lucide-react';
 import CreatePostScreen from '../board/CreatePostScreen';
 import NotificationsScreen from '../common/NotificationsScreen';
+import BottomNavIcon from '../common/BottomNavIcon';
 import { getNotifications } from '../../api/config';
+import { showToast, showConfirm } from '../../utils/feedback';
 
 const FRIDGE_STORAGE_KEY = 'foodshareFridgeItems';
 
@@ -46,7 +49,13 @@ const emptyForm: FridgeItemForm = {
   memo: '',
 };
 
-export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: string) => void }) {
+export default function FridgeScreen({
+  onNavigate,
+  chatUnreadCount = 0,
+}: {
+  onNavigate: (screen: string) => void;
+  chatUnreadCount?: number;
+}) {
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
   const [items, setItems] = useState<FridgeItem[]>([]);
@@ -141,7 +150,7 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
     const trimmedAmount = form.amount.trim();
 
     if (!trimmedName || !form.expiryDate) {
-      alert('식재료 이름과 유통기한을 입력해주세요.');
+      showToast('식재료 이름과 유통기한을 입력해주세요.');
       return;
     }
 
@@ -179,8 +188,8 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
     setEditingItem(null);
   };
 
-  const handleDeleteItem = (itemId: number) => {
-    if (!confirm('이 식재료 기록을 삭제할까요?')) return;
+  const handleDeleteItem = async (itemId: number) => {
+    if (!(await showConfirm('이 식재료 기록을 삭제할까요?', '식재료 삭제', '삭제'))) return;
     saveItems(items.filter((item) => item.id !== itemId));
     setShowItemForm(false);
     setEditingItem(null);
@@ -332,22 +341,33 @@ export default function FridgeScreen({ onNavigate }: { onNavigate: (screen: stri
         <span className="text-sm" style={{ fontWeight: 800 }}>추가</span>
       </button>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-5 py-4 grid grid-cols-4 z-40">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-3 py-4 grid grid-cols-5 z-40">
         <button onClick={() => onNavigate('나눔 및 판매')} className="flex flex-col items-center gap-1">
-          <Leaf size={24} className="text-[#bef264]" />
-          <span className="text-xs text-[#bef264]">나눔/판매</span>
+          <BottomNavIcon icon={Leaf} color="#65a30d" borderColor="#bef264" />
+          <span className="text-[11px] text-[#bef264]">나눔/판매</span>
         </button>
         <button onClick={() => onNavigate('공동구매')} className="flex flex-col items-center gap-1">
-          <ShoppingCart size={24} className="text-[#fbbf24]" />
-          <span className="text-xs text-[#fbbf24]">공동구매</span>
+          <BottomNavIcon icon={ShoppingCart} color="#f59e0b" borderColor="#fbbf24" />
+          <span className="text-[11px] text-[#fbbf24]">공동구매</span>
+        </button>
+        <button onClick={() => onNavigate('chat')} className="relative flex flex-col items-center gap-1">
+          <span className="relative">
+            <BottomNavIcon icon={MessageCircle} color="#14b8a6" borderColor="#99f6e4" />
+            {chatUnreadCount > 0 && (
+              <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] leading-none text-white">
+                {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+              </span>
+            )}
+          </span>
+          <span className="text-[11px] text-[#14b8a6]">채팅</span>
         </button>
         <button className="flex flex-col items-center gap-1">
-          <Snowflake size={24} className="text-[#0284c7]" />
-          <span className="text-xs text-[#0284c7]">냉장고</span>
+          <BottomNavIcon icon={Snowflake} color="#0284c7" borderColor="#bae6fd" />
+          <span className="text-[11px] text-[#0284c7]">냉장고</span>
         </button>
         <button onClick={() => onNavigate('profile')} className="flex flex-col items-center gap-1">
-          <User size={24} className="text-[#2d3748]" />
-          <span className="text-xs text-[#2d3748]">내정보</span>
+          <BottomNavIcon icon={User} color="#2d3748" borderColor="#cbd5e0" />
+          <span className="text-[11px] text-[#2d3748]">내정보</span>
         </button>
       </div>
 

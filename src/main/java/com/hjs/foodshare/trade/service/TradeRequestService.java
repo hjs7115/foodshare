@@ -1,5 +1,7 @@
 package com.hjs.foodshare.trade.service;
 
+import com.hjs.foodshare.chat.domain.ChatRoom;
+import com.hjs.foodshare.chat.service.ChatService;
 import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.moderation.repository.UserBlockRepository;
 import com.hjs.foodshare.notification.service.NotificationService;
@@ -26,15 +28,17 @@ public class TradeRequestService {
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final ChatService chatService;
     private final UserBlockRepository userBlockRepository;
 
     public TradeRequestService(TradeRequestRepository tradeRequestRepository, PostRepository postRepository,
                                UserRepository userRepository, NotificationService notificationService,
-                               UserBlockRepository userBlockRepository) {
+                               ChatService chatService, UserBlockRepository userBlockRepository) {
         this.tradeRequestRepository = tradeRequestRepository;
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.chatService = chatService;
         this.userBlockRepository = userBlockRepository;
     }
 
@@ -101,6 +105,7 @@ public class TradeRequestService {
         validateRequestablePost(tradeRequest.getPost());
         tradeRequest.accept();
         applyAcceptedTradePolicy(tradeRequest);
+        ChatRoom chatRoom = chatService.openRoomForTradeRequest(tradeRequest);
         if (tradeRequest.getRequester().isNotificationTradeAccepted()) {
             notificationService.createNotification(
                     tradeRequest.getRequester().getId(),
@@ -111,7 +116,15 @@ public class TradeRequestService {
                     tradeRequest.getId()
             );
         }
-        return toResponse(tradeRequest);
+        notificationService.createNotification(
+                tradeRequest.getRequester().getId(),
+                "CHAT_ROOM_OPENED",
+                "채팅방 개설",
+                "'" + tradeRequest.getPost().getTitle() + "' 거래 채팅방이 개설되었습니다.",
+                "CHAT_ROOM",
+                chatRoom.getId()
+        );
+        return toResponse(tradeRequest, chatRoom.getId());
     }
 
     @Transactional
@@ -180,12 +193,17 @@ public class TradeRequestService {
     }
 
     private TradeRequestResponse toResponse(TradeRequest tradeRequest) {
+        return toResponse(tradeRequest, chatService.findRoomIdByTradeRequestId(tradeRequest.getId()));
+    }
+
+    private TradeRequestResponse toResponse(TradeRequest tradeRequest, Long chatRoomId) {
         Long requesterId = tradeRequest.getRequester().getId();
         return TradeRequestResponse.from(
                 tradeRequest,
                 countShareCompleted(requesterId),
                 countReceivedShare(requesterId),
-                countGroupBuyParticipation(requesterId)
+                countGroupBuyParticipation(requesterId),
+                chatRoomId
         );
     }
 

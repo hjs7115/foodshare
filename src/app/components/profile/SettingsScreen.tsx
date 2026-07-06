@@ -1,11 +1,13 @@
+import { showToast } from '../../utils/feedback';
 ﻿import { useState } from 'react';
-import { X, ChevronRight, Shield, Lock, Bell, Database, HelpCircle, FileText, AlertCircle, User, MapPin } from 'lucide-react';
+import { X, ChevronRight, Shield, Lock, Bell, Database, HelpCircle, FileText, AlertCircle, User, MapPin, MessageCircle } from 'lucide-react';
 import EditProfileScreen from './EditProfileScreen';
 import NotificationSettingsScreen from './NotificationSettingsScreen';
 import LocationSettingsScreen from './LocationSettingsScreen';
+import ChatSettingsScreen from './ChatSettingsScreen';
 import { clearAuthSession } from '../../auth/session';
 
-type SettingsView = 'main' | 'editProfile' | 'notifications' | 'location';
+type SettingsView = 'main' | 'editProfile' | 'notifications' | 'location' | 'chat';
 
 export default function SettingsScreen({ onClose }: { onClose: () => void }) {
   const [currentView, setCurrentView] = useState<SettingsView>('main');
@@ -21,7 +23,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
     localStorage.removeItem('userLocation');
     localStorage.removeItem('userLocationCoords');
     localStorage.removeItem('notificationSettings');
-    alert('기기 안에 저장된 로그인 및 화면 설정 정보를 삭제했습니다. 페이지를 새로고침합니다.');
+    showToast('기기 안에 저장된 로그인 및 화면 설정 정보를 삭제했습니다. 페이지를 새로고침합니다.');
     window.location.reload();
   };
 
@@ -30,9 +32,9 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
       title: '계정',
       items: [
         { icon: User, label: '프로필 수정', action: () => setCurrentView('editProfile') },
-        { icon: Shield, label: '개인정보 처리방침', action: () => alert('개인정보 처리방침 페이지') },
-        { icon: Lock, label: '비밀번호 변경', action: () => alert('비밀번호 변경 기능은 준비 중입니다.') },
-        { icon: FileText, label: '이용약관', action: () => alert('이용약관 페이지') },
+        { icon: Shield, label: '개인정보 처리방침', action: () => showToast('개인정보 처리방침 페이지') },
+        { icon: Lock, label: '비밀번호 변경', action: () => showToast('비밀번호 변경 기능은 준비 중입니다.') },
+        { icon: FileText, label: '이용약관', action: () => showToast('이용약관 페이지') },
       ],
     },
     {
@@ -40,15 +42,16 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
       items: [
         { icon: Bell, label: '알림 설정', action: () => setCurrentView('notifications') },
         { icon: MapPin, label: '위치 설정', action: () => setCurrentView('location') },
-        { icon: Database, label: '저장된 데이터', action: () => alert('게시글과 관심 목록은 백엔드 서버에서 관리됩니다.') },
+        { icon: MessageCircle, label: '채팅 설정', action: () => setCurrentView('chat') },
+        { icon: Database, label: '저장된 데이터', action: () => showToast('게시글과 관심 목록은 백엔드 서버에서 관리됩니다.') },
       ],
     },
     {
       title: '고객 지원',
       items: [
-        { icon: HelpCircle, label: '도움말', action: () => alert('도움말 페이지') },
-        { icon: FileText, label: '공지사항', action: () => alert('공지사항 페이지') },
-        { icon: AlertCircle, label: '문의하기', action: () => alert('문의하기 기능은 준비 중입니다.') },
+        { icon: HelpCircle, label: '도움말', action: () => showToast('도움말 페이지') },
+        { icon: FileText, label: '공지사항', action: () => showToast('공지사항 페이지') },
+        { icon: AlertCircle, label: '문의하기', action: () => showToast('문의하기 기능은 준비 중입니다.') },
       ],
     },
   ];
@@ -68,6 +71,10 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
 
   if (currentView === 'location') {
     return <LocationSettingsScreen onClose={() => setCurrentView('main')} />;
+  }
+
+  if (currentView === 'chat') {
+    return <ChatSettingsScreen onClose={() => setCurrentView('main')} />;
   }
 
   return (

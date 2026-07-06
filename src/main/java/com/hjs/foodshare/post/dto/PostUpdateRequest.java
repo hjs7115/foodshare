@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 
 public record PostUpdateRequest(
@@ -98,8 +99,8 @@ public record PostUpdateRequest(
         return toDateOrDefault(expirationDate, LocalDate.now().plusDays(7));
     }
 
-    public LocalDate deadlineDateValue() {
-        return toDateOrDefault(deadlineDate, null);
+    public LocalDateTime deadlineDateValue() {
+        return toDateTimeOrDefault(deadlineDate, null);
     }
 
     public String imageUrlValue() {
@@ -115,6 +116,27 @@ public record PostUpdateRequest(
                 return LocalDate.parse(text);
             } catch (DateTimeParseException exception) {
                 return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
+
+    private LocalDateTime toDateTimeOrDefault(Object value, LocalDateTime defaultValue) {
+        if (value instanceof LocalDateTime dateTime) {
+            return dateTime;
+        }
+        if (value instanceof LocalDate date) {
+            return date.atTime(23, 59);
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return LocalDateTime.parse(text);
+            } catch (DateTimeParseException ignored) {
+                try {
+                    return LocalDate.parse(text).atTime(23, 59);
+                } catch (DateTimeParseException exception) {
+                    return defaultValue;
+                }
             }
         }
         return defaultValue;

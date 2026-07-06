@@ -13,9 +13,15 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     Optional<ChatRoom> findByTradeRequestId(Long tradeRequestId);
 
     @Query("""
-            select cr
+            select distinct cr
             from ChatRoom cr
-            where cr.writer.id = :userId or cr.requester.id = :userId
+            where cr.writer.id = :userId
+               or cr.requester.id = :userId
+               or exists (
+                    select 1
+                    from ChatRoomMember member
+                    where member.chatRoom = cr and member.user.id = :userId
+               )
             order by cr.updatedAt desc
             """)
     List<ChatRoom> findAllByParticipantId(@Param("userId") Long userId);
@@ -23,7 +29,21 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     @Query("""
             select cr
             from ChatRoom cr
-            where (cr.writer.id = :userId or cr.requester.id = :userId)
+            where cr.writer.id = :userId or cr.requester.id = :userId
+            order by cr.updatedAt desc
+            """)
+    List<ChatRoom> findAllDirectByParticipantId(@Param("userId") Long userId);
+
+    @Query("""
+            select distinct cr
+            from ChatRoom cr
+            where (cr.writer.id = :userId
+               or cr.requester.id = :userId
+               or exists (
+                    select 1
+                    from ChatRoomMember member
+                    where member.chatRoom = cr and member.user.id = :userId
+               ))
               and cr.tradeRequest.post.postType in :postTypes
             order by cr.updatedAt desc
             """)

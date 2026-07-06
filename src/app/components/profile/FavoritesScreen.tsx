@@ -11,6 +11,7 @@ interface FavoritePost {
   image: string;
   createdAt: string;
   postType: string;
+  status?: 'OPEN' | 'CLOSED';
 }
 
 export default function FavoritesScreen({ onClose }: { onClose: () => void }) {
@@ -28,6 +29,7 @@ export default function FavoritesScreen({ onClose }: { onClose: () => void }) {
     image: resolveImageUrl(post.image || post.imageUrl),
     createdAt: post.createdAt || new Date().toISOString(),
     postType: post.postType,
+    status: post.status,
   });
 
   const extractFavorites = (response: any): any[] => {
@@ -137,9 +139,16 @@ export default function FavoritesScreen({ onClose }: { onClose: () => void }) {
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-[#2d3748] mb-1 truncate" style={{ fontWeight: 600 }}>
-                      {item.title}
-                    </h3>
+                    <div className="mb-1 flex min-w-0 items-center gap-2">
+                      <h3 className="truncate text-[#2d3748]" style={{ fontWeight: 600 }}>
+                        {item.title}
+                      </h3>
+                      {item.status === 'CLOSED' && (
+                        <span className="shrink-0 rounded-md bg-[#e2e8f0] px-2 py-0.5 text-xs text-[#475569]" style={{ fontWeight: 600 }}>
+                          거래완료
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-[#718096] mb-2">{item.price}</p>
                     <p className="text-xs text-[#a0aec0]">
                       {new Date(item.createdAt).toLocaleDateString()}

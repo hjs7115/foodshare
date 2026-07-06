@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Ban, Bell, BellOff, ChevronDown, ChevronUp, Flag, Leaf, MessageCircle, MoreVertical, Search, Send, ShoppingCart, Snowflake, Trash2, User, X } from 'lucide-react';
+import { ArrowLeft, Ban, Bell, BellOff, ChevronDown, ChevronUp, Flag, Leaf, MessageCircle, MoreVertical, Pin, Search, Send, ShoppingCart, Snowflake, Trash2, User, X, type LucideIcon } from 'lucide-react';
 import { API_ENDPOINTS, WS_BASE_URL, apiRequest, getNotifications, resolveImageUrl } from '../../api/config';
 import { getAuthToken, getStoredUserInfo } from '../../auth/session';
 import NotificationsScreen from '../common/NotificationsScreen';
@@ -15,9 +15,13 @@ interface ChatRoom {
   postType?: string;
   partnerNickname: string;
   partnerProfileImage?: string;
+  groupRoom?: boolean;
+  participantCount?: number;
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount: number;
+  pinned?: boolean;
+  muted?: boolean;
 }
 
 interface ChatMessage {
@@ -54,6 +58,7 @@ export default function ChatScreen({
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showRoomMenu, setShowRoomMenu] = useState(false);
+  const [roomActionTarget, setRoomActionTarget] = useState<ChatRoom | null>(null);
   const [isSearchingMessages, setIsSearchingMessages] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [activeSearchMatchIndex, setActiveSearchMatchIndex] = useState(0);
@@ -66,6 +71,8 @@ export default function ChatScreen({
   const refreshInFlightRef = useRef(false);
   const readInFlightRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef(false);
 
   const currentUserId = useMemo(() => {
     const userInfo = getStoredUserInfo<any>();
@@ -165,9 +172,13 @@ export default function ChatScreen({
       room.partner?.profileImageUrl ??
       room.opponentProfileImage ??
       room.opponent?.profileImage,
+    groupRoom: Boolean(room.groupRoom),
+    participantCount: Number(room.participantCount ?? room.memberCount ?? 2),
     lastMessage: room.lastMessage ?? room.latestMessage ?? '',
     lastMessageAt: room.lastMessageAt ?? room.updatedAt ?? room.createdAt,
     unreadCount: Number(room.unreadCount ?? 0),
+    pinned: Boolean(room.pinned ?? room.isPinned),
+    muted: Boolean(room.muted ?? room.isMuted),
   });
 
   const normalizeMessage = (message: any): ChatMessage => {
@@ -260,7 +271,9 @@ export default function ChatScreen({
     try {
       const response = await apiRequest(`${API_ENDPOINTS.chatRooms}?filter=${filter}`, { method: 'GET' });
       const raw = response?.data?.content || response?.data || response?.rooms || response?.chatRooms || response;
-      const normalizedRooms = Array.isArray(raw) ? raw.map(normalizeRoom).filter((room) => room.chatRoomId) : [];
+      const normalizedRooms = Array.isArray(raw)
+        ? raw.map(normalizeRoom).filter((room) => room.chatRoomId).sort(sortRoomsForDisplay)
+        : [];
       setRooms(normalizedRooms);
       onChatUnreadChange?.(normalizedRooms.reduce((sum, room) => sum + room.unreadCount, 0));
     } catch (error) {
@@ -274,6 +287,7 @@ export default function ChatScreen({
   const openRoom = async (room: ChatRoom) => {
     setSelectedRoom(room);
     setShowRoomMenu(false);
+    setRoomActionTarget(null);
     setIsSearchingMessages(false);
     setMessageSearchQuery('');
     setActiveSearchMatchIndex(0);
@@ -456,18 +470,69 @@ export default function ChatScreen({
     });
   };
 
-  const handleRoomMenuAction = async (action: 'block' | 'report' | 'mute' | 'leave') => {
-    if (!selectedRoom) return;
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const beginRoomLongPress = (room: ChatRoom) => {
+    clearLongPressTimer();
+    longPressTriggeredRef.current = false;
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      setRoomActionTarget(room);
+    }, 550);
+  };
+
+  const handleRoomClick = (room: ChatRoom) => {
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false;
+      return;
+    }
+
+    openRoom(room);
+  };
+
+  const applyRoomSettings = (updated: ChatRoom) => {
+    setRooms((prev) => prev
+      .map((room) => room.chatRoomId === updated.chatRoomId ? { ...room, ...updated } : room)
+      .sort(sortRoomsForDisplay));
+    setSelectedRoom((current) => current?.chatRoomId === updated.chatRoomId ? { ...current, ...updated } : current);
+    setRoomActionTarget((current) => current?.chatRoomId === updated.chatRoomId ? { ...current, ...updated } : current);
+  };
+
+  const toggleRoomSetting = async (room: ChatRoom, type: 'pin' | 'mute') => {
+    try {
+      const endpoint = type === 'pin' ? API_ENDPOINTS.pinChatRoom(room.chatRoomId) : API_ENDPOINTS.muteChatRoom(room.chatRoomId);
+      const response = await apiRequest(endpoint, { method: 'PATCH' });
+      const updated = normalizeRoom(response?.data || response);
+      applyRoomSettings(updated);
+      showToast(type === 'pin'
+        ? (updated.pinned ? '채팅방을 상단에 고정했습니다.' : '채팅방 상단 고정을 해제했습니다.')
+        : (updated.muted ? '채팅방 알림을 껐습니다.' : '채팅방 알림을 켰습니다.'));
+    } catch (error) {
+      console.warn('채팅방 설정 변경 실패', error);
+      showToast('채팅방 설정을 변경하지 못했습니다.');
+    }
+  };
+
+  const handleRoomMenuAction = async (action: 'pin' | 'block' | 'report' | 'mute' | 'leave', room = selectedRoom) => {
+    if (!room) return;
+
+    if (action === 'pin' || action === 'mute') {
+      await toggleRoomSetting(room, action);
+      setShowRoomMenu(false);
+      setRoomActionTarget(null);
+      return;
+    }
 
     if (action === 'block') {
-      showToast(`${selectedRoom.partnerNickname}님 차단 기능은 사용자 차단 API와 연결 예정입니다.`);
+      showToast(`${room.partnerNickname}님 차단 기능은 사용자 차단 API와 연결 예정입니다.`);
     }
     if (action === 'report') {
       showToast('신고 기능은 사용자 신고 화면과 연결 예정입니다.');
-    }
-    if (action === 'mute') {
-      localStorage.setItem(`mutedChatRoom:${selectedRoom.chatRoomId}`, 'true');
-      showToast('이 채팅방 알림을 껐습니다.');
     }
     if (action === 'leave') {
       if (await showConfirm('채팅방을 나가시겠습니까?', '채팅방 나가기', '나가기')) {
@@ -476,6 +541,7 @@ export default function ChatScreen({
     }
 
     setShowRoomMenu(false);
+    setRoomActionTarget(null);
   };
 
   if (selectedRoom) {
@@ -551,7 +617,10 @@ export default function ChatScreen({
               className="w-10 h-10 shadow-sm border border-[#e2e8f0]"
             />
             <div className="min-w-0">
-              <h1 className="text-lg text-[#1a202c] truncate" style={{ fontWeight: 900 }}>{selectedRoom.partnerNickname}</h1>
+              <h1 className="text-lg text-[#1a202c] truncate" style={{ fontWeight: 900 }}>
+                {selectedRoom.partnerNickname}
+                {selectedRoom.groupRoom && selectedRoom.participantCount ? ` ${selectedRoom.participantCount}` : ''}
+              </h1>
               <p className="text-xs text-[#0f766e] truncate">{selectedRoom.postTitle}</p>
             </div>
           </div>
@@ -658,7 +727,8 @@ export default function ChatScreen({
                 <RoomMenuButton icon={Flag} label="신고하기" onClick={() => handleRoomMenuAction('report')} />
               </div>
               <div className="mb-4 overflow-hidden rounded-3xl bg-[#f8fafc]">
-                <RoomMenuButton icon={BellOff} label="알림끄기" onClick={() => handleRoomMenuAction('mute')} />
+                <RoomMenuButton icon={Pin} label={selectedRoom.pinned ? '채팅방 상단 고정 해제' : '채팅방 상단 고정'} onClick={() => handleRoomMenuAction('pin')} />
+                <RoomMenuButton icon={BellOff} label={selectedRoom.muted ? '알림켜기' : '알림끄기'} onClick={() => handleRoomMenuAction('mute')} />
                 <RoomMenuButton icon={Trash2} label="채팅방 나가기" danger onClick={() => handleRoomMenuAction('leave')} />
               </div>
               <button
@@ -740,7 +810,17 @@ export default function ChatScreen({
               return (
                 <button
                   key={room.chatRoomId}
-                  onClick={() => openRoom(room)}
+                  onClick={() => handleRoomClick(room)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setRoomActionTarget(room);
+                  }}
+                  onTouchStart={() => beginRoomLongPress(room)}
+                  onTouchMove={clearLongPressTimer}
+                  onTouchEnd={clearLongPressTimer}
+                  onMouseDown={() => beginRoomLongPress(room)}
+                  onMouseLeave={clearLongPressTimer}
+                  onMouseUp={clearLongPressTimer}
                   className="w-full rounded-2xl border border-[#ccfbf1] bg-white p-4 text-left shadow-sm transition hover:border-[#14b8a6]"
                 >
                   <div className="flex gap-3">
@@ -752,7 +832,12 @@ export default function ChatScreen({
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-base text-[#1a202c]" style={{ fontWeight: 900 }}>{room.partnerNickname}</span>
+                          <span className="truncate text-base text-[#1a202c]" style={{ fontWeight: 900 }}>
+                            {room.partnerNickname}
+                            {room.groupRoom && room.participantCount ? ` ${room.participantCount}` : ''}
+                          </span>
+                          {room.pinned && <Pin size={15} className="shrink-0 fill-[#a0aec0] text-[#a0aec0]" />}
+                          {room.muted && <BellOff size={15} className="shrink-0 text-[#a0aec0]" />}
                           <span className={`rounded-full px-2 py-0.5 text-[11px] ${isGroup ? 'bg-[#fef3c7] text-[#92400e]' : 'bg-[#ecfccb] text-[#65a30d]'}`}>
                             {isGroup ? '공동구매' : '나눔/판매'}
                           </span>
@@ -806,6 +891,15 @@ export default function ChatScreen({
           <span className="text-[11px] text-[#2d3748]">내정보</span>
         </button>
       </div>
+
+      {roomActionTarget && (
+        <RoomQuickActionSheet
+          room={roomActionTarget}
+          onClose={() => setRoomActionTarget(null)}
+          onTogglePin={() => handleRoomMenuAction('pin', roomActionTarget)}
+          onToggleMute={() => handleRoomMenuAction('mute', roomActionTarget)}
+        />
+      )}
 
       {showNotifications && (
         <NotificationsScreen
@@ -992,6 +1086,49 @@ function formatTime(value?: string): string {
   return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function sortRoomsForDisplay(left: ChatRoom, right: ChatRoom) {
+  if (Boolean(left.pinned) !== Boolean(right.pinned)) {
+    return left.pinned ? -1 : 1;
+  }
+
+  return getRoomSortTime(right) - getRoomSortTime(left);
+}
+
+function getRoomSortTime(room: ChatRoom) {
+  const time = room.lastMessageAt ? new Date(room.lastMessageAt).getTime() : NaN;
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function RoomQuickActionSheet({
+  room,
+  onClose,
+  onTogglePin,
+  onToggleMute,
+}: {
+  room: ChatRoom;
+  onClose: () => void;
+  onTogglePin: () => void;
+  onToggleMute: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/25 flex items-end" onClick={onClose}>
+      <div
+        className="w-full rounded-t-[24px] bg-white px-5 pb-6 pt-4 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-[#e2e8f0]" />
+        <p className="mb-3 truncate px-1 text-base text-[#1a202c]" style={{ fontWeight: 900 }}>
+          {room.partnerNickname}
+        </p>
+        <div className="overflow-hidden rounded-3xl bg-[#f8fafc]">
+          <RoomMenuButton icon={Pin} label={room.pinned ? '채팅방 상단 고정 해제' : '채팅방 상단 고정'} onClick={onTogglePin} />
+          <RoomMenuButton icon={BellOff} label={room.muted ? '채팅방 알림 켜기' : '채팅방 알림 끄기'} onClick={onToggleMute} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChatProfileAvatar({ src, alt, className }: { src?: string | null; alt: string; className: string }) {
   const [failed, setFailed] = useState(false);
   const hasImage = Boolean(src && src.trim() && !src.includes('food-placeholder'));
@@ -1028,7 +1165,7 @@ function RoomMenuButton({
   danger = false,
   onClick,
 }: {
-  icon: typeof Ban;
+  icon: LucideIcon;
   label: string;
   danger?: boolean;
   onClick: () => void;

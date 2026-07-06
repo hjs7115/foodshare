@@ -82,6 +82,7 @@ export const API_ENDPOINTS = {
   mypageTradeRequests: `${API_BASE_URL}/api/mypage/trade-requests`,
   mypageReceivedTradeRequests: `${API_BASE_URL}/api/mypage/received-trade-requests`,
   updateLocation: `${API_BASE_URL}/api/mypage/location`,
+  myBadges: `${API_BASE_URL}/api/badges/me`,
 
   // ========== 리뷰 / 평점 ==========
   createReview: (userId: number) => `${API_BASE_URL}/api/users/${userId}/reviews`,
@@ -101,6 +102,8 @@ export const API_ENDPOINTS = {
   chatRoomByTradeRequest: (tradeRequestId: number) => `${API_BASE_URL}/api/chat/rooms/by-trade-request/${tradeRequestId}`,
   chatMessages: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/messages`,
   readChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/read`,
+  pinChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/pin`,
+  muteChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/mute`,
 
   // ========== 관심 목록 ==========
   favorites: `${API_BASE_URL}/api/mypage/favorites`,

@@ -6,6 +6,7 @@ import com.hjs.foodshare.post.domain.PostStatus;
 import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.post.repository.PostRepository;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -34,7 +35,7 @@ public class ExpiringPostNotificationService {
     @Transactional
     public void notifyExpiringPosts() {
         LocalDate today = LocalDate.now();
-        closeExpiredGroupBuys(today);
+        closeExpiredGroupBuys(LocalDateTime.now());
 
         postRepository.findAllByDeletedFalseAndStatusAndExpirationDateBetween(
                         PostStatus.OPEN,
@@ -44,8 +45,8 @@ public class ExpiringPostNotificationService {
                 .forEach(this::notifyExpiringPostOnce);
     }
 
-    private void closeExpiredGroupBuys(LocalDate today) {
-        postRepository.findAllByDeletedFalseAndStatusAndDeadlineDateBefore(PostStatus.OPEN, today)
+    private void closeExpiredGroupBuys(LocalDateTime now) {
+        postRepository.findAllByDeletedFalseAndStatusAndDeadlineDateBefore(PostStatus.OPEN, now)
                 .stream()
                 .filter(post -> post.getPostType() == PostType.GROUP_BUY)
                 .forEach(Post::close);

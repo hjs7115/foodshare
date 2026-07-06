@@ -6,6 +6,7 @@ import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.global.response.PageResponse;
 import com.hjs.foodshare.moderation.repository.UserBlockRepository;
 import com.hjs.foodshare.post.domain.Post;
+import com.hjs.foodshare.post.domain.PostStatus;
 import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.post.dto.PostCreateRequest;
 import com.hjs.foodshare.post.dto.PostResponse;
@@ -17,6 +18,7 @@ import com.hjs.foodshare.upload.service.ImageUploadService;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -86,7 +88,7 @@ public class PostService {
     }
 
     public List<PostResponse> getPosts(Long currentUserId) {
-        return postRepository.findAllByDeletedFalseOrderByCreatedAtDesc()
+        return postRepository.findAllByDeletedFalseAndStatusOrderByCreatedAtDesc(PostStatus.OPEN)
                 .stream()
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .map(post -> toResponse(post, currentUserId))
@@ -110,7 +112,7 @@ public class PostService {
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         PostSort normalizedSort = sort == null ? PostSort.LATEST : sort;
 
-        return postRepository.searchPosts(postType, normalizedKeyword)
+        return postRepository.searchPosts(PostStatus.OPEN, postType, normalizedKeyword)
                 .stream()
                 .filter(this::keepVisibleOrCloseExpired)
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
@@ -257,7 +259,7 @@ public class PostService {
             PostType postType,
             Integer currentParticipantCount,
             Integer targetParticipantCount,
-            LocalDate deadlineDate
+            LocalDateTime deadlineDate
     ) {
         if (postType != PostType.GROUP_BUY) {
             return;
@@ -272,8 +274,8 @@ public class PostService {
         if (deadlineDate == null) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "deadlineDate is required for group buy posts.");
         }
-        if (deadlineDate.isBefore(LocalDate.now())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "deadlineDate must be today or later.");
+        if (deadlineDate.isBefore(LocalDateTime.now())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "deadlineDate must be now or later.");
         }
     }
 
@@ -302,8 +304,8 @@ public class PostService {
         return postType == PostType.GROUP_BUY ? targetParticipantCount : null;
     }
 
-    private LocalDate normalizeDeadlineDate(PostType postType, LocalDate deadlineDate) {
-        return postType == PostType.GROUP_BUY ? deadlineDate : null;
+    private LocalDateTime normalizeDeadlineDate(PostType postType, LocalDateTime deadlineDate) {
+        return deadlineDate;
     }
 
     private PostResponse toResponse(Post post, Long currentUserId) {

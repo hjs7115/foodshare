@@ -20,6 +20,7 @@ public record TradeRequestResponse(
         String requesterFreshnessIcon,
         String requesterFreshnessLabel,
         long requesterShareCompletedCount,
+        long requesterSaleCompletedCount,
         long requesterReceivedShareCount,
         long requesterGroupBuyCount,
         Long chatRoomId,
@@ -30,12 +31,13 @@ public record TradeRequestResponse(
 ) {
 
     public static TradeRequestResponse from(TradeRequest tradeRequest) {
-        return from(tradeRequest, 0, 0, 0, null);
+        return from(tradeRequest, 0, 0, 0, 0, null);
     }
 
     public static TradeRequestResponse from(
             TradeRequest tradeRequest,
             long requesterShareCompletedCount,
+            long requesterSaleCompletedCount,
             long requesterReceivedShareCount,
             long requesterGroupBuyCount,
             Long chatRoomId
@@ -56,6 +58,7 @@ public record TradeRequestResponse(
                 freshnessGrade.getIcon(),
                 freshnessGrade.getLabel(),
                 requesterShareCompletedCount,
+                requesterSaleCompletedCount,
                 requesterReceivedShareCount,
                 requesterGroupBuyCount,
                 chatRoomId,

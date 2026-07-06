@@ -3,6 +3,7 @@ import { showToast, showConfirm } from '../../utils/feedback';
 import { X, Trash2 } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl } from '../../api/config';
 import BackendImage from '../common/BackendImage';
+import PostDetailScreen from '../board/PostDetailScreen';
 
 interface MyPost {
   id: number;
@@ -11,6 +12,7 @@ interface MyPost {
   price: string;
   amount: string;
   postType: 'SHARE' | 'SALE' | 'GROUP_BUY';
+  status?: 'OPEN' | 'CLOSED';
   image: string;
   createdAt: string;
 }
@@ -19,6 +21,7 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
   const [myPosts, setMyPosts] = useState<MyPost[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'share' | 'sale' | 'groupbuy'>('all');
   const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
+  const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
 
   useEffect(() => {
     loadMyPosts();
@@ -31,6 +34,7 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
     price: post.priceText || post.price || '가격미정',
     amount: post.amount || post.quantity || '',
     postType: post.postType,
+    status: post.status,
     image: resolveImageUrl(post.image || post.imageUrl),
     createdAt: post.createdAt || new Date().toISOString(),
   });
@@ -170,7 +174,8 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
             {filteredPosts.map((post) => (
               <div
                 key={post.id}
-                className="bg-white rounded-2xl p-4 shadow-sm border border-[#e2e8f0]"
+                onClick={() => setSelectedPostId(post.id)}
+                className="bg-white rounded-2xl p-4 shadow-sm border border-[#e2e8f0] cursor-pointer transition hover:border-[#bef264]"
               >
                 <div className="flex gap-3">
                   <div className="w-24 h-24 rounded-xl overflow-hidden bg-[#f7fafc] flex-shrink-0">
@@ -189,12 +194,23 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
                         >
                           {getPostTypeLabel(post.postType)}
                         </span>
+                        {post.status === 'CLOSED' && (
+                          <span
+                            className="ml-1 inline-block px-2 py-0.5 rounded-md text-xs mb-2 bg-[#e2e8f0] text-[#475569]"
+                            style={{ fontWeight: 600 }}
+                          >
+                            거래완료
+                          </span>
+                        )}
                         <h3 className="text-[#2d3748] mb-1 truncate" style={{ fontWeight: 600 }}>
                           {post.title}
                         </h3>
                       </div>
                       <button
-                        onClick={() => deletePost(post.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deletePost(post.id);
+                        }}
                         disabled={deletingPostId === post.id}
                         className="flex-shrink-0 p-2 text-[#e53e3e] hover:bg-[#fff5f5] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
@@ -219,6 +235,16 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </div>
+
+      {selectedPostId && (
+        <PostDetailScreen
+          postId={selectedPostId}
+          onClose={() => {
+            setSelectedPostId(null);
+            loadMyPosts();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -86,7 +86,7 @@ class BackendFeatureFlowTests {
     private MailService mailService;
 
     @Test
-    void groupBuyAcceptIncreasesParticipantCountAndClosesWhenFull() {
+    void groupBuyAcceptKeepsPostOpenUntilRecruitmentClosed() {
         User writer = saveUser("writer1");
         User requester = saveUser("requester1");
         Long postId = postService.createPost(
@@ -99,8 +99,13 @@ class BackendFeatureFlowTests {
 
         Post post = postRepository.findById(postId).orElseThrow();
         assertEquals(2, post.getCurrentParticipantCount());
-        assertEquals(PostStatus.CLOSED, post.getStatus());
+        assertEquals(PostStatus.OPEN, post.getStatus());
         assertEquals(2, notificationRepository.findAllByUserIdOrderByCreatedAtDesc(requester.getId()).size());
+
+        tradeRequestService.closeGroupBuyRecruitment(postId, writer.getId());
+
+        post = postRepository.findById(postId).orElseThrow();
+        assertEquals(PostStatus.CLOSED, post.getStatus());
     }
 
     @Test

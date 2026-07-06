@@ -79,7 +79,7 @@ public class Post {
 
     private Integer targetParticipantCount;
 
-    private LocalDate deadlineDate;
+    private LocalDateTime deadlineDate;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
@@ -93,7 +93,7 @@ public class Post {
     private Post(User writer, PostType postType, String title, String ingredientName, String quantity,
                  Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,
                  Double latitude, Double longitude, String imageUrl, String content, Integer currentParticipantCount,
-                 Integer targetParticipantCount, LocalDate deadlineDate) {
+                 Integer targetParticipantCount, LocalDateTime deadlineDate) {
         this.writer = writer;
         this.postType = postType;
         this.status = PostStatus.OPEN;
@@ -118,7 +118,7 @@ public class Post {
     public static Post create(User writer, PostType postType, String title, String ingredientName, String quantity,
                               Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,
                               Double latitude, Double longitude, String imageUrl, String content, Integer currentParticipantCount,
-                              Integer targetParticipantCount, LocalDate deadlineDate) {
+                              Integer targetParticipantCount, LocalDateTime deadlineDate) {
         return new Post(writer, postType, title, ingredientName, quantity, price, tradeLocation,
                 distanceKm, expirationDate, latitude, longitude, imageUrl, content, currentParticipantCount,
                 targetParticipantCount, deadlineDate);
@@ -158,7 +158,7 @@ public class Post {
 
     public Integer getTargetParticipantCount() { return targetParticipantCount; }
 
-    public LocalDate getDeadlineDate() { return deadlineDate; }
+    public LocalDateTime getDeadlineDate() { return deadlineDate; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
 
@@ -169,7 +169,7 @@ public class Post {
     public void update(PostType postType, String title, String ingredientName, String quantity,
                        Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,
                        Double latitude, Double longitude, String imageUrl, String content, Integer currentParticipantCount,
-                       Integer targetParticipantCount, LocalDate deadlineDate) {
+                       Integer targetParticipantCount, LocalDateTime deadlineDate) {
         this.postType = postType;
         this.title = title;
         this.ingredientName = ingredientName;
@@ -201,8 +201,9 @@ public class Post {
             currentParticipantCount = 0;
         }
         currentParticipantCount++;
-        if (targetParticipantCount != null && currentParticipantCount >= targetParticipantCount) {
-            close();
-        }
+    }
+
+    public void updateParticipantCount(int participantCount) {
+        this.currentParticipantCount = Math.max(participantCount, 1);
     }
 }

@@ -152,7 +152,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
         image: uploadedImageUrl,
         imageUrl: uploadedImageUrl,
         ...authorLocation,
-        ...(currentBoard === '나눔 및 판매' && { expiry }),
+        ...(currentBoard === '나눔 및 판매' && { expiry, deadline }),
         ...(currentBoard === '공동구매' && {
           targetCount: parseInt(targetCount) || 5,
           currentCount: 1,
@@ -187,7 +187,10 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
         latitude: serverPost.latitude || authorLocation.latitude,
         longitude: serverPost.longitude || authorLocation.longitude,
         createdAt: serverPost.createdAt || new Date().toISOString(),
-        ...(currentBoard === '나눔 및 판매' && { expiry: serverPost.expiry || expiry }),
+        ...(currentBoard === '나눔 및 판매' && {
+          expiry: serverPost.expiry || expiry,
+          deadline: serverPost.deadline || deadline,
+        }),
         ...(currentBoard === '공동구매' && {
           targetCount: serverPost.targetCount || parseInt(targetCount) || 5,
           currentCount: serverPost.currentCount || 1,
@@ -205,6 +208,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
             distance: '0.5km',
             distanceValue: 0.5,
             expiry: newPost.expiry || '유통기한 정보 없음',
+            deadline: newPost.deadline || '',
             image: newPost.image,
             author: newPost.author,
             authorId: newPost.authorId,
@@ -395,18 +399,32 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
 
           {/* Expiry */}
           {currentBoard === '나눔 및 판매' && (
-            <div>
-              <label htmlFor="expiry" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
-                유통기한
-              </label>
-              <input
-                id="expiry"
-                type="date"
-                value={expiry}
-                onChange={(e) => setExpiry(e.target.value)}
-                className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
-              />
-            </div>
+            <>
+              <div>
+                <label htmlFor="expiry" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
+                  유통기한
+                </label>
+                <input
+                  id="expiry"
+                  type="date"
+                  value={expiry}
+                  onChange={(e) => setExpiry(e.target.value)}
+                  className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
+                />
+              </div>
+              <div>
+                <label htmlFor="shareSaleDeadline" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
+                  거래 마감일
+                </label>
+                <input
+                  id="shareSaleDeadline"
+                  type="datetime-local"
+                  value={deadline}
+                  onChange={(e) => setDeadline(e.target.value)}
+                  className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
+                />
+              </div>
+            </>
           )}
 
           {/* Target Count */}
@@ -431,10 +449,9 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
                 </label>
                 <input
                   id="deadline"
-                  type="text"
+                  type="datetime-local"
                   value={deadline}
                   onChange={(e) => setDeadline(e.target.value)}
-                  placeholder="예: 마감 3일 남음"
                   className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
                 />
               </div>

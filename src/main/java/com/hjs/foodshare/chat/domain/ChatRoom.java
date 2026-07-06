@@ -41,6 +41,21 @@ public class ChatRoom {
     private int requesterUnreadCount;
 
     @Column(nullable = false)
+    private boolean writerPinned;
+
+    @Column(nullable = false)
+    private boolean requesterPinned;
+
+    @Column(nullable = false)
+    private boolean writerMuted;
+
+    @Column(nullable = false)
+    private boolean requesterMuted;
+
+    @Column(nullable = false)
+    private boolean groupRoom;
+
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 
     @Column(nullable = false)
@@ -55,12 +70,22 @@ public class ChatRoom {
         this.requester = tradeRequest.getRequester();
         this.writerUnreadCount = 0;
         this.requesterUnreadCount = 1;
+        this.writerPinned = false;
+        this.requesterPinned = false;
+        this.writerMuted = false;
+        this.requesterMuted = false;
+        this.groupRoom = false;
         this.createdAt = LocalDateTime.now();
         this.updatedAt = this.createdAt;
     }
 
     public static ChatRoom create(TradeRequest tradeRequest) {
         return new ChatRoom(tradeRequest);
+    }
+
+    public void markAsGroupRoom() {
+        this.groupRoom = true;
+        touch();
     }
 
     public void touch() {
@@ -86,6 +111,44 @@ public class ChatRoom {
         }
     }
 
+    public void togglePinned(Long userId) {
+        if (writer.getId().equals(userId)) {
+            writerPinned = !writerPinned;
+        }
+        if (requester.getId().equals(userId)) {
+            requesterPinned = !requesterPinned;
+        }
+    }
+
+    public void toggleMuted(Long userId) {
+        if (writer.getId().equals(userId)) {
+            writerMuted = !writerMuted;
+        }
+        if (requester.getId().equals(userId)) {
+            requesterMuted = !requesterMuted;
+        }
+    }
+
+    public boolean isPinnedFor(Long userId) {
+        if (writer.getId().equals(userId)) {
+            return writerPinned;
+        }
+        if (requester.getId().equals(userId)) {
+            return requesterPinned;
+        }
+        return false;
+    }
+
+    public boolean isMutedFor(Long userId) {
+        if (writer.getId().equals(userId)) {
+            return writerMuted;
+        }
+        if (requester.getId().equals(userId)) {
+            return requesterMuted;
+        }
+        return false;
+    }
+
     public Long getId() {
         return id;
     }
@@ -108,6 +171,26 @@ public class ChatRoom {
 
     public int getRequesterUnreadCount() {
         return requesterUnreadCount;
+    }
+
+    public boolean isWriterPinned() {
+        return writerPinned;
+    }
+
+    public boolean isRequesterPinned() {
+        return requesterPinned;
+    }
+
+    public boolean isWriterMuted() {
+        return writerMuted;
+    }
+
+    public boolean isRequesterMuted() {
+        return requesterMuted;
+    }
+
+    public boolean isGroupRoom() {
+        return groupRoom;
     }
 
     public LocalDateTime getCreatedAt() {

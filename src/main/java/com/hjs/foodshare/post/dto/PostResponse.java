@@ -47,7 +47,7 @@ public record PostResponse(
         boolean editable,
         Integer currentParticipantCount,
         Integer targetParticipantCount,
-        LocalDate deadlineDate,
+        LocalDateTime deadlineDate,
         Long daysUntilDeadline,
         String deadlineText,
         LocalDateTime createdAt
@@ -68,7 +68,7 @@ public record PostResponse(
         long daysUntilExpiration = ChronoUnit.DAYS.between(LocalDate.now(), post.getExpirationDate());
         Long daysUntilDeadline = post.getDeadlineDate() == null
                 ? null
-                : ChronoUnit.DAYS.between(LocalDate.now(), post.getDeadlineDate());
+                : ChronoUnit.DAYS.between(LocalDate.now(), post.getDeadlineDate().toLocalDate());
         boolean mine = currentUserId != null && post.getWriter().getId().equals(currentUserId);
         double normalizedRating = writerRating <= 0 ? 4.5 : Math.round(writerRating * 10.0) / 10.0;
         double freshness = post.getWriter().getFreshnessScore();

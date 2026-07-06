@@ -35,6 +35,7 @@ interface NotificationItem {
   requesterFreshness?: number;
   requesterFreshnessLabel?: string;
   requesterShareCompletedCount?: number;
+  requesterSaleCompletedCount?: number;
   requesterReceivedShareCount?: number;
   requesterGroupBuyCount?: number;
   boardType?: 'sharing' | 'group';
@@ -120,6 +121,16 @@ function normalizeNotification(raw: any): NotificationItem {
       raw.user?.shareCompletedCount
     ),
     requesterReceivedShareCount: getNumberValue(
+      raw.requesterReceivedShareCount ||
+      raw.requester?.receivedShareCount ||
+      raw.sender?.receivedShareCount ||
+      raw.user?.receivedShareCount
+    ),
+    requesterSaleCompletedCount: getNumberValue(
+      raw.requesterSaleCompletedCount ||
+      raw.requester?.saleCompletedCount ||
+      raw.sender?.saleCompletedCount ||
+      raw.user?.saleCompletedCount ||
       raw.requesterReceivedShareCount ||
       raw.requester?.receivedShareCount ||
       raw.sender?.receivedShareCount ||
@@ -554,9 +565,9 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
                   </div>
                   <div className={`border-x text-center ${getBoardTone(selectedProfile.boardType).divider}`}>
                     <p className="mb-1 text-2xl text-[#2d3748]" style={{ fontWeight: 700 }}>
-                      {selectedProfile.requesterReceivedShareCount ?? 0}
+                      {selectedProfile.requesterSaleCompletedCount ?? 0}
                     </p>
-                    <p className="text-xs text-[#718096]">받은 나눔</p>
+                    <p className="text-xs text-[#718096]">판매 완료</p>
                   </div>
                   <div className="text-center">
                     <p className="mb-1 text-2xl text-[#2d3748]" style={{ fontWeight: 700 }}>

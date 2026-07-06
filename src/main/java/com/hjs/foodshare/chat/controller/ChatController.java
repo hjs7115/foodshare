@@ -73,4 +73,22 @@ public class ChatController {
         chatService.markAsRead(authUser.userId(), roomId);
         return ResponseEntity.ok(ApiResponse.ok("Chat room read.", null));
     }
+
+    @PatchMapping("/rooms/{roomId}/pin")
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> togglePinned(
+            @AuthenticationPrincipal AuthUser authUser,
+            @PathVariable Long roomId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok("Chat room pin setting updated.",
+                chatService.togglePinned(authUser.userId(), roomId)));
+    }
+
+    @PatchMapping("/rooms/{roomId}/mute")
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> toggleMuted(
+            @AuthenticationPrincipal AuthUser authUser,
+            @PathVariable Long roomId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok("Chat room notification setting updated.",
+                chatService.toggleMuted(authUser.userId(), roomId)));
+    }
 }

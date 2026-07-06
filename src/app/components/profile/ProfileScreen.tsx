@@ -26,6 +26,9 @@ interface UserInfo {
   freshnessIcon?: string;
   freshnessLabel?: string;
   freshnessLevel?: string;
+  shareCompletedCount?: number;
+  saleCompletedCount?: number;
+  groupBuyParticipationCount?: number;
 }
 
 export default function ProfileScreen({
@@ -84,6 +87,11 @@ export default function ProfileScreen({
     notification.status === 'READ'
   );
 
+  const getNumberValue = (value: any, fallback = 0): number => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : fallback;
+  };
+
   const loadUnreadNotifications = async () => {
     try {
       const response = await getNotifications(0, 10);
@@ -105,10 +113,21 @@ export default function ProfileScreen({
 
     try {
       const response = await apiRequest(API_ENDPOINTS.getProfile, { method: 'GET' });
-      const user = response.user || response.data?.user || response.data || response;
+      const payload = response.data || response;
+      const user = payload.user || response.user || payload;
       if (user) {
-        setUserInfo(user);
-        saveStoredUserInfo(user);
+        const nextUser = {
+          ...user,
+          shareCompletedCount: getNumberValue(payload.shareCompletedCount ?? user.shareCompletedCount),
+          saleCompletedCount: getNumberValue(payload.saleCompletedCount ?? user.saleCompletedCount),
+          groupBuyParticipationCount: getNumberValue(
+            payload.groupBuyParticipationCount ??
+            user.groupBuyParticipationCount ??
+            user.groupBuyCount
+          ),
+        };
+        setUserInfo(nextUser);
+        saveStoredUserInfo(nextUser);
       }
     } catch (error) {
       console.warn('프로필 서버 조회에 실패했습니다. 저장된 정보를 사용합니다.', error);
@@ -231,15 +250,21 @@ export default function ProfileScreen({
             <h3 className="text-xs text-[#65a30d] mb-3" style={{ fontWeight: 600 }}>활동 통계</h3>
             <div className="grid grid-cols-3 gap-3">
               <div className="text-center">
-                <p className="text-2xl text-[#2d3748] mb-1" style={{ fontWeight: 700 }}>0</p>
+                <p className="text-2xl text-[#2d3748] mb-1" style={{ fontWeight: 700 }}>
+                  {userInfo?.shareCompletedCount ?? 0}
+                </p>
                 <p className="text-xs text-[#718096]">나눔 완료</p>
               </div>
               <div className="text-center border-x border-[#bef264]/30">
-                <p className="text-2xl text-[#2d3748] mb-1" style={{ fontWeight: 700 }}>0</p>
-                <p className="text-xs text-[#718096]">받은 나눔</p>
+                <p className="text-2xl text-[#2d3748] mb-1" style={{ fontWeight: 700 }}>
+                  {userInfo?.saleCompletedCount ?? 0}
+                </p>
+                <p className="text-xs text-[#718096]">판매 완료</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl text-[#2d3748] mb-1" style={{ fontWeight: 700 }}>0</p>
+                <p className="text-2xl text-[#2d3748] mb-1" style={{ fontWeight: 700 }}>
+                  {userInfo?.groupBuyParticipationCount ?? 0}
+                </p>
                 <p className="text-xs text-[#718096]">공구 참여</p>
               </div>
             </div>

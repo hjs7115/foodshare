@@ -69,7 +69,10 @@ public class MyPageService {
                 myRequests.size(),
                 receivedRequests.size(),
                 ratingSummary.averageRating(),
-                ratingSummary.reviewCount()
+                ratingSummary.reviewCount(),
+                countShareCompleted(userId),
+                countSaleCompleted(userId),
+                countGroupBuyParticipation(userId)
         );
     }
 
@@ -132,6 +135,7 @@ public class MyPageService {
         return TradeRequestResponse.from(
                 tradeRequest,
                 countShareCompleted(requesterId),
+                countSaleCompleted(requesterId),
                 countReceivedShare(requesterId),
                 countGroupBuyParticipation(requesterId),
                 chatService.findRoomIdByTradeRequestId(tradeRequest.getId())
@@ -142,6 +146,14 @@ public class MyPageService {
         return tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(
                 userId,
                 PostType.SHARE,
+                TradeRequestStatus.COMPLETED
+        );
+    }
+
+    private long countSaleCompleted(Long userId) {
+        return tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(
+                userId,
+                PostType.SALE,
                 TradeRequestStatus.COMPLETED
         );
     }

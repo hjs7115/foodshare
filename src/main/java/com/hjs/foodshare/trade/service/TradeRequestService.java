@@ -14,7 +14,7 @@ import com.hjs.foodshare.trade.dto.TradeRequestResponse;
 import com.hjs.foodshare.trade.repository.TradeRequestRepository;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -151,8 +151,42 @@ public class TradeRequestService {
         }
 
         tradeRequest.complete();
+        if (tradeRequest.getPost().getPostType() != PostType.GROUP_BUY) {
+            tradeRequest.getPost().close();
+        }
         notifyTradeCompleted(tradeRequest);
         return toResponse(tradeRequest);
+    }
+
+    @Transactional
+    public List<TradeRequestResponse> closeGroupBuyRecruitment(Long postId, Long writerId) {
+        Post post = getActivePost(postId);
+        if (!post.getWriter().getId().equals(writerId)) {
+            throw new BusinessException(HttpStatus.FORBIDDEN, "Only the post writer can close recruitment.");
+        }
+        if (post.getPostType() != PostType.GROUP_BUY) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Only group buy posts can close recruitment.");
+        }
+        validateGroupBuyDeadline(post);
+
+        List<TradeRequest> selectedRequests = tradeRequestRepository.findAllByPostIdOrderByCreatedAtDesc(postId)
+                .stream()
+                .filter(request -> request.getStatus() == TradeRequestStatus.PENDING
+                        || request.getStatus() == TradeRequestStatus.ACCEPTED)
+                .toList();
+        if (selectedRequests.isEmpty()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "No group buy participants are waiting.");
+        }
+
+        selectedRequests.stream()
+                .filter(request -> request.getStatus() == TradeRequestStatus.PENDING)
+                .forEach(TradeRequest::accept);
+        post.updateParticipantCount(selectedRequests.size() + 1);
+        post.close();
+        ChatRoom chatRoom = chatService.openGroupRoomForTradeRequests(selectedRequests);
+        return selectedRequests.stream()
+                .map(request -> toResponse(request, chatRoom.getId()))
+                .toList();
     }
 
     private void applyAcceptedTradePolicy(TradeRequest acceptedRequest) {
@@ -201,6 +235,7 @@ public class TradeRequestService {
         return TradeRequestResponse.from(
                 tradeRequest,
                 countShareCompleted(requesterId),
+                countSaleCompleted(requesterId),
                 countReceivedShare(requesterId),
                 countGroupBuyParticipation(requesterId),
                 chatRoomId
@@ -211,6 +246,14 @@ public class TradeRequestService {
         return tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(
                 userId,
                 PostType.SHARE,
+                TradeRequestStatus.COMPLETED
+        );
+    }
+
+    private long countSaleCompleted(Long userId) {
+        return tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(
+                userId,
+                PostType.SALE,
                 TradeRequestStatus.COMPLETED
         );
     }
@@ -248,7 +291,7 @@ public class TradeRequestService {
     }
 
     private void validateGroupBuyRequestable(Post post) {
-        if (post.getDeadlineDate() != null && post.getDeadlineDate().isBefore(LocalDate.now())) {
+        if (post.getDeadlineDate() != null && post.getDeadlineDate().isBefore(LocalDateTime.now())) {
             post.close();
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy deadline has passed.");
         }
@@ -261,6 +304,13 @@ public class TradeRequestService {
         if (post.getCurrentParticipantCount() >= post.getTargetParticipantCount()) {
             post.close();
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy is full.");
+        }
+    }
+
+    private void validateGroupBuyDeadline(Post post) {
+        if (post.getDeadlineDate() != null && post.getDeadlineDate().isBefore(LocalDateTime.now())) {
+            post.close();
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Group buy deadline has passed.");
         }
     }
 

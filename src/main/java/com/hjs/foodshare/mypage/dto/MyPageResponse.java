@@ -9,6 +9,9 @@ public record MyPageResponse(
         int myTradeRequestCount,
         int receivedTradeRequestCount,
         double averageRating,
-        long reviewCount
+        long reviewCount,
+        long shareCompletedCount,
+        long saleCompletedCount,
+        long groupBuyParticipationCount
 ) {
 }

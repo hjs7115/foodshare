@@ -41,6 +41,9 @@ public class CommentService {
     public CommentResponse createComment(Long postId, Long userId, CommentCreateRequest request) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Post not found."));
+        if (!post.isOpen()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Closed posts cannot receive comments.");
+        }
         User writer = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
         validateNotBlocked(userId, post.getWriter().getId());

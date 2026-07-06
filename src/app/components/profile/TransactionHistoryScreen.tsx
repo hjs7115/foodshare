@@ -21,6 +21,7 @@ interface TradeRequest {
   requesterFreshness?: number;
   requesterFreshnessLabel?: string;
   requesterShareCompletedCount?: number;
+  requesterSaleCompletedCount?: number;
   requesterReceivedShareCount?: number;
   requesterGroupBuyCount?: number;
   chatRoomId?: number;
@@ -110,6 +111,14 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       request.user?.shareCompletedCount
     ),
     requesterReceivedShareCount: getNumberValue(
+      request.requesterReceivedShareCount ??
+      request.requester?.receivedShareCount ??
+      request.user?.receivedShareCount
+    ),
+    requesterSaleCompletedCount: getNumberValue(
+      request.requesterSaleCompletedCount ??
+      request.requester?.saleCompletedCount ??
+      request.user?.saleCompletedCount ??
       request.requesterReceivedShareCount ??
       request.requester?.receivedShareCount ??
       request.user?.receivedShareCount
@@ -669,9 +678,9 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
                 </div>
                 <div className={`border-x text-center ${getBoardTone(selectedProfile.boardType).divider}`}>
                   <p className="mb-1 text-2xl text-[#2d3748]" style={{ fontWeight: 700 }}>
-                    {selectedProfile.requesterReceivedShareCount ?? 0}
+                    {selectedProfile.requesterSaleCompletedCount ?? 0}
                   </p>
-                  <p className="text-xs text-[#718096]">받은 나눔</p>
+                  <p className="text-xs text-[#718096]">판매 완료</p>
                 </div>
                 <div className="text-center">
                   <p className="mb-1 text-2xl text-[#2d3748]" style={{ fontWeight: 700 }}>

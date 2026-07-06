@@ -406,6 +406,10 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   };
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
+    if (post?.status === 'CLOSED') {
+      showToast('거래 완료된 게시글에는 댓글을 작성할 수 없습니다.');
+      return;
+    }
 
     setIsCommentSubmitting(true);
     try {
@@ -558,6 +562,10 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
   const handleTradeRequest = async () => {
     if (!post) return;
+    if (post.status === 'CLOSED') {
+      showToast('거래 완료된 게시글입니다.');
+      return;
+    }
 
     const userInfo = getCurrentUser();
 
@@ -633,6 +641,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   };
 
   const getTradeButtonLabel = () => {
+    if (post?.status === 'CLOSED') return '거래 완료';
     if (isTradeRequestSubmitting) return '요청 중';
     switch (tradeRequestStatus) {
       case 'PENDING':
@@ -685,6 +694,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   const postLocation = getPostLocation(post);
   const postAuthorImage = getProfileImage(post) || (isMyPost ? getProfileImage(currentUser) : '');
   const isGroupBuyClosed = post.postType === 'GROUP_BUY' && post.status === 'CLOSED';
+  const isPostClosed = post.status === 'CLOSED';
 
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col">
@@ -726,8 +736,18 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
         {/* Post Info */}
         <div className="bg-white px-5 py-6 mb-2">
+          {isPostClosed && (
+            <div className="mb-4 rounded-2xl border border-[#cbd5e1] bg-[#f8fafc] px-4 py-3 text-sm text-[#475569]">
+              거래 완료된 게시글입니다. 게시판 목록에서는 숨김 처리되며, 거래 기록 확인용으로 보관됩니다.
+            </div>
+          )}
           <div className="flex items-center gap-3 mb-4">
             {getPostTypeBadge()}
+            {isPostClosed && (
+              <span className="bg-[#e2e8f0] text-[#475569] px-3 py-1 rounded-full text-sm" style={{ fontWeight: 600 }}>
+                거래완료
+              </span>
+            )}
             <span className="text-xs text-[#a0aec0]">
               {formatKoreanDate(post.createdAt)}
             </span>
@@ -954,6 +974,11 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
           </div>
 
           {/* Comment Input */}
+          {isPostClosed && (
+            <p className="mb-3 rounded-2xl bg-[#f8fafc] px-4 py-3 text-sm text-[#718096]">
+              거래 완료된 게시글에는 새 댓글을 작성할 수 없습니다.
+            </p>
+          )}
           <div className="flex gap-2">
             <input
               type="text"
@@ -964,12 +989,13 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
                   handleAddComment();
                 }
               }}
-              placeholder="댓글을 입력하세요"
+              placeholder={isPostClosed ? '거래 완료된 게시글입니다' : '댓글을 입력하세요'}
+              disabled={isPostClosed}
               className="flex-1 px-4 py-3 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
             />
             <button
               onClick={handleAddComment}
-              disabled={!newComment.trim() || isCommentSubmitting}
+              disabled={isPostClosed || !newComment.trim() || isCommentSubmitting}
               className="px-4 py-3 rounded-2xl bg-[#bef264] text-[#0a0a0a] hover:bg-[#a3e635] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Send size={20} />
@@ -1000,7 +1026,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
         ) : (
           <button
             onClick={handleTradeRequest}
-            disabled={Boolean(tradeRequestStatus) || isTradeRequestSubmitting}
+            disabled={isPostClosed || Boolean(tradeRequestStatus) || isTradeRequestSubmitting}
             className="w-full bg-[#bef264] text-[#0a0a0a] py-4 rounded-2xl hover:bg-[#a3e635] disabled:bg-[#e2e8f0] disabled:text-[#718096] disabled:cursor-not-allowed transition-colors shadow-sm"
             style={{ fontWeight: 600 }}
           >

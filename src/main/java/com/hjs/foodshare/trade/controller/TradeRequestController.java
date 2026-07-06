@@ -85,4 +85,13 @@ public class TradeRequestController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok("Trade request completed.", tradeRequestService.complete(requestId, authUser.userId())));
     }
+
+    @RequestMapping(value = "/posts/{postId}/group-buy/close-recruitment", method = {RequestMethod.POST, RequestMethod.PATCH, RequestMethod.PUT})
+    public ResponseEntity<ApiResponse<List<TradeRequestResponse>>> closeGroupBuyRecruitment(
+            @PathVariable Long postId,
+            @AuthenticationPrincipal AuthUser authUser
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok("Group buy recruitment closed.",
+                tradeRequestService.closeGroupBuyRecruitment(postId, authUser.userId())));
+    }
 }

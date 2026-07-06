@@ -16,6 +16,10 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     long countByTargetUserId(Long targetUserId);
 
+    long countByTargetUserIdAndRatingGreaterThanEqual(Long targetUserId, Integer rating);
+
+    long countByTargetUserIdAndRatingLessThanEqual(Long targetUserId, Integer rating);
+
     @Query("select coalesce(avg(r.rating), 0.0) from Review r where r.targetUser.id = :targetUserId")
     double averageRatingByTargetUserId(@Param("targetUserId") Long targetUserId);
 }

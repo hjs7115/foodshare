@@ -30,8 +30,8 @@
   <text x="105" y="120" class="head">Client / PWA</text>
   <text x="105" y="154" class="section">React + Vite</text>
   <text x="105" y="188" class="text">- 게시글, 거래, 댓글, 리뷰 화면</text>
-  <text x="105" y="218" class="text">- 마이페이지, 알림, 신고/차단</text>
-  <text x="105" y="248" class="text">- 배지/업적 조회 UI</text>
+  <text x="105" y="218" class="text">- 채팅, 냉장고, 알림 화면</text>
+  <text x="105" y="248" class="text">- 마이페이지, 신고/차단, 배지 UI</text>
   <text x="105" y="278" class="text">- JWT Access Token 저장/전송</text>
   <text x="105" y="308" class="text">- Refresh Token 기반 재로그인</text>
   <text x="105" y="338" class="text">- FCM Web Push Token 등록</text>
@@ -43,14 +43,14 @@
 
   <rect x="630" y="130" width="480" height="92" class="pill"/>
   <text x="655" y="158" class="section">Controller</text>
-  <text x="655" y="184" class="small">Auth, Post, Comment, Trade, Review, Notification</text>
-  <text x="655" y="207" class="small">Moderation, Badge, Admin, Upload API</text>
+  <text x="655" y="184" class="small">Auth, Post, Comment, Trade, Chat, Fridge</text>
+  <text x="655" y="207" class="small">Review, Notification, Moderation, Badge, Admin, Upload API</text>
 
   <rect x="630" y="246" width="480" height="118" class="pill"/>
   <text x="655" y="274" class="section">Service</text>
-  <text x="655" y="300" class="small">위치 반경 검색, 공동구매 인원/마감 처리</text>
-  <text x="655" y="323" class="small">알림 생성, 유통기한 임박 스케줄러</text>
-  <text x="655" y="346" class="small">이미지 정리, 신고/차단, 배지 진행률 계산</text>
+  <text x="655" y="300" class="small">위치 반경 검색, 공동구매 모집마감 처리</text>
+  <text x="655" y="323" class="small">1대1/단체 채팅, 읽음/고정/알림끄기</text>
+  <text x="655" y="346" class="small">냉장고, 신고/차단, 배지/활동 통계 계산</text>
 
   <rect x="630" y="388" width="480" height="92" class="pill"/>
   <text x="655" y="416" class="section">Security</text>
@@ -68,10 +68,10 @@
   <text x="1305" y="192" class="text">- email_verifications</text>
   <text x="1305" y="222" class="text">- posts, comments, favorites</text>
   <text x="1305" y="252" class="text">- trade_requests, reviews</text>
-  <text x="1305" y="282" class="text">- notifications</text>
-  <text x="1305" y="312" class="text">- reports, user_blocks</text>
-  <text x="1305" y="342" class="text">- 게시글 위치/유통기한</text>
-  <text x="1305" y="372" class="text">- 공동구매 모집 상태</text>
+  <text x="1305" y="282" class="text">- chat_rooms, chat_messages</text>
+  <text x="1305" y="312" class="text">- chat_room_members, fridge_items</text>
+  <text x="1305" y="342" class="text">- notifications, reports, user_blocks</text>
+  <text x="1305" y="372" class="text">- 게시글 위치/유통기한/마감일</text>
   <text x="1305" y="402" class="text">- 배지는 활동 데이터로 계산</text>
 
   <rect x="70" y="690" width="390" height="170" class="box external"/>

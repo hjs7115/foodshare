@@ -83,7 +83,9 @@ sequenceDiagram
     반띵->>작성자: 거래 요청 전달
     작성자->>반띵: 수락 / 거절 / 모집마감 / 완료 처리
     반띵->>사용자: 1대1 또는 공동구매 단체 채팅방 개설
+    반띵-->>사용자: DB 알림 / FCM 푸시 알림
     사용자->>반띵: 완료된 거래에 리뷰 작성
+    사용자->>반띵: 냉장고 식재료 등록 / 수정 / 삭제
     반띵->>사용자: 평점과 리뷰 정보 제공
 ```
 
@@ -95,14 +97,16 @@ sequenceDiagram
 
 ```mermaid
 graph TB
-    subgraph Client["👤 Client"]
-        Web["React<br/>TypeScript / Vite"]
+    subgraph Client["👤 Client / PWA"]
+        Web["React + TypeScript + Vite"]
+        SW["Service Worker<br/>PWA / FCM"]
     end
 
     subgraph Server["🖥️ Spring Boot"]
         API["REST API"]
+        WS["WebSocket Chat"]
         Security["Spring Security<br/>JWT"]
-        Domain["Domain Service<br/>Auth · Post · Trade · Chat · Review · Notification"]
+        Domain["Domain Service<br/>Auth · Post · Trade · Chat · Fridge · Review · Notification"]
         Moderation["Moderation<br/>Report · Block"]
         Badge["Badge Service"]
         Upload["Image Upload"]
@@ -112,15 +116,20 @@ graph TB
         MySQL["MySQL"]
         Files["uploads/"]
         Mail["SMTP Mail"]
+        FCM["Firebase FCM"]
     end
 
     Web --> API
+    Web --> WS
+    SW --> FCM
     API --> Security
     Security --> Domain
+    WS --> Domain
     Domain --> Moderation
     Domain --> Badge
     Domain --> MySQL
     Domain --> Mail
+    Domain --> FCM
     API --> Upload
     Upload --> Files
 ```
@@ -228,6 +237,7 @@ graph TB
 | `ChatRoom` | 거래 요청 기반 1대1 채팅방과 공동구매 대표 채팅방 |
 | `ChatRoomMember` | 공동구매 단체 채팅방 참여자, 읽음 상태, 고정/알림 설정 |
 | `ChatMessage` | 채팅방 메시지와 시스템 메시지 |
+| `FridgeItem` | 사용자 냉장고 식재료, 수량, 유통기한, 메모 |
 | `Review` | 거래 완료 후 작성되는 리뷰와 평점 |
 | `EmailVerification` | 이메일 인증 및 비밀번호 재설정 코드와 검증 상태 |
 | `RefreshToken` | 로그인 유지와 Access Token 재발급을 위한 토큰 저장 정보 |
@@ -263,8 +273,10 @@ foodshare/
 │   │   └── components/
 │   │       ├── auth/                  # 로그인, 회원가입, 아이디/비밀번호 찾기
 │   │       ├── board/                 # 게시판, 게시글 작성, 상세 화면
+│   │       ├── chat/                  # 채팅방 목록, 채팅 메시지, 채팅방 설정
 │   │       ├── category/              # 카테고리 선택
-│   │       ├── common/
+│   │       ├── common/                # 공통 UI, 알림 화면, 이미지 표시
+│   │       ├── fridge/                # 냉장고 식재료 관리
 │   │       └── profile/               # 마이페이지, 관심 목록, 설정
 │   │
 │   ├── styles/                        # 프론트엔드 스타일
@@ -276,6 +288,7 @@ foodshare/
 │   │   │   ├── post/                  # 게시글
 │   │   │   ├── comment/               # 댓글
 │   │   │   ├── favorite/              # 관심 게시글
+│   │   │   ├── fridge/                # 냉장고 식재료
 │   │   │   ├── trade/                 # 거래 요청
 │   │   │   ├── chat/                  # 1대1/공동구매 채팅, 읽음, 고정, 알림 끄기
 │   │   │   ├── review/                # 리뷰

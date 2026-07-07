@@ -101,7 +101,11 @@ public class SecurityConfig {
                 "http://172.*.*.*:5173",
                 "https://*.ngrok-free.dev",
                 "https://*.ngrok-free.app",
-                "https://*.trycloudflare.com"
+                "https://*.trycloudflare.com",
+                "https://bantting.store",
+                "https://www.bantting.store",
+                "http://bantting.store", 
+                "http://www.bantting.store"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));

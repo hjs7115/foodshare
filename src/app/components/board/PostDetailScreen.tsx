@@ -89,6 +89,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   const [tradeRequestStatus, setTradeRequestStatus] = useState<TradeRequestStatus | null>(null);
   const [isTradeRequestSubmitting, setIsTradeRequestSubmitting] = useState(false);
   const [isClosingRecruitment, setIsClosingRecruitment] = useState(false);
+  const [isDeletingPost, setIsDeletingPost] = useState(false);
   const [isSafetyActionSubmitting, setIsSafetyActionSubmitting] = useState(false);
 
   useEffect(() => {
@@ -439,6 +440,22 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
     }
   };
 
+  const handleDeletePost = async () => {
+    if (!post || isDeletingPost) return;
+    if (!(await showConfirm('게시글을 삭제하시겠습니까?', '게시글 삭제', '삭제'))) return;
+
+    setIsDeletingPost(true);
+    try {
+      await apiRequest(API_ENDPOINTS.deletePost(post.id), { method: 'DELETE' });
+      showToast('게시글이 삭제되었습니다.');
+      onClose();
+    } catch (error: any) {
+      showToast(error.message || '게시글 삭제에 실패했습니다.');
+    } finally {
+      setIsDeletingPost(false);
+    }
+  };
+
   const handleStartEdit = (comment: Comment) => {
     setEditingCommentId(comment.id);
     setEditingContent(comment.content);
@@ -735,7 +752,18 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
         </div>
 
         {/* Post Info */}
-        <div className="bg-white px-5 py-6 mb-2">
+        <div className="relative bg-white px-5 py-6 mb-2">
+          {isMyPost && (
+            <button
+              onClick={handleDeletePost}
+              disabled={isDeletingPost}
+              className="absolute right-5 top-6 z-10 rounded-full border border-[#fecaca] bg-white p-2.5 text-[#dc2626] shadow-sm transition hover:bg-[#fef2f2] disabled:cursor-not-allowed disabled:opacity-50"
+              title="게시글 삭제"
+              aria-label="게시글 삭제"
+            >
+              <Trash2 size={20} />
+            </button>
+          )}
           {isPostClosed && (
             <div className="mb-4 rounded-2xl border border-[#cbd5e1] bg-[#f8fafc] px-4 py-3 text-sm text-[#475569]">
               거래 완료된 게시글입니다. 게시판 목록에서는 숨김 처리되며, 거래 기록 확인용으로 보관됩니다.

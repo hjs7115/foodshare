@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import {
   LandingScreen,
   LoginScreen,
@@ -17,6 +17,13 @@ import { listenForegroundMessages, registerFirebaseMessaging } from './firebase'
 
 type Screen = 'landing' | 'login' | 'signup' | 'findId' | 'findPassword' | 'category' | 'main';
 type MainView = 'board' | 'chat' | 'fridge' | 'profile';
+
+interface AppHistoryState {
+  foodshareApp: true;
+  currentScreen: Screen;
+  selectedCategory: string | null;
+  mainView: MainView;
+}
 
 interface ChatToast {
   roomId?: number;
@@ -53,6 +60,8 @@ export default function App() {
   const [profileTradeHistorySignal, setProfileTradeHistorySignal] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [chatToast, setChatToast] = useState<ChatToast | null>(null);
+  const restoringHistoryRef = useRef(false);
+  const lastHistoryKeyRef = useRef('');
 
   const refreshChatUnreadCount = async () => {
     if (!hasAuthSession()) {
@@ -117,6 +126,76 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    const historyState: AppHistoryState = {
+      foodshareApp: true,
+      currentScreen,
+      selectedCategory,
+      mainView,
+    };
+    const historyKey = JSON.stringify(historyState);
+
+    if (restoringHistoryRef.current) {
+      restoringHistoryRef.current = false;
+      lastHistoryKeyRef.current = historyKey;
+      return;
+    }
+
+    if (historyKey === lastHistoryKeyRef.current) {
+      return;
+    }
+
+    if (window.history.state?.foodshareApp) {
+      window.history.pushState(historyState, '', window.location.href);
+    } else {
+      window.history.replaceState(historyState, '', window.location.href);
+    }
+    lastHistoryKeyRef.current = historyKey;
+  }, [currentScreen, selectedCategory, mainView]);
+
+  useEffect(() => {
+    const restoreFromHistory = (state: AppHistoryState) => {
+      restoringHistoryRef.current = true;
+      setCurrentScreen(state.currentScreen);
+      setSelectedCategory(state.selectedCategory);
+      setMainView(state.mainView);
+      setProfileTradeHistorySignal(0);
+      setChatToast(null);
+    };
+
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as AppHistoryState | null;
+      if (state?.foodshareApp) {
+        restoreFromHistory(state);
+        return;
+      }
+
+      const screen = new URL(window.location.href).searchParams.get('screen');
+      if (screen === 'chat' || screen === 'tradeHistory' || screen === 'profile' || screen === 'notifications') {
+        setCurrentScreen('main');
+        if (screen === 'chat') {
+          handleMainNavigate('chat');
+        } else if (screen === 'tradeHistory') {
+          handleMainNavigate('tradeHistory');
+        } else {
+          handleMainNavigate('profile');
+        }
+        return;
+      }
+
+      const fallbackState: AppHistoryState = {
+        foodshareApp: true,
+        currentScreen: 'landing',
+        selectedCategory: null,
+        mainView: 'board',
+      };
+      window.history.replaceState(fallbackState, '', window.location.href);
+      restoreFromHistory(fallbackState);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   useEffect(() => {
     if (hasAuthSession()) {
       setCurrentScreen('category');
@@ -329,3 +408,4 @@ export default function App() {
 
   return renderWithChatToast(<SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} />);
 }
+

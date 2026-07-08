@@ -65,6 +65,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         } catch (BusinessException exception) {
             SecurityContextHolder.clearContext();
+            if (isOptionalAuthenticationEndpoint(request)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             response.setStatus(exception.getStatus().value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding("UTF-8");
@@ -83,6 +87,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String path = request.getRequestURI();
         return PUBLIC_AUTH_PATHS.stream().anyMatch(path::equals);
+    }
+
+    private boolean isOptionalAuthenticationEndpoint(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+
+        String path = request.getRequestURI();
+        return path.equals("/")
+                || path.equals("/api/posts")
+                || path.matches("^/api/posts/\\d+$")
+                || path.matches("^/api/posts/\\d+/comments$")
+                || path.matches("^/api/posts/\\d+/comments/page$")
+                || path.matches("^/api/users/\\d+/reviews$")
+                || path.matches("^/api/users/\\d+/rating$")
+                || path.startsWith("/uploads/");
     }
 
     private String extractBearerToken(String authorization) {

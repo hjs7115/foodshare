@@ -144,6 +144,26 @@ class BackendFeatureFlowTests {
     }
 
     @Test
+    void myPageTradeHistoryReturnsSentAndReceivedPendingRequests() {
+        User writer = saveUser("history_writer");
+        User requester = saveUser("history_requester");
+        Long postId = postService.createPost(writer.getId(), shareRequest("History apples")).postId();
+
+        Long requestId = tradeRequestService.createRequest(postId, requester.getId()).requestId();
+
+        var sentRequests = tradeRequestService.getMyRequests(requester.getId());
+        var receivedRequests = tradeRequestService.getReceivedRequests(writer.getId());
+
+        assertEquals(1, sentRequests.size());
+        assertEquals(requestId, sentRequests.get(0).requestId());
+        assertEquals(postId, sentRequests.get(0).postId());
+
+        assertEquals(1, receivedRequests.size());
+        assertEquals(requestId, receivedRequests.get(0).requestId());
+        assertEquals(postId, receivedRequests.get(0).postId());
+    }
+
+    @Test
     void postSortSupportsFreshnessPriceAndFrontendAliases() {
         assertEquals(PostSort.LATEST, PostSort.from("latest"));
         assertEquals(PostSort.EXPIRING_SOON, PostSort.from("expiry"));

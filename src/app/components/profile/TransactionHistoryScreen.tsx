@@ -193,18 +193,29 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     return Array.isArray(rawRequests) ? rawRequests.map(normalizeRequest) : [];
   };
 
+  const fetchTradeRequestsWithFallback = async (primaryUrl: string, fallbackUrl: string) => {
+    const primaryResult = await apiRequest(primaryUrl, { method: 'GET' })
+      .then((response) => ({ ok: true as const, response }))
+      .catch((error) => ({ ok: false as const, error }));
+
+    if (primaryResult.ok && extractRequests(primaryResult.response).length > 0) {
+      return primaryResult;
+    }
+
+    const fallbackResult = await apiRequest(fallbackUrl, { method: 'GET' })
+      .then((response) => ({ ok: true as const, response }))
+      .catch(() => null);
+
+    return fallbackResult ?? primaryResult;
+  };
   const loadTradeRequests = async () => {
     setIsLoading(true);
     setLoadError('');
 
     try {
-      const sentResult = await apiRequest(API_ENDPOINTS.mypageTradeRequests, { method: 'GET' })
-        .then((response) => ({ ok: true as const, response }))
-        .catch((error) => ({ ok: false as const, error }));
+      const sentResult = await fetchTradeRequestsWithFallback(API_ENDPOINTS.mypageTradeRequests, API_ENDPOINTS.tradeRequestsMe);
 
-      const receivedResult = await apiRequest(API_ENDPOINTS.mypageReceivedTradeRequests, { method: 'GET' })
-        .then((response) => ({ ok: true as const, response }))
-        .catch((error) => ({ ok: false as const, error }));
+      const receivedResult = await fetchTradeRequestsWithFallback(API_ENDPOINTS.mypageReceivedTradeRequests, API_ENDPOINTS.tradeRequestsReceived);
 
       if (sentResult.ok) {
         setSentRequests(extractRequests(sentResult.response));

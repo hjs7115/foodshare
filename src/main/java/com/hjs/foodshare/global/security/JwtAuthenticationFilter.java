@@ -86,7 +86,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String path = request.getRequestURI();
-        return PUBLIC_AUTH_PATHS.stream().anyMatch(path::equals);
+        return path.startsWith("/uploads/")
+                || path.equals("/error")
+                || PUBLIC_AUTH_PATHS.stream().anyMatch(path::equals);
     }
 
     private boolean isOptionalAuthenticationEndpoint(HttpServletRequest request) {

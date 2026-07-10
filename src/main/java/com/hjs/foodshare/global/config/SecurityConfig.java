@@ -40,7 +40,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts/*/comments").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users/*/reviews", "/api/users/*/rating").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        .requestMatchers("/uploads/**", "/error").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/api/mypage/trade-requests",
                                 "/api/mypage/received-trade-requests",
@@ -101,11 +101,7 @@ public class SecurityConfig {
                 "http://172.*.*.*:5173",
                 "https://*.ngrok-free.dev",
                 "https://*.ngrok-free.app",
-                "https://*.trycloudflare.com",
-                "https://bantting.store",
-                "https://www.bantting.store",
-                "http://bantting.store", 
-                "http://www.bantting.store"
+                "https://*.trycloudflare.com"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));

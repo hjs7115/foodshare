@@ -6,7 +6,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/foodshare?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
     username: ${SPRING_DATASOURCE_USERNAME:root}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+    password: ${SPRING_DATASOURCE_PASSWORD:73827382}
   jpa:
     hibernate:
       ddl-auto: update
@@ -40,7 +40,7 @@ app:
     secret: ${APP_JWT_SECRET:change-this-local-development-secret}
     expiration-seconds: 86400
   upload:
-    dir: uploads
+    dir: ${APP_UPLOAD_DIR:uploads}
   mail:
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
     auth-code-expiration-millis: ${spring.mail.auth-code-expiration-millis}

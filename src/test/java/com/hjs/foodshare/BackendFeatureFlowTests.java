@@ -164,6 +164,19 @@ class BackendFeatureFlowTests {
     }
 
     @Test
+    void tradeHistoryDoesNotReturnRequestsForDeletedPosts() {
+        User writer = saveUser("deleted_history_writer");
+        User requester = saveUser("deleted_history_requester");
+        Long postId = postService.createPost(writer.getId(), shareRequest("Deleted history apples")).postId();
+
+        tradeRequestService.createRequest(postId, requester.getId());
+        postService.deletePost(postId, writer.getId());
+
+        assertEquals(0, tradeRequestService.getMyRequests(requester.getId()).size());
+        assertEquals(0, tradeRequestService.getReceivedRequests(writer.getId()).size());
+    }
+
+    @Test
     void postSortSupportsFreshnessPriceAndFrontendAliases() {
         assertEquals(PostSort.LATEST, PostSort.from("latest"));
         assertEquals(PostSort.EXPIRING_SOON, PostSort.from("expiry"));

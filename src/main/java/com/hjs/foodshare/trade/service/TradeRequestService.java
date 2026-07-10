@@ -74,6 +74,7 @@ public class TradeRequestService {
     public List<TradeRequestResponse> getMyRequests(Long requesterId) {
         return tradeRequestRepository.findAllByRequesterIdOrderByCreatedAtDesc(requesterId)
                 .stream()
+                .filter(this::isVisibleTradeRequest)
                 .map(this::toResponse)
                 .toList();
     }
@@ -81,6 +82,7 @@ public class TradeRequestService {
     public List<TradeRequestResponse> getReceivedRequests(Long writerId) {
         return tradeRequestRepository.findAllByPostWriterIdOrderByCreatedAtDesc(writerId)
                 .stream()
+                .filter(this::isVisibleTradeRequest)
                 .map(this::toResponse)
                 .toList();
     }
@@ -228,6 +230,10 @@ public class TradeRequestService {
 
     private TradeRequestResponse toResponse(TradeRequest tradeRequest) {
         return toResponse(tradeRequest, chatService.findRoomIdByTradeRequestId(tradeRequest.getId()));
+    }
+
+    private boolean isVisibleTradeRequest(TradeRequest tradeRequest) {
+        return !tradeRequest.getPost().isDeleted();
     }
 
     private TradeRequestResponse toResponse(TradeRequest tradeRequest, Long chatRoomId) {

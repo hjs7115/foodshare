@@ -118,15 +118,16 @@ export default function GroupBuyingBoard({
 
   const getPostQueryParams = () => {
     const savedCoords = localStorage.getItem('userLocationCoords');
-    const params: any = { radiusKm };
+    const params: any = { postType: 'GROUP_BUY' };
 
     if (!savedCoords) return params;
 
     try {
       const coords = JSON.parse(savedCoords);
-      if (typeof coords.lat === 'number' && typeof coords.lng === 'number') {
+      if (Number.isFinite(coords.lat) && Number.isFinite(coords.lng)) {
         params.lat = coords.lat;
         params.lng = coords.lng;
+        params.radiusKm = radiusKm;
       }
     } catch {
       localStorage.removeItem('userLocationCoords');
@@ -139,7 +140,9 @@ export default function GroupBuyingBoard({
     setIsLoading(true);
 
     try {
-      const response = await apiRequest(buildPostsUrl(getPostQueryParams()), { method: 'GET' });
+      const queryParams = getPostQueryParams();
+      const shouldFilterByDistance = queryParams.radiusKm !== undefined;
+      const response = await apiRequest(buildPostsUrl(queryParams), { method: 'GET' });
       const serverPosts = response.posts || response.data?.posts || response.data || response || [];
       const allPosts = Array.isArray(serverPosts) ? serverPosts : [];
 
@@ -154,7 +157,7 @@ export default function GroupBuyingBoard({
             currentCount: post.currentCount || 1,
             targetCount: post.targetCount || 5,
             price: `${post.amount || ''} / ${post.price || '가격미정'}`,
-            distance: post.distance || `${distanceValue.toFixed(1)}km`,
+            distance: post.distance || formatDistanceValue(distanceValue),
             distanceValue,
             deadline: post.deadline || '마감일 미정',
             image: resolveImageUrl(post.image || post.imageUrl),
@@ -167,7 +170,11 @@ export default function GroupBuyingBoard({
           };
         });
 
-      filteredPosts = filteredPosts.filter((post: any) => post.distanceValue <= radiusKm);
+      if (shouldFilterByDistance) {
+        filteredPosts = filteredPosts.filter((post: any) =>
+          Number.isFinite(post.distanceValue) && post.distanceValue <= radiusKm
+        );
+      }
       filteredPosts = sortPosts(filteredPosts);
       setGroupItems(filteredPosts);
     } catch (error) {
@@ -198,8 +205,8 @@ export default function GroupBuyingBoard({
       case 'distance':
         // 거리에서 숫자 추출 (예: "0.5km" -> 0.5)
         return sorted.sort((a, b) => {
-          const distA = parseFloat(a.distance.replace(/[^0-9.]/g, ''));
-          const distB = parseFloat(b.distance.replace(/[^0-9.]/g, ''));
+          const distA = getSortableDistance(a);
+          const distB = getSortableDistance(b);
           return distA - distB;
         });
 
@@ -217,9 +224,22 @@ export default function GroupBuyingBoard({
   };
 
   const getDistanceValue = (post: any) => {
-    if (typeof post.distanceValue === 'number') return post.distanceValue;
+    if (Number.isFinite(post.distanceValue)) return post.distanceValue;
+    if (Number.isFinite(post.distanceKm)) return post.distanceKm;
     const parsedDistance = parseFloat(String(post.distance || '').replace(/[^0-9.]/g, ''));
-    return Number.isFinite(parsedDistance) ? parsedDistance : 0.5;
+    return Number.isFinite(parsedDistance) ? parsedDistance : undefined;
+  };
+
+  const getSortableDistance = (item: GroupItem): number => {
+    if (Number.isFinite(item.distanceValue)) return item.distanceValue as number;
+    const parsedDistance = parseFloat(String(item.distance || '').replace(/[^0-9.]/g, ''));
+    return Number.isFinite(parsedDistance) ? parsedDistance : Number.POSITIVE_INFINITY;
+  };
+
+  const formatDistanceValue = (distanceValue?: number): string => {
+    if (!Number.isFinite(distanceValue)) return '거리 정보 없음';
+    if ((distanceValue as number) < 1) return `${Math.round((distanceValue as number) * 1000)}m`;
+    return `${Number.isInteger(distanceValue) ? distanceValue : (distanceValue as number).toFixed(1)}km`;
   };
 
   const handleCreatePost = (newItem: GroupItem) => {
@@ -577,6 +597,7 @@ export default function GroupBuyingBoard({
           onClose={() => {
             setShowLocationSettings(false);
             loadLocation();
+            loadPosts();
           }}
         />
       )}

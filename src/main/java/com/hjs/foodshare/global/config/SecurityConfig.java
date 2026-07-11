@@ -99,6 +99,8 @@ public class SecurityConfig {
                 "http://10.*.*.*:5173",
                 "http://172.*.*.*:3000",
                 "http://172.*.*.*:5173",
+                "https://bantting.store",
+                "https://www.bantting.store",
                 "https://*.ngrok-free.dev",
                 "https://*.ngrok-free.app",
                 "https://*.trycloudflare.com"

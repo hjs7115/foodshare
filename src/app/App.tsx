@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect } from 'react';
 import {
   LandingScreen,
   LoginScreen,
@@ -12,18 +12,12 @@ import { ProfileScreen } from './components/profile';
 import { FridgeScreen } from './components/fridge';
 import { ChatScreen } from './components/chat';
 import { getAuthToken, hasAuthSession } from './auth/session';
-import { API_ENDPOINTS, WS_BASE_URL, apiRequest } from './api/config';
+import { API_ENDPOINTS, WS_BASE_URL, apiRequest, getNotificationUnreadCount, getNotifications } from './api/config';
 import { listenForegroundMessages, registerFirebaseMessaging } from './firebase';
+import { useRef } from 'react';
 
 type Screen = 'landing' | 'login' | 'signup' | 'findId' | 'findPassword' | 'category' | 'main';
 type MainView = 'board' | 'chat' | 'fridge' | 'profile';
-
-interface AppHistoryState {
-  foodshareApp: true;
-  currentScreen: Screen;
-  selectedCategory: string | null;
-  mainView: MainView;
-}
 
 interface ChatToast {
   roomId?: number;
@@ -60,8 +54,7 @@ export default function App() {
   const [profileTradeHistorySignal, setProfileTradeHistorySignal] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [chatToast, setChatToast] = useState<ChatToast | null>(null);
-  const restoringHistoryRef = useRef(false);
-  const lastHistoryKeyRef = useRef('');
+  const notificationUnreadCountRef = useRef<number | null>(null);
 
   const refreshChatUnreadCount = async () => {
     if (!hasAuthSession()) {
@@ -78,6 +71,39 @@ export default function App() {
       setChatUnreadCount(total);
     } catch {
       setChatUnreadCount(0);
+    }
+  };
+
+  const refreshNotificationUnreadCount = async (showNewToast = false) => {
+    if (!hasAuthSession()) {
+      notificationUnreadCountRef.current = 0;
+      return;
+    }
+
+    try {
+      const unreadCount = await getNotificationUnreadCount();
+      const previousCount = notificationUnreadCountRef.current;
+      notificationUnreadCountRef.current = unreadCount;
+
+      if (!showNewToast || previousCount === null || unreadCount <= previousCount) {
+        return;
+      }
+
+      const response = await getNotifications(0, 5);
+      const raw = response?.data?.content || response?.data || response?.content || response?.notifications || [];
+      const latestUnread = Array.isArray(raw)
+        ? raw.find((item: any) => !(item.read || item.isRead))
+        : null;
+
+      setChatToast({
+        senderNickname: latestUnread?.title || '반띵 알림',
+        content: latestUnread?.message || latestUnread?.body || '새 알림이 도착했습니다.',
+        clickAction: latestUnread?.targetType === 'TRADE_REQUEST'
+          ? '/?screen=tradeHistory'
+          : '/?screen=notifications',
+      });
+    } catch {
+      notificationUnreadCountRef.current = 0;
     }
   };
 
@@ -127,88 +153,39 @@ export default function App() {
   };
 
   useEffect(() => {
-    const historyState: AppHistoryState = {
-      foodshareApp: true,
-      currentScreen,
-      selectedCategory,
-      mainView,
-    };
-    const historyKey = JSON.stringify(historyState);
-
-    if (restoringHistoryRef.current) {
-      restoringHistoryRef.current = false;
-      lastHistoryKeyRef.current = historyKey;
-      return;
-    }
-
-    if (historyKey === lastHistoryKeyRef.current) {
-      return;
-    }
-
-    if (window.history.state?.foodshareApp) {
-      window.history.pushState(historyState, '', window.location.href);
-    } else {
-      window.history.replaceState(historyState, '', window.location.href);
-    }
-    lastHistoryKeyRef.current = historyKey;
-  }, [currentScreen, selectedCategory, mainView]);
-
-  useEffect(() => {
-    const restoreFromHistory = (state: AppHistoryState) => {
-      restoringHistoryRef.current = true;
-      setCurrentScreen(state.currentScreen);
-      setSelectedCategory(state.selectedCategory);
-      setMainView(state.mainView);
-      setProfileTradeHistorySignal(0);
-      setChatToast(null);
-    };
-
-    const handlePopState = (event: PopStateEvent) => {
-      const state = event.state as AppHistoryState | null;
-      if (state?.foodshareApp) {
-        restoreFromHistory(state);
-        return;
-      }
-
-      const screen = new URL(window.location.href).searchParams.get('screen');
-      if (screen === 'chat' || screen === 'tradeHistory' || screen === 'profile' || screen === 'notifications') {
-        setCurrentScreen('main');
-        if (screen === 'chat') {
-          handleMainNavigate('chat');
-        } else if (screen === 'tradeHistory') {
-          handleMainNavigate('tradeHistory');
-        } else {
-          handleMainNavigate('profile');
-        }
-        return;
-      }
-
-      const fallbackState: AppHistoryState = {
-        foodshareApp: true,
-        currentScreen: 'landing',
-        selectedCategory: null,
-        mainView: 'board',
-      };
-      window.history.replaceState(fallbackState, '', window.location.href);
-      restoreFromHistory(fallbackState);
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-  useEffect(() => {
     if (hasAuthSession()) {
       setCurrentScreen('category');
     }
   }, []);
 
   useEffect(() => {
+    const handleSessionCleared = () => {
+      notificationUnreadCountRef.current = 0;
+      setChatUnreadCount(0);
+      setChatToast(null);
+      setSelectedCategory(null);
+      setMainView('board');
+      setCurrentScreen('landing');
+    };
+
+    window.addEventListener('auth-session-cleared', handleSessionCleared);
+    return () => window.removeEventListener('auth-session-cleared', handleSessionCleared);
+  }, []);
+
+  useEffect(() => {
     if (currentScreen !== 'main') return;
 
     refreshChatUnreadCount();
+    refreshNotificationUnreadCount(false);
     registerFirebaseMessaging().catch(() => null);
-    const timer = window.setInterval(refreshChatUnreadCount, 10000);
-    const handleFocus = () => refreshChatUnreadCount();
+    const timer = window.setInterval(() => {
+      refreshChatUnreadCount();
+      refreshNotificationUnreadCount(true);
+    }, 10000);
+    const handleFocus = () => {
+      refreshChatUnreadCount();
+      refreshNotificationUnreadCount(true);
+    };
 
     window.addEventListener('focus', handleFocus);
     return () => {
@@ -408,4 +385,3 @@ export default function App() {
 
   return renderWithChatToast(<SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} />);
 }
-

@@ -111,18 +111,14 @@ public class PostService {
                                           Double longitude, Boolean expiringSoon, PostSort sort, Long currentUserId) {
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         PostSort normalizedSort = sort == null ? PostSort.LATEST : sort;
-        String currentUserLocation = currentUserId == null ? null : userRepository.findById(currentUserId)
-                .map(User::getLocation)
-                .orElse(null);
 
         return postRepository.searchPosts(PostStatus.OPEN, postType, normalizedKeyword)
                 .stream()
                 .filter(this::keepVisibleOrCloseExpired)
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .filter(post -> !Boolean.TRUE.equals(expiringSoon) || isExpiringSoon(post))
-                .map(post -> toResponse(post, currentUserId)
-                        .withDistance(resolveDistanceKm(post, latitude, longitude, currentUserLocation)))
-                .filter(response -> isInsideDistance(response, maxDistanceKm))
+                .map(post -> toResponse(post, currentUserId).withDistance(resolveDistanceKm(post, latitude, longitude)))
+                .filter(response -> isInsideDistance(response, maxDistanceKm, latitude, longitude))
                 .sorted(getPostResponseComparator(normalizedSort))
                 .toList();
     }
@@ -228,10 +224,7 @@ public class PostService {
         return true;
     }
 
-    private Double resolveDistanceKm(Post post, Double latitude, Double longitude, String currentUserLocation) {
-        if (isSameLocation(currentUserLocation, post.getTradeLocation())) {
-            return 0.0;
-        }
+    private Double resolveDistanceKm(Post post, Double latitude, Double longitude) {
         if (latitude == null || longitude == null) {
             return post.getDistanceKm();
         }
@@ -241,22 +234,11 @@ public class PostService {
         return calculateDistanceKm(latitude, longitude, post.getLatitude(), post.getLongitude());
     }
 
-    private boolean isSameLocation(String left, String right) {
-        if (left == null || right == null) {
-            return false;
-        }
-        return normalizeLocation(left).equals(normalizeLocation(right));
-    }
-
-    private String normalizeLocation(String location) {
-        return location.replaceAll("\\s+", " ").trim();
-    }
-
-    private boolean isInsideDistance(PostResponse response, Double maxDistanceKm) {
+    private boolean isInsideDistance(PostResponse response, Double maxDistanceKm, Double latitude, Double longitude) {
         if (maxDistanceKm == null) {
             return true;
         }
-        if (response.distanceKm() == null) {
+        if (latitude == null || longitude == null || response.distanceKm() == null) {
             return false;
         }
         return response.distanceKm() <= maxDistanceKm;
@@ -323,7 +305,10 @@ public class PostService {
     }
 
     private LocalDateTime normalizeDeadlineDate(PostType postType, LocalDateTime deadlineDate) {
-        return deadlineDate;
+        if (deadlineDate == null) {
+            return null;
+        }
+        return deadlineDate.withMinute(0).withSecond(0).withNano(0);
     }
 
     private PostResponse toResponse(Post post, Long currentUserId) {

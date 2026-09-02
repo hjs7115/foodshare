@@ -47,7 +47,7 @@ export function getStoredUserInfo<T = any>(): T | null {
 }
 
 export function saveAuthSession(token: string | null, userInfo: any, persist: boolean) {
-  clearAuthSession();
+  clearAuthSession(false);
 
   const storage = persist ? localStorage : sessionStorage;
   const normalizedToken = normalizeAuthToken(token);
@@ -68,10 +68,18 @@ export function hasAuthSession(): boolean {
   return Boolean(getAuthToken());
 }
 
-export function clearAuthSession() {
+export function clearAuthSession(notify = true) {
   sessionStorage.removeItem(AUTH_TOKEN_KEY);
   sessionStorage.removeItem(USER_INFO_KEY);
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(USER_INFO_KEY);
   localStorage.removeItem(AUTO_LOGIN_KEY);
+  localStorage.removeItem('userLocation');
+  localStorage.removeItem('userLocationCoords');
+  localStorage.removeItem('notificationSettings');
+  localStorage.removeItem('chatSettings');
+
+  if (notify && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('auth-session-cleared'));
+  }
 }

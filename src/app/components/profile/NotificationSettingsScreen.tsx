@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { API_ENDPOINTS, apiRequest } from '../../api/config';
+import { showToast } from '../../utils/feedback';
 
 interface NotificationSettings {
   newPost: boolean;
@@ -26,13 +28,40 @@ export default function NotificationSettingsScreen({ onClose }: { onClose: () =>
     }
   }, []);
 
-  const handleToggle = (key: keyof NotificationSettings) => {
+  useEffect(() => {
+    apiRequest(API_ENDPOINTS.notificationSettings, { method: 'GET' })
+      .then((response) => {
+        const savedSettings = response?.data || response?.settings || response;
+        setSettings((current) => {
+          const nextSettings = { ...current, ...savedSettings };
+          localStorage.setItem('notificationSettings', JSON.stringify(nextSettings));
+          return nextSettings;
+        });
+      })
+      .catch(() => null);
+  }, []);
+
+  const handleToggle = async (key: keyof NotificationSettings) => {
     const newSettings = {
       ...settings,
       [key]: !settings[key],
     };
     setSettings(newSettings);
     localStorage.setItem('notificationSettings', JSON.stringify(newSettings));
+
+    try {
+      const response = await apiRequest(API_ENDPOINTS.notificationSettings, {
+        method: 'PUT',
+        body: JSON.stringify(newSettings),
+      });
+      const savedSettings = response?.data || response?.settings || newSettings;
+      setSettings({ ...newSettings, ...savedSettings });
+      localStorage.setItem('notificationSettings', JSON.stringify({ ...newSettings, ...savedSettings }));
+    } catch (error: any) {
+      setSettings(settings);
+      localStorage.setItem('notificationSettings', JSON.stringify(settings));
+      showToast(error?.message || '알림 설정을 저장하지 못했습니다.', 'error');
+    }
   };
 
   const settingItems = [

@@ -130,10 +130,10 @@ public record PostUpdateRequest(
         }
         if (value instanceof String text && !text.isBlank()) {
             try {
-                return LocalDateTime.parse(text);
+                return LocalDateTime.parse(text.matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}") ? text + ":00" : text);
             } catch (DateTimeParseException ignored) {
                 try {
-                    return LocalDate.parse(text).atTime(23, 59);
+                    return LocalDate.parse(text).atTime(23, 0);
                 } catch (DateTimeParseException exception) {
                     return defaultValue;
                 }

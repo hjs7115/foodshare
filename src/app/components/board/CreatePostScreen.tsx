@@ -116,6 +116,15 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
     return Number(rating) || 0;
   };
 
+  const handleDeadlineChange = (value: string) => {
+    if (!value) {
+      setDeadline('');
+      return;
+    }
+
+    setDeadline(`${value.slice(0, 13)}:00`);
+  };
+
   const handleSubmit = async () => {
     if (isSubmitting) return;
 
@@ -419,8 +428,9 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
                 <input
                   id="shareSaleDeadline"
                   type="datetime-local"
+                  step={3600}
                   value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
+                  onChange={(e) => handleDeadlineChange(e.target.value)}
                   className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
                 />
               </div>
@@ -450,8 +460,9 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
                 <input
                   id="deadline"
                   type="datetime-local"
+                  step={3600}
                   value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
+                  onChange={(e) => handleDeadlineChange(e.target.value)}
                   className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
                 />
               </div>

@@ -1,8 +1,11 @@
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
+<<<<<<< HEAD
+const CACHE_NAME = 'foodshare-pwa-v2';
+=======
 const CACHE_NAME = 'foodshare-pwa-v3';
-
+>>>>>>> d899545 (앱 내 아이콘 수정)
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -17,8 +20,7 @@ const APP_SHELL = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
+    caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(APP_SHELL))
       .then(() => self.skipWaiting())
   );
@@ -26,15 +28,8 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== CACHE_NAME)
-            .map((key) => caches.delete(key))
-        )
-      )
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
@@ -47,7 +42,6 @@ self.addEventListener('fetch', (event) => {
   }
 
   const url = new URL(request.url);
-
   if (url.origin !== self.location.origin) {
     return;
   }
@@ -106,11 +100,16 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   const title = payload.notification?.title || payload.data?.title || '반띵';
   const clickAction = payload.data?.clickAction || '/';
-
   const options = {
+<<<<<<< HEAD
     body: payload.notification?.body || payload.data?.body || '',
+    icon: '/assets/app-icon.svg',
+    badge: '/assets/app-icon.svg',
+=======
+    body: payload.notification?.body || '',
     icon: '/assets/notification-icon-192.png',
     badge: '/assets/notification-badge-96.png',
+>>>>>>> d899545 (앱 내 아이콘 수정)
     data: {
       clickAction,
       type: payload.data?.type || '',
@@ -124,20 +123,17 @@ messaging.onBackgroundMessage((payload) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
   const clickAction = event.notification.data?.clickAction || '/';
   const targetUrl = new URL(clickAction, self.location.origin).href;
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       const existingClient = clients.find((client) => client.url.startsWith(self.location.origin));
-
       if (existingClient) {
         existingClient.focus();
         existingClient.navigate(targetUrl);
         return;
       }
-
       return self.clients.openWindow(targetUrl);
     })
   );

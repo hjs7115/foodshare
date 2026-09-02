@@ -2,7 +2,7 @@
 // .env에 VITE_API_BASE_URL을 설정하면 그 주소를 우선 사용합니다.
 // 예) VITE_API_BASE_URL=http://localhost:8080
 // 예) VITE_API_BASE_URL=https://your-ngrok-url.ngrok-free.app
-import { getAuthToken } from '../auth/session';
+import { clearAuthSession, getAuthToken } from '../auth/session';
 
 const DEFAULT_API_BASE_URL = "https://enticing-feel-fresh.ngrok-free.dev";
 
@@ -83,8 +83,6 @@ export const API_ENDPOINTS = {
   mypageComments: `${API_BASE_URL}/api/mypage/comments`,
   mypageTradeRequests: `${API_BASE_URL}/api/mypage/trade-requests`,
   mypageReceivedTradeRequests: `${API_BASE_URL}/api/mypage/received-trade-requests`,
-  tradeRequestsMe: `${API_BASE_URL}/api/trade-requests/me`,
-  tradeRequestsReceived: `${API_BASE_URL}/api/trade-requests/received`,
   updateLocation: `${API_BASE_URL}/api/mypage/location`,
   myBadges: `${API_BASE_URL}/api/badges/me`,
 
@@ -96,6 +94,7 @@ export const API_ENDPOINTS = {
   // ========== 알림 ==========
   notificationSettings: `${API_BASE_URL}/api/mypage/notifications/settings`,
   notifications: `${API_BASE_URL}/api/notifications`,
+  notificationUnreadCount: `${API_BASE_URL}/api/notifications/unread-count`,
   readNotification: (notificationId: number) => `${API_BASE_URL}/api/notifications/${notificationId}/read`,
   deleteNotification: (notificationId: number) => `${API_BASE_URL}/api/notifications/${notificationId}`,
   deleteReadNotifications: `${API_BASE_URL}/api/notifications/read`,
@@ -309,6 +308,13 @@ export async function apiRequest(
 
     if (!response.ok) {
       const errorMessage = data.message || data.error || `요청 실패 (${response.status})`;
+      if (
+        !isPublicAuthEndpoint(url) &&
+        (response.status === 401 || (response.status === 404 && errorMessage === 'User not found.'))
+      ) {
+        clearAuthSession();
+        throw new Error('로그인 정보가 만료되었습니다. 다시 로그인해주세요.');
+      }
       throw new Error(translateApiErrorMessage(errorMessage));
     }
 
@@ -440,6 +446,20 @@ export async function getNotifications(page = 0, size = 20): Promise<any> {
   return apiRequest(url, {
     method: 'GET',
   });
+}
+
+export async function getNotificationUnreadCount(): Promise<number> {
+  const response = await apiRequest(API_ENDPOINTS.notificationUnreadCount, {
+    method: 'GET',
+  });
+
+  return Number(
+    response?.unreadCount ??
+    response?.data?.unreadCount ??
+    response?.count ??
+    response?.data?.count ??
+    0
+  ) || 0;
 }
 
 export interface FridgeItemPayload {

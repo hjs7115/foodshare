@@ -88,7 +88,10 @@ public class NotificationService {
     public void deleteNotification(Long userId, Long notificationId) {
         getUser(userId);
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Notification not found."));
+                .orElse(null);
+        if (notification == null) {
+            return;
+        }
         if (!notification.getUser().getId().equals(userId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Only the notification owner can delete it.");
         }

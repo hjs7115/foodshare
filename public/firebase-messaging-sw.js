@@ -1,11 +1,7 @@
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
-<<<<<<< HEAD
-const CACHE_NAME = 'foodshare-pwa-v2';
-=======
-const CACHE_NAME = 'foodshare-pwa-v3';
->>>>>>> d899545 (앱 내 아이콘 수정)
+const CACHE_NAME = 'foodshare-pwa-v4';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -43,6 +39,10 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  if (url.pathname.startsWith('/api/')) {
     return;
   }
 
@@ -101,15 +101,9 @@ messaging.onBackgroundMessage((payload) => {
   const title = payload.notification?.title || payload.data?.title || '반띵';
   const clickAction = payload.data?.clickAction || '/';
   const options = {
-<<<<<<< HEAD
     body: payload.notification?.body || payload.data?.body || '',
-    icon: '/assets/app-icon.svg',
-    badge: '/assets/app-icon.svg',
-=======
-    body: payload.notification?.body || '',
     icon: '/assets/notification-icon-192.png',
     badge: '/assets/notification-badge-96.png',
->>>>>>> d899545 (앱 내 아이콘 수정)
     data: {
       clickAction,
       type: payload.data?.type || '',

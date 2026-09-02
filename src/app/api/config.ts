@@ -262,6 +262,7 @@ export async function apiRequest(
   try {
     const response = await fetch(url, {
       ...options,
+      cache: options.cache ?? 'no-store',
       headers,
       mode: 'cors',
     });
@@ -445,6 +446,7 @@ export async function getNotifications(page = 0, size = 20): Promise<any> {
   const url = `${API_ENDPOINTS.notifications}?page=${page}&size=${size}`;
   return apiRequest(url, {
     method: 'GET',
+    cache: 'no-store',
   });
 }
 
@@ -503,9 +505,16 @@ export async function readNotification(notificationId: number): Promise<any> {
 }
 
 export async function deleteNotification(notificationId: number): Promise<any> {
-  return apiRequest(API_ENDPOINTS.deleteNotification(notificationId), {
-    method: 'DELETE',
-  });
+  try {
+    return await apiRequest(API_ENDPOINTS.deleteNotification(notificationId), {
+      method: 'DELETE',
+    });
+  } catch (error: any) {
+    if (String(error?.message || '').includes('Notification not found')) {
+      return {};
+    }
+    throw error;
+  }
 }
 
 export async function deleteReadNotifications(): Promise<any> {

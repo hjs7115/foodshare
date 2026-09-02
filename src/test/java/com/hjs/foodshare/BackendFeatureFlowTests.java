@@ -12,6 +12,7 @@ import com.hjs.foodshare.auth.dto.ResetPasswordRequest;
 import com.hjs.foodshare.auth.repository.EmailVerificationRepository;
 import com.hjs.foodshare.auth.service.AuthService;
 import com.hjs.foodshare.auth.service.MailService;
+import com.hjs.foodshare.chat.service.ChatService;
 import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.fridge.dto.FridgeItemRequest;
 import com.hjs.foodshare.fridge.repository.FridgeItemRepository;
@@ -75,6 +76,9 @@ class BackendFeatureFlowTests {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private ChatService chatService;
 
     @Autowired
     private ExpiringPostNotificationService expiringPostNotificationService;
@@ -161,6 +165,28 @@ class BackendFeatureFlowTests {
         assertEquals(1, receivedRequests.size());
         assertEquals(requestId, receivedRequests.get(0).requestId());
         assertEquals(postId, receivedRequests.get(0).postId());
+    }
+
+    @Test
+    void chatMessageStaysUnreadUntilPartnerOpensRoom() {
+        User writer = saveUser("chat_read_writer");
+        User requester = saveUser("chat_read_requester");
+        Long postId = postService.createPost(writer.getId(), shareRequest("Chat read apples")).postId();
+        Long requestId = tradeRequestService.createRequest(postId, requester.getId()).requestId();
+        Long chatRoomId = tradeRequestService.accept(requestId, writer.getId()).chatRoomId();
+
+        chatService.markAsRead(requester.getId(), chatRoomId);
+        chatService.sendMessage(writer.getId(), chatRoomId, "Pickup is ready");
+
+        var writerMessages = chatService.getMessages(writer.getId(), chatRoomId);
+        assertTrue(writerMessages.stream()
+                .anyMatch(message -> "Pickup is ready".equals(message.content()) && message.unreadByPartner()));
+
+        chatService.markAsRead(requester.getId(), chatRoomId);
+
+        var readWriterMessages = chatService.getMessages(writer.getId(), chatRoomId);
+        assertFalse(readWriterMessages.stream()
+                .anyMatch(message -> "Pickup is ready".equals(message.content()) && message.unreadByPartner()));
     }
 
     @Test

@@ -5,6 +5,7 @@ import { getAuthToken, getStoredUserInfo } from '../../auth/session';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
 import { showToast, showConfirm } from '../../utils/feedback';
+import { getChatSettings } from '../profile/ChatSettingsScreen';
 
 type ChatFilter = 'ALL' | 'SHARING' | 'GROUP_BUY' | 'UNREAD';
 const PROFILE_PLACEHOLDER = '/assets/profile-placeholder.svg';
@@ -222,7 +223,9 @@ export default function ChatScreen({
 
     socket.onopen = () => {
       socket.send(JSON.stringify({ type: 'SUBSCRIBE', roomId: room.chatRoomId }));
-      socket.send(JSON.stringify({ type: 'READ', roomId: room.chatRoomId }));
+      if (shouldSendReadReceipt()) {
+        socket.send(JSON.stringify({ type: 'READ', roomId: room.chatRoomId }));
+      }
     };
 
     socket.onmessage = (event) => {
@@ -252,7 +255,7 @@ export default function ChatScreen({
         if (incoming.mine || shouldStickToBottomRef.current) {
           window.requestAnimationFrame(() => scrollMessagesToBottom('smooth'));
         }
-        if (!incoming.mine && socket.readyState === WebSocket.OPEN) {
+        if (!incoming.mine && socket.readyState === WebSocket.OPEN && shouldSendReadReceipt()) {
           socket.send(JSON.stringify({ type: 'READ', roomId: room.chatRoomId }));
           markRoomRead(room.chatRoomId).catch(() => null);
         }
@@ -334,6 +337,7 @@ export default function ChatScreen({
   };
 
   const markRoomRead = async (chatRoomId: number) => {
+    if (!shouldSendReadReceipt()) return;
     if (readInFlightRef.current) return;
     readInFlightRef.current = true;
     try {
@@ -407,6 +411,8 @@ export default function ChatScreen({
   ];
 
   const totalUnreadCount = rooms.reduce((sum, room) => sum + room.unreadCount, 0);
+  const pinnedRooms = filteredRooms.filter((room) => room.pinned);
+
   const scrollMessagesToBottom = (behavior: ScrollBehavior = 'auto') => {
     const container = messagesScrollRef.current;
     if (!container) return;
@@ -805,6 +811,12 @@ export default function ChatScreen({
           </div>
         ) : (
           <div className="space-y-3">
+            {pinnedRooms.length > 0 && (
+              <div className="flex items-center gap-2 px-1 text-xs text-[#0f766e]" style={{ fontWeight: 900 }}>
+                <Pin size={14} className="fill-[#14b8a6] text-[#14b8a6]" />
+                <span>상단 고정 {pinnedRooms.length}개</span>
+              </div>
+            )}
             {filteredRooms.map((room) => {
               const isGroup = String(room.postType || '').includes('GROUP');
               return (
@@ -842,7 +854,33 @@ export default function ChatScreen({
                             {isGroup ? '공동구매' : '나눔/판매'}
                           </span>
                         </div>
-                        <span className="shrink-0 text-xs text-[#a0aec0]">{formatTime(room.lastMessageAt)}</span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span className="text-xs text-[#a0aec0]">{formatTime(room.lastMessageAt)}</span>
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleRoomMenuAction('pin', room);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                handleRoomMenuAction('pin', room);
+                              }
+                            }}
+                            className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
+                              room.pinned
+                                ? 'border-[#14b8a6] bg-[#ccfbf1] text-[#0f766e]'
+                                : 'border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8]'
+                            }`}
+                            aria-label={room.pinned ? '채팅방 상단 고정 해제' : '채팅방 상단 고정'}
+                            title={room.pinned ? '상단 고정 해제' : '상단 고정'}
+                          >
+                            <Pin size={15} className={room.pinned ? 'fill-[#14b8a6]' : ''} />
+                          </span>
+                        </span>
                       </div>
                       <p className="truncate text-xs text-[#718096]">{room.postTitle}</p>
                       <div className="mt-2 flex items-center justify-between gap-3">
@@ -921,6 +959,14 @@ function getNextTempMessageId() {
 
 function getPayloadType(payload: any) {
   return String(payload.type ?? payload.eventType ?? payload.event ?? payload.messageType ?? '').toUpperCase();
+}
+
+function shouldSendReadReceipt() {
+  try {
+    return getChatSettings().readReceipt;
+  } catch {
+    return true;
+  }
 }
 
 function isMessagePayload(type: string) {

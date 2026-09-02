@@ -217,17 +217,19 @@ public class ChatService {
     }
 
     private int partnerUnreadCount(ChatRoom room, Long userId) {
-        if (!room.isGroupRoom()) {
-            return room.getWriter().getId().equals(userId)
-                    ? room.getRequesterUnreadCount()
-                    : room.getWriterUnreadCount();
-        }
-        return chatRoomMemberRepository.findAllByChatRoom(room)
+        List<ChatRoomMember> members = chatRoomMemberRepository.findAllByChatRoom(room);
+        if (!members.isEmpty()) {
+            return members
                 .stream()
                 .filter(member -> !member.getUser().getId().equals(userId))
                 .mapToInt(ChatRoomMember::getUnreadCount)
                 .max()
                 .orElse(0);
+        }
+
+        return room.getWriter().getId().equals(userId)
+                ? room.getRequesterUnreadCount()
+                : room.getWriterUnreadCount();
     }
 
     private boolean isPinned(ChatRoom room, Long userId) {

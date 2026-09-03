@@ -5,6 +5,8 @@ import com.hjs.foodshare.chat.domain.ChatRoom;
 import com.hjs.foodshare.chat.domain.ChatRoomMember;
 import com.hjs.foodshare.chat.dto.ChatMessageRequest;
 import com.hjs.foodshare.chat.dto.ChatMessageResponse;
+import com.hjs.foodshare.chat.dto.ChatParticipantResponse;
+import com.hjs.foodshare.chat.dto.ChatRoomNameRequest;
 import com.hjs.foodshare.chat.dto.ChatRoomResponse;
 import com.hjs.foodshare.chat.repository.ChatMessageRepository;
 import com.hjs.foodshare.chat.repository.ChatRoomMemberRepository;
@@ -19,7 +21,9 @@ import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
@@ -81,7 +85,7 @@ public class ChatService {
         addMemberIfAbsent(room, primaryRequest.getPost().getWriter(), 0);
         tradeRequests.forEach(request -> addMemberIfAbsent(room, request.getRequester(), 1));
         if (newlyPromotedGroupRoom) {
-            chatMessageRepository.save(ChatMessage.system(room, "공동구매 채팅방이 개설되었습니다."));
+            chatMessageRepository.save(ChatMessage.system(room, "채팅방이 개설되었습니다."));
         }
         return room;
     }
@@ -176,8 +180,25 @@ public class ChatService {
     }
 
     @Transactional
+    public ChatRoomResponse renameRoom(Long userId, Long roomId, ChatRoomNameRequest request) {
+        ChatRoom room = getParticipantRoom(userId, roomId);
+        room.rename(request.roomName());
+        return toResponse(room, userId);
+    }
+
+    @Transactional
     public void leaveRoom(Long userId, Long roomId) {
         ChatRoom room = getParticipantRoom(userId, roomId);
+        deleteRoom(room);
+    }
+
+    @Transactional
+    public void leaveDirectRoomsBetweenUsers(Long userId, Long otherUserId) {
+        chatRoomRepository.findDirectRoomsBetweenUsers(userId, otherUserId)
+                .forEach(this::deleteRoom);
+    }
+
+    private void deleteRoom(ChatRoom room) {
         chatMessageRepository.deleteAllByChatRoomId(room.getId());
         chatRoomMemberRepository.deleteAllByChatRoomId(room.getId());
         chatRoomRepository.delete(room);
@@ -223,7 +244,8 @@ public class ChatService {
                 isPinned(room, userId),
                 isMuted(room, userId),
                 room.isGroupRoom(),
-                participantCount(room)
+                participantCount(room),
+                participants(room)
         );
     }
 
@@ -281,6 +303,24 @@ public class ChatService {
     private int participantCount(ChatRoom room) {
         int memberCount = chatRoomMemberRepository.findAllByChatRoom(room).size();
         return memberCount == 0 ? 2 : memberCount;
+    }
+
+    private List<ChatParticipantResponse> participants(ChatRoom room) {
+        List<ChatRoomMember> members = chatRoomMemberRepository.findAllByChatRoom(room);
+        if (!members.isEmpty()) {
+            return members.stream()
+                    .sorted(Comparator.comparing(ChatRoomMember::getJoinedAt))
+                    .map(member -> ChatParticipantResponse.from(member.getUser()))
+                    .toList();
+        }
+
+        Map<Long, User> users = new LinkedHashMap<>();
+        users.put(room.getWriter().getId(), room.getWriter());
+        users.put(room.getRequester().getId(), room.getRequester());
+        return users.values()
+                .stream()
+                .map(ChatParticipantResponse::from)
+                .toList();
     }
 
     private void addMemberIfAbsent(ChatRoom room, User user, int unreadCount) {

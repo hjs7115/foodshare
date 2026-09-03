@@ -2,6 +2,7 @@ package com.hjs.foodshare.moderation.service;
 
 import com.hjs.foodshare.comment.domain.Comment;
 import com.hjs.foodshare.comment.repository.CommentRepository;
+import com.hjs.foodshare.chat.service.ChatService;
 import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.moderation.domain.Report;
 import com.hjs.foodshare.moderation.domain.ReportTargetType;
@@ -29,15 +30,17 @@ public class ModerationService {
     private final UserRepository userRepository;
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final ChatService chatService;
 
     public ModerationService(ReportRepository reportRepository, UserBlockRepository userBlockRepository,
                              UserRepository userRepository, PostRepository postRepository,
-                             CommentRepository commentRepository) {
+                             CommentRepository commentRepository, ChatService chatService) {
         this.reportRepository = reportRepository;
         this.userBlockRepository = userBlockRepository;
         this.userRepository = userRepository;
         this.postRepository = postRepository;
         this.commentRepository = commentRepository;
+        this.chatService = chatService;
     }
 
     @Transactional
@@ -83,7 +86,9 @@ public class ModerationService {
         if (userBlockRepository.existsByBlockerIdAndBlockedUserId(blockerId, blockedUserId)) {
             throw new BusinessException(HttpStatus.CONFLICT, "User is already blocked.");
         }
-        return BlockedUserResponse.from(userBlockRepository.save(UserBlock.create(blocker, blockedUser)));
+        BlockedUserResponse response = BlockedUserResponse.from(userBlockRepository.save(UserBlock.create(blocker, blockedUser)));
+        chatService.leaveDirectRoomsBetweenUsers(blockerId, blockedUserId);
+        return response;
     }
 
     @Transactional

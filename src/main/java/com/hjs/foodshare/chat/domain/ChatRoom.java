@@ -55,6 +55,9 @@ public class ChatRoom {
     @Column(nullable = false)
     private boolean groupRoom;
 
+    @Column(length = 100)
+    private String customName;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -85,6 +88,11 @@ public class ChatRoom {
 
     public void markAsGroupRoom() {
         this.groupRoom = true;
+        touch();
+    }
+
+    public void rename(String customName) {
+        this.customName = customName == null || customName.isBlank() ? null : customName.trim();
         touch();
     }
 
@@ -191,6 +199,10 @@ public class ChatRoom {
 
     public boolean isGroupRoom() {
         return groupRoom;
+    }
+
+    public String getCustomName() {
+        return customName;
     }
 
     public LocalDateTime getCreatedAt() {

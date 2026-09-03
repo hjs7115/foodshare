@@ -122,7 +122,7 @@ public class TradeRequestService {
                 tradeRequest.getRequester().getId(),
                 "CHAT_ROOM_OPENED",
                 "채팅방 개설",
-                "'" + tradeRequest.getPost().getTitle() + "' 거래 채팅방이 개설되었습니다.",
+                "채팅방이 개설되었습니다.",
                 "CHAT_ROOM",
                 chatRoom.getId()
             );

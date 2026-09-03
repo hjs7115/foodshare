@@ -2,6 +2,7 @@ package com.hjs.foodshare.chat.controller;
 
 import com.hjs.foodshare.chat.dto.ChatMessageRequest;
 import com.hjs.foodshare.chat.dto.ChatMessageResponse;
+import com.hjs.foodshare.chat.dto.ChatRoomNameRequest;
 import com.hjs.foodshare.chat.dto.ChatRoomResponse;
 import com.hjs.foodshare.chat.service.ChatService;
 import com.hjs.foodshare.global.response.ApiResponse;
@@ -91,6 +92,16 @@ public class ChatController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok("Chat room notification setting updated.",
                 chatService.toggleMuted(authUser.userId(), roomId)));
+    }
+
+    @PatchMapping("/rooms/{roomId}/name")
+    public ResponseEntity<ApiResponse<ChatRoomResponse>> renameRoom(
+            @AuthenticationPrincipal AuthUser authUser,
+            @PathVariable Long roomId,
+            @Valid @RequestBody ChatRoomNameRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok("Chat room name updated.",
+                chatService.renameRoom(authUser.userId(), roomId, request)));
     }
 
     @DeleteMapping("/rooms/{roomId}")

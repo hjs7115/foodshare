@@ -5,6 +5,7 @@ import com.hjs.foodshare.chat.domain.ChatRoom;
 import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.user.domain.User;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record ChatRoomResponse(
         Long chatRoomId,
@@ -12,11 +13,13 @@ public record ChatRoomResponse(
         Long postId,
         String postTitle,
         PostType postType,
+        String roomName,
         Long partnerId,
         String partnerNickname,
         String partnerProfileImage,
         boolean groupRoom,
         int participantCount,
+        List<ChatParticipantResponse> participants,
         String lastMessage,
         LocalDateTime lastMessageAt,
         int unreadCount,
@@ -31,7 +34,10 @@ public record ChatRoomResponse(
                 ? room.getWriterUnreadCount()
                 : room.getRequesterUnreadCount();
         return from(room, currentUserId, lastMessage, partner, unreadCount, room.isPinnedFor(currentUserId),
-                room.isMutedFor(currentUserId), room.isGroupRoom(), 2);
+                room.isMutedFor(currentUserId), room.isGroupRoom(), 2, List.of(
+                        ChatParticipantResponse.from(room.getWriter()),
+                        ChatParticipantResponse.from(room.getRequester())
+                ));
     }
 
     public static ChatRoomResponse from(
@@ -43,11 +49,15 @@ public record ChatRoomResponse(
             boolean pinned,
             boolean muted,
             boolean groupRoom,
-            int participantCount
+            int participantCount,
+            List<ChatParticipantResponse> participants
     ) {
-        String partnerNickname = groupRoom
+        String defaultRoomName = groupRoom
                 ? room.getTradeRequest().getPost().getTitle() + " 공동구매방"
                 : partner.getNickname();
+        String roomName = room.getCustomName() == null || room.getCustomName().isBlank()
+                ? defaultRoomName
+                : room.getCustomName();
 
         return new ChatRoomResponse(
                 room.getId(),
@@ -55,11 +65,13 @@ public record ChatRoomResponse(
                 room.getTradeRequest().getPost().getId(),
                 room.getTradeRequest().getPost().getTitle(),
                 room.getTradeRequest().getPost().getPostType(),
+                roomName,
                 partner.getId(),
-                partnerNickname,
+                roomName,
                 partner.getProfileImage(),
                 groupRoom,
                 participantCount,
+                participants,
                 lastMessage == null ? null : lastMessage.getContent(),
                 lastMessage == null ? null : lastMessage.getCreatedAt(),
                 unreadCount,

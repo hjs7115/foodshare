@@ -605,7 +605,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       setTradeRequestStatus(nextStatus);
       await loadPost();
       if (nextStatus === 'ACCEPTED' && tradeRequest?.chatRoomId) {
-        showToast('목표 인원이 모여 공동구매 채팅방이 개설되었습니다.');
+        showToast('채팅방이 개설되었습니다.');
       } else {
         showToast(`${typeLabel} 요청이 전송되었습니다.\n게시글 작성자가 확인 후 연락드릴 예정입니다.`);
       }
@@ -628,11 +628,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       const response = await apiRequest(API_ENDPOINTS.closeGroupBuyRecruitment(post.id), { method: 'POST' });
       const openedRequests = response?.data || response?.tradeRequests || response || [];
       await loadPost();
-      showToast(
-        Array.isArray(openedRequests) && openedRequests.length > 0
-          ? `모집을 마감했습니다.\n${openedRequests.length}개의 채팅방이 개설되었습니다.`
-          : '모집을 마감했습니다.'
-      );
+      showToast(Array.isArray(openedRequests) && openedRequests.length > 0 ? '모집을 마감했습니다.\n채팅방이 개설되었습니다.' : '모집을 마감했습니다.');
     } catch (error: any) {
       showToast(error.message || '모집마감에 실패했습니다.');
     } finally {

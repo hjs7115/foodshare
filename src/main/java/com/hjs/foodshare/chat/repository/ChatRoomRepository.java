@@ -21,6 +21,20 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     Optional<ChatRoom> findGroupRoomByPostId(@Param("postId") Long postId);
 
     @Query("""
+            select cr
+            from ChatRoom cr
+            where cr.groupRoom = false
+              and (
+                    (cr.writer.id = :userId and cr.requester.id = :otherUserId)
+                 or (cr.writer.id = :otherUserId and cr.requester.id = :userId)
+              )
+            """)
+    List<ChatRoom> findDirectRoomsBetweenUsers(
+            @Param("userId") Long userId,
+            @Param("otherUserId") Long otherUserId
+    );
+
+    @Query("""
             select distinct cr
             from ChatRoom cr
             where cr.writer.id = :userId

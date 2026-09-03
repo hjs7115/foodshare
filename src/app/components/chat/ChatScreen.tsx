@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Ban, Bell, BellOff, ChevronDown, ChevronUp, Flag, Leaf, MessageCircle, MoreVertical, Pin, Search, Send, ShoppingCart, Snowflake, Trash2, User, X, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, Ban, Bell, BellOff, ChevronDown, ChevronUp, Flag, Leaf, MessageCircle, MoreVertical, Pencil, Pin, Search, Send, ShoppingCart, Snowflake, Trash2, User, X, type LucideIcon } from 'lucide-react';
 import { API_ENDPOINTS, WS_BASE_URL, apiRequest, blockUser, createReport, getNotifications, resolveImageUrl } from '../../api/config';
 import { getAuthToken, getStoredUserInfo } from '../../auth/session';
 import NotificationsScreen from '../common/NotificationsScreen';
@@ -15,10 +15,12 @@ interface ChatRoom {
   partnerId?: number;
   postTitle: string;
   postType?: string;
+  roomName?: string;
   partnerNickname: string;
   partnerProfileImage?: string;
   groupRoom?: boolean;
   participantCount?: number;
+  participants?: ChatParticipant[];
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount: number;
@@ -167,6 +169,7 @@ export default function ChatScreen({
     partnerId: getNumberValue(room.partnerId ?? room.partner?.id ?? room.opponentId ?? room.opponent?.id),
     postTitle: room.postTitle ?? room.post?.title ?? '거래 채팅',
     postType: room.postType ?? room.post?.postType,
+    roomName: room.roomName ?? room.name,
     partnerNickname: room.partnerNickname ?? room.partner?.nickname ?? '사용자',
     partnerProfileImage:
       room.partnerProfileImage ??
@@ -177,6 +180,13 @@ export default function ChatScreen({
       room.opponent?.profileImage,
     groupRoom: Boolean(room.groupRoom),
     participantCount: Number(room.participantCount ?? room.memberCount ?? 2),
+    participants: Array.isArray(room.participants)
+      ? room.participants.map((participant: any) => ({
+          userId: Number(participant.userId ?? participant.id),
+          nickname: participant.nickname ?? participant.name ?? '사용자',
+          profileImage: participant.profileImage ?? participant.profileImageUrl,
+        })).filter((participant: ChatParticipant) => participant.userId)
+      : [],
     lastMessage: room.lastMessage ?? room.latestMessage ?? '',
     lastMessageAt: room.lastMessageAt ?? room.updatedAt ?? room.createdAt,
     unreadCount: Number(room.unreadCount ?? 0),
@@ -526,7 +536,7 @@ export default function ChatScreen({
     }
   };
 
-  const handleRoomMenuAction = async (action: 'pin' | 'block' | 'report' | 'mute' | 'leave', room = selectedRoom) => {
+  const handleRoomMenuAction = async (action: 'pin' | 'block' | 'report' | 'mute' | 'rename' | 'leave', room = selectedRoom) => {
     if (!room) return;
 
     if (action === 'pin' || action === 'mute') {
@@ -534,6 +544,22 @@ export default function ChatScreen({
       setShowRoomMenu(false);
       setRoomActionTarget(null);
       return;
+    }
+
+    if (action === 'rename') {
+      const nextName = await showPrompt('변경할 채팅방 이름을 입력해주세요.', '방 이름 변경', room.roomName || room.partnerNickname);
+      if (nextName === null) return;
+      try {
+        const response = await apiRequest(API_ENDPOINTS.renameChatRoom(room.chatRoomId), {
+          method: 'PATCH',
+          body: JSON.stringify({ roomName: nextName.trim() }),
+        });
+        const updated = normalizeRoom(response?.data || response);
+        applyRoomSettings(updated);
+        showToast('방 이름을 변경했습니다.', 'success');
+      } catch (error: any) {
+        showToast(error?.message || '방 이름 변경에 실패했습니다.', 'error');
+      }
     }
 
     if (action === 'block') {
@@ -546,6 +572,11 @@ export default function ChatScreen({
       }
       try {
         await blockUser(room.partnerId);
+        setRooms((prev) => prev.filter((item) => item.chatRoomId !== room.chatRoomId));
+        if (selectedRoom?.chatRoomId === room.chatRoomId) {
+          setMessages([]);
+          closeSelectedRoom();
+        }
         showToast('사용자를 차단했습니다.', 'success');
       } catch (error: any) {
         showToast(error?.message || '사용자 차단에 실패했습니다.', 'error');
@@ -665,10 +696,12 @@ export default function ChatScreen({
             />
             <div className="min-w-0">
               <h1 className="text-lg text-[#1a202c] truncate" style={{ fontWeight: 900 }}>
-                {selectedRoom.partnerNickname}
+                {selectedRoom.roomName || selectedRoom.partnerNickname}
                 {selectedRoom.groupRoom && selectedRoom.participantCount ? ` ${selectedRoom.participantCount}` : ''}
               </h1>
-              <p className="text-xs text-[#0f766e] truncate">{selectedRoom.postTitle}</p>
+              <p className="text-xs text-[#0f766e] truncate">
+                {selectedRoom.groupRoom ? getParticipantSummary(selectedRoom) : selectedRoom.postTitle}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3 text-[#1a202c]">
@@ -738,8 +771,15 @@ export default function ChatScreen({
                 {message.mine && (
                   <MessageMeta message={message} align="right" />
                 )}
-                <div className={`max-w-[72%] rounded-3xl px-4 py-3 text-sm leading-relaxed shadow-sm transition ${message.mine ? 'bg-[#14b8a6] text-white' : 'bg-white text-[#1a202c] border border-[#e2e8f0]'} ${searchHighlightClass}`}>
-                  {message.content}
+                <div className="max-w-[72%]">
+                  {selectedRoom.groupRoom && !message.mine && message.senderNickname && (
+                    <p className="mb-1 ml-2 text-[11px] text-[#64748b]" style={{ fontWeight: 800 }}>
+                      {message.senderNickname}
+                    </p>
+                  )}
+                  <div className={`rounded-3xl px-4 py-3 text-sm leading-relaxed shadow-sm transition ${message.mine ? 'bg-[#14b8a6] text-white' : 'bg-white text-[#1a202c] border border-[#e2e8f0]'} ${searchHighlightClass}`}>
+                    {message.content}
+                  </div>
                 </div>
                 {!message.mine && (
                   <MessageMeta message={message} align="left" />
@@ -774,8 +814,9 @@ export default function ChatScreen({
                 <RoomMenuButton icon={Flag} label="신고하기" onClick={() => handleRoomMenuAction('report')} />
               </div>
               <div className="mb-4 overflow-hidden rounded-3xl bg-[#f8fafc]">
-                <RoomMenuButton icon={Pin} label={selectedRoom.pinned ? '채팅방 상단 고정 해제' : '채팅방 상단 고정'} onClick={() => handleRoomMenuAction('pin')} />
-                <RoomMenuButton icon={BellOff} label={selectedRoom.muted ? '알림켜기' : '알림끄기'} onClick={() => handleRoomMenuAction('mute')} />
+                <RoomMenuButton icon={Pin} label={selectedRoom.pinned ? '상단 고정 해제' : '상단 고정'} onClick={() => handleRoomMenuAction('pin')} />
+                <RoomMenuButton icon={BellOff} label={selectedRoom.muted ? '알림 켜기' : '알림 끄기'} onClick={() => handleRoomMenuAction('mute')} />
+                <RoomMenuButton icon={Pencil} label="방 이름 변경" onClick={() => handleRoomMenuAction('rename')} />
                 <RoomMenuButton icon={Trash2} label="채팅방 나가기" danger onClick={() => handleRoomMenuAction('leave')} />
               </div>
               <button
@@ -886,7 +927,7 @@ export default function ChatScreen({
                       <div className="mb-1 flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="truncate text-base text-[#1a202c]" style={{ fontWeight: 900 }}>
-                            {room.partnerNickname}
+                            {room.roomName || room.partnerNickname}
                             {room.groupRoom && room.participantCount ? ` ${room.participantCount}` : ''}
                           </span>
                           {room.pinned && <Pin size={15} className="shrink-0 fill-[#a0aec0] text-[#a0aec0]" />}
@@ -923,7 +964,9 @@ export default function ChatScreen({
                           </span>
                         </span>
                       </div>
-                      <p className="truncate text-xs text-[#718096]">{room.postTitle}</p>
+                      <p className="truncate text-xs text-[#718096]">
+                        {room.groupRoom ? getParticipantSummary(room) : room.postTitle}
+                      </p>
                       <div className="mt-2 flex items-center justify-between gap-3">
                         <p className="truncate text-sm text-[#4a5568]">{room.lastMessage || '채팅방이 개설되었습니다.'}</p>
                         {room.unreadCount > 0 && (
@@ -1000,6 +1043,12 @@ function getNextTempMessageId() {
 
 function getPayloadType(payload: any) {
   return String(payload.type ?? payload.eventType ?? payload.event ?? payload.messageType ?? '').toUpperCase();
+}
+
+interface ChatParticipant {
+  userId: number;
+  nickname: string;
+  profileImage?: string;
 }
 
 function shouldSendReadReceipt() {
@@ -1173,6 +1222,16 @@ function formatTime(value?: string): string {
   return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function getParticipantSummary(room: ChatRoom) {
+  const names = (room.participants || [])
+    .map((participant) => participant.nickname)
+    .filter(Boolean);
+  if (names.length === 0) {
+    return room.postTitle;
+  }
+  return names.join(', ');
+}
+
 function sortRoomsForDisplay(left: ChatRoom, right: ChatRoom) {
   if (Boolean(left.pinned) !== Boolean(right.pinned)) {
     return left.pinned ? -1 : 1;
@@ -1208,8 +1267,8 @@ function RoomQuickActionSheet({
           {room.partnerNickname}
         </p>
         <div className="overflow-hidden rounded-3xl bg-[#f8fafc]">
-          <RoomMenuButton icon={Pin} label={room.pinned ? '채팅방 상단 고정 해제' : '채팅방 상단 고정'} onClick={onTogglePin} />
-          <RoomMenuButton icon={BellOff} label={room.muted ? '채팅방 알림 켜기' : '채팅방 알림 끄기'} onClick={onToggleMute} />
+          <RoomMenuButton icon={Pin} label={room.pinned ? '상단 고정 해제' : '상단 고정'} onClick={onTogglePin} />
+          <RoomMenuButton icon={BellOff} label={room.muted ? '알림 켜기' : '알림 끄기'} onClick={onToggleMute} />
         </div>
       </div>
     </div>

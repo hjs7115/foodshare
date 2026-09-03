@@ -318,11 +318,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       if (action === 'closeRecruitment') {
         const response = await apiRequest(API_ENDPOINTS.closeGroupBuyRecruitment(group.postId), { method: 'POST' });
         const openedRequests = response?.data || response?.tradeRequests || response || [];
-        showToast(
-          Array.isArray(openedRequests) && openedRequests.length > 0
-            ? `모집을 마감했습니다.\n${openedRequests.length}개의 채팅방이 개설되었습니다.`
-            : '모집을 마감했습니다.'
-        );
+        showToast(Array.isArray(openedRequests) && openedRequests.length > 0 ? '모집을 마감했습니다.\n채팅방이 개설되었습니다.' : '모집을 마감했습니다.');
       } else {
         const acceptedRequests = group.requests.filter((request) => request.status === 'ACCEPTED');
         await Promise.all(

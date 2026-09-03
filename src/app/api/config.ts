@@ -112,6 +112,7 @@ export const API_ENDPOINTS = {
   readChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/read`,
   pinChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/pin`,
   muteChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/mute`,
+  renameChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}/name`,
   leaveChatRoom: (chatRoomId: number) => `${API_BASE_URL}/api/chat/rooms/${chatRoomId}`,
 
   // ========== 냉장고 ==========

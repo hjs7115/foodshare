@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hjs.foodshare.badge.dto.BadgeSummaryResponse;
 import com.hjs.foodshare.badge.service.BadgeService;
+import com.hjs.foodshare.chat.service.ChatService;
 import com.hjs.foodshare.comment.dto.CommentCreateRequest;
 import com.hjs.foodshare.comment.service.CommentService;
 import com.hjs.foodshare.global.exception.BusinessException;
@@ -47,6 +48,9 @@ class ModerationAndBadgeTests {
 
     @Autowired
     private TradeRequestRepository tradeRequestRepository;
+
+    @Autowired
+    private ChatService chatService;
 
     @Autowired
     private ModerationService moderationService;
@@ -99,6 +103,25 @@ class ModerationAndBadgeTests {
         assertEquals(TradeRequestStatus.PENDING, tradeRequestRepository.findById(pendingRequestId)
                 .orElseThrow()
                 .getStatus());
+    }
+
+    @Test
+    void blockLeavesDirectChatWithoutCompletingAcceptedRequest() {
+        User writer = saveUser("block_chat_writer");
+        User requester = saveUser("block_chat_requester");
+        Long postId = postService.createPost(writer.getId(), shareRequest("Block chat post")).postId();
+        Long requestId = tradeRequestService.createRequest(postId, requester.getId()).requestId();
+        tradeRequestService.accept(requestId, writer.getId());
+
+        assertEquals(1, chatService.getRooms(writer.getId(), "ALL").size());
+
+        moderationService.blockUser(writer.getId(), requester.getId());
+
+        assertEquals(TradeRequestStatus.ACCEPTED, tradeRequestRepository.findById(requestId)
+                .orElseThrow()
+                .getStatus());
+        assertEquals(0, chatService.getRooms(writer.getId(), "ALL").size());
+        assertEquals(0, chatService.getRooms(requester.getId(), "ALL").size());
     }
 
     @Test

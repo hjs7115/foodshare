@@ -9,6 +9,7 @@ import com.hjs.foodshare.global.security.AuthUser;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -90,5 +91,14 @@ public class ChatController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok("Chat room notification setting updated.",
                 chatService.toggleMuted(authUser.userId(), roomId)));
+    }
+
+    @DeleteMapping("/rooms/{roomId}")
+    public ResponseEntity<ApiResponse<Void>> leaveRoom(
+            @AuthenticationPrincipal AuthUser authUser,
+            @PathVariable Long roomId
+    ) {
+        chatService.leaveRoom(authUser.userId(), roomId);
+        return ResponseEntity.ok(ApiResponse.ok("Chat room deleted.", null));
     }
 }

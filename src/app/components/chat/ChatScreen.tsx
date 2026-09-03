@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Ban, Bell, BellOff, ChevronDown, ChevronUp, Flag, Leaf, MessageCircle, MoreVertical, Pin, Search, Send, ShoppingCart, Snowflake, Trash2, User, X, type LucideIcon } from 'lucide-react';
-import { API_ENDPOINTS, WS_BASE_URL, apiRequest, getNotifications, resolveImageUrl } from '../../api/config';
+import { API_ENDPOINTS, WS_BASE_URL, apiRequest, blockUser, createReport, getNotifications, resolveImageUrl } from '../../api/config';
 import { getAuthToken, getStoredUserInfo } from '../../auth/session';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
-import { showToast, showConfirm } from '../../utils/feedback';
+import { showToast, showConfirm, showPrompt } from '../../utils/feedback';
 import { getChatSettings } from '../profile/ChatSettingsScreen';
 
 type ChatFilter = 'ALL' | 'SHARING' | 'GROUP_BUY' | 'UNREAD';
@@ -12,6 +12,7 @@ const PROFILE_PLACEHOLDER = '/assets/profile-placeholder.svg';
 
 interface ChatRoom {
   chatRoomId: number;
+  partnerId?: number;
   postTitle: string;
   postType?: string;
   partnerNickname: string;
@@ -163,6 +164,7 @@ export default function ChatScreen({
 
   const normalizeRoom = (room: any): ChatRoom => ({
     chatRoomId: Number(room.chatRoomId ?? room.id ?? room.roomId),
+    partnerId: getNumberValue(room.partnerId ?? room.partner?.id ?? room.opponentId ?? room.opponent?.id),
     postTitle: room.postTitle ?? room.post?.title ?? '거래 채팅',
     postType: room.postType ?? room.post?.postType,
     partnerNickname: room.partnerNickname ?? room.partner?.nickname ?? '사용자',
@@ -535,13 +537,56 @@ export default function ChatScreen({
     }
 
     if (action === 'block') {
-      showToast(`${room.partnerNickname}님 차단 기능은 사용자 차단 API와 연결 예정입니다.`);
+      if (!room.partnerId) {
+        showToast('차단할 사용자 정보를 찾지 못했습니다.', 'error');
+        return;
+      }
+      if (!(await showConfirm(`${room.partnerNickname}님을 차단할까요?\n차단하면 서로의 게시글과 댓글이 보이지 않습니다.`, '사용자 차단', '차단'))) {
+        return;
+      }
+      try {
+        await blockUser(room.partnerId);
+        setRooms((prev) => prev.filter((item) => item.chatRoomId !== room.chatRoomId));
+        if (selectedRoom?.chatRoomId === room.chatRoomId) {
+          closeSelectedRoom();
+        }
+        showToast('사용자를 차단했습니다.', 'success');
+      } catch (error: any) {
+        showToast(error?.message || '사용자 차단에 실패했습니다.', 'error');
+      }
     }
     if (action === 'report') {
-      showToast('신고 기능은 사용자 신고 화면과 연결 예정입니다.');
+      if (!room.partnerId) {
+        showToast('신고할 사용자 정보를 찾지 못했습니다.', 'error');
+        return;
+      }
+      const reason = await showPrompt(`${room.partnerNickname}님을 신고하는 이유를 입력해주세요.`, '신고하기', '신고 사유');
+      if (!reason?.trim()) return;
+      try {
+        await createReport({
+          targetType: 'USER',
+          targetId: room.partnerId,
+          reason: reason.trim(),
+          description: `채팅방 ${room.chatRoomId}에서 신고됨`,
+        });
+        showToast('신고가 접수되었습니다.', 'success');
+      } catch (error: any) {
+        showToast(error?.message || '신고 접수에 실패했습니다.', 'error');
+      }
     }
     if (action === 'leave') {
-      if (await showConfirm('채팅방을 나가시겠습니까?', '채팅방 나가기', '나가기')) {
+      if (await showConfirm('채팅방을 삭제할까요?\n삭제하면 이 채팅방의 메시지도 함께 삭제됩니다.', '채팅방 삭제', '삭제')) {
+        try {
+          await apiRequest(API_ENDPOINTS.leaveChatRoom(room.chatRoomId), { method: 'DELETE' });
+          setRooms((prev) => prev.filter((item) => item.chatRoomId !== room.chatRoomId));
+          if (selectedRoom?.chatRoomId === room.chatRoomId) {
+            setMessages([]);
+          }
+          showToast('채팅방을 삭제했습니다.', 'success');
+        } catch (error: any) {
+          showToast(error?.message || '채팅방 삭제에 실패했습니다.', 'error');
+          return;
+        }
         closeSelectedRoom();
       }
     }

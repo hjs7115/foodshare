@@ -162,6 +162,14 @@ public class ChatService {
         return toResponse(room, userId);
     }
 
+    @Transactional
+    public void leaveRoom(Long userId, Long roomId) {
+        ChatRoom room = getParticipantRoom(userId, roomId);
+        chatMessageRepository.deleteAllByChatRoomId(room.getId());
+        chatRoomMemberRepository.deleteAllByChatRoomId(room.getId());
+        chatRoomRepository.delete(room);
+    }
+
     public Long findRoomIdByTradeRequestId(Long tradeRequestId) {
         return chatRoomRepository.findByTradeRequestId(tradeRequestId)
                 .map(ChatRoom::getId)

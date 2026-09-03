@@ -546,10 +546,6 @@ export default function ChatScreen({
       }
       try {
         await blockUser(room.partnerId);
-        setRooms((prev) => prev.filter((item) => item.chatRoomId !== room.chatRoomId));
-        if (selectedRoom?.chatRoomId === room.chatRoomId) {
-          closeSelectedRoom();
-        }
         showToast('사용자를 차단했습니다.', 'success');
       } catch (error: any) {
         showToast(error?.message || '사용자 차단에 실패했습니다.', 'error');

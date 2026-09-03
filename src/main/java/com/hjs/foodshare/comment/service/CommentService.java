@@ -113,7 +113,6 @@ public class CommentService {
         if (currentUserId == null || currentUserId.equals(writerId)) {
             return true;
         }
-        return !userBlockRepository.existsByBlockerIdAndBlockedUserId(currentUserId, writerId)
-                && !userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, currentUserId);
+        return !userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, currentUserId);
     }
 }

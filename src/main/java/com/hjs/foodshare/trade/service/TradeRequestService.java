@@ -290,8 +290,7 @@ public class TradeRequestService {
     }
 
     private void validateNotBlocked(Long requesterId, Long writerId) {
-        if (userBlockRepository.existsByBlockerIdAndBlockedUserId(requesterId, writerId)
-                || userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, requesterId)) {
+        if (userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, requesterId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Blocked users cannot request this post.");
         }
     }

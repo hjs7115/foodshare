@@ -17,6 +17,8 @@ import com.hjs.foodshare.moderation.service.ModerationService;
 import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.post.dto.PostCreateRequest;
 import com.hjs.foodshare.post.service.PostService;
+import com.hjs.foodshare.trade.domain.TradeRequestStatus;
+import com.hjs.foodshare.trade.repository.TradeRequestRepository;
 import com.hjs.foodshare.trade.service.TradeRequestService;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
@@ -44,6 +46,9 @@ class ModerationAndBadgeTests {
     private TradeRequestService tradeRequestService;
 
     @Autowired
+    private TradeRequestRepository tradeRequestRepository;
+
+    @Autowired
     private ModerationService moderationService;
 
     @Autowired
@@ -69,9 +74,13 @@ class ModerationAndBadgeTests {
     void blockPreventsTradeRequestAndCommentAndHidesPosts() {
         User writer = saveUser("block_writer");
         User blocked = saveUser("blocked_user");
+        User pendingRequester = saveUser("pending_blocked_user");
         Long postId = postService.createPost(writer.getId(), shareRequest("Blocked post")).postId();
+        Long blockedPostId = postService.createPost(blocked.getId(), shareRequest("Visible to blocker")).postId();
+        Long pendingRequestId = tradeRequestService.createRequest(postId, pendingRequester.getId()).requestId();
 
         moderationService.blockUser(writer.getId(), blocked.getId());
+        moderationService.blockUser(writer.getId(), pendingRequester.getId());
 
         BusinessException tradeError = assertThrows(BusinessException.class,
                 () -> tradeRequestService.createRequest(postId, blocked.getId()));
@@ -84,6 +93,12 @@ class ModerationAndBadgeTests {
         assertFalse(postService.searchPosts(null, "Blocked", null, null, null, null, null, blocked.getId())
                 .stream()
                 .anyMatch(post -> post.postId().equals(postId)));
+        assertTrue(postService.searchPosts(null, "Visible to blocker", null, null, null, null, null, writer.getId())
+                .stream()
+                .anyMatch(post -> post.postId().equals(blockedPostId)));
+        assertEquals(TradeRequestStatus.PENDING, tradeRequestRepository.findById(pendingRequestId)
+                .orElseThrow()
+                .getStatus());
     }
 
     @Test

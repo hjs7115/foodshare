@@ -2,6 +2,7 @@ package com.hjs.foodshare;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -12,6 +13,7 @@ import com.hjs.foodshare.auth.dto.ResetPasswordRequest;
 import com.hjs.foodshare.auth.repository.EmailVerificationRepository;
 import com.hjs.foodshare.auth.service.AuthService;
 import com.hjs.foodshare.auth.service.MailService;
+import com.hjs.foodshare.chat.repository.ChatRoomMemberRepository;
 import com.hjs.foodshare.chat.service.ChatService;
 import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.fridge.dto.FridgeItemRequest;
@@ -54,6 +56,9 @@ class BackendFeatureFlowTests {
     private TradeRequestRepository tradeRequestRepository;
 
     @Autowired
+    private ChatRoomMemberRepository chatRoomMemberRepository;
+
+    @Autowired
     private FridgeItemRepository fridgeItemRepository;
 
     @Autowired
@@ -90,26 +95,56 @@ class BackendFeatureFlowTests {
     private MailService mailService;
 
     @Test
-    void groupBuyAcceptKeepsPostOpenUntilRecruitmentClosed() {
+    void groupBuyAcceptKeepsPostOpenUntilFullOrRecruitmentClosed() {
         User writer = saveUser("writer1");
         User requester = saveUser("requester1");
         Long postId = postService.createPost(
                 writer.getId(),
-                groupBuyRequest("Group apples", 1, 2, LocalDate.now().plusDays(2))
+                groupBuyRequest("Group apples", 1, 3, LocalDate.now().plusDays(2))
         ).postId();
 
         Long requestId = tradeRequestService.createRequest(postId, requester.getId()).requestId();
-        tradeRequestService.accept(requestId, writer.getId());
+        var accepted = tradeRequestService.accept(requestId, writer.getId());
 
         Post post = postRepository.findById(postId).orElseThrow();
         assertEquals(2, post.getCurrentParticipantCount());
         assertEquals(PostStatus.OPEN, post.getStatus());
-        assertEquals(2, notificationRepository.findAllByUserIdOrderByCreatedAtDesc(requester.getId()).size());
+        assertNull(accepted.chatRoomId());
+        assertEquals(1, notificationRepository.findAllByUserIdOrderByCreatedAtDesc(requester.getId()).size());
 
-        tradeRequestService.closeGroupBuyRecruitment(postId, writer.getId());
+        var closedRequests = tradeRequestService.closeGroupBuyRecruitment(postId, writer.getId());
 
         post = postRepository.findById(postId).orElseThrow();
         assertEquals(PostStatus.CLOSED, post.getStatus());
+        assertEquals(1, closedRequests.size());
+        assertTrue(closedRequests.get(0).chatRoomId() != null);
+    }
+
+    @Test
+    void groupBuyCreatesGroupChatWhenTargetParticipantCountIsReached() {
+        User writer = saveUser("group_full_writer");
+        User firstRequester = saveUser("group_full_first");
+        User secondRequester = saveUser("group_full_second");
+        Long postId = postService.createPost(
+                writer.getId(),
+                groupBuyRequest("Full group apples", 1, 3, LocalDate.now().plusDays(2))
+        ).postId();
+
+        Long firstRequestId = tradeRequestService.createRequest(postId, firstRequester.getId()).requestId();
+        Long secondRequestId = tradeRequestService.createRequest(postId, secondRequester.getId()).requestId();
+        var firstAccepted = tradeRequestService.accept(firstRequestId, writer.getId());
+        var secondAccepted = tradeRequestService.accept(secondRequestId, writer.getId());
+
+        Long groupChatRoomId = secondAccepted.chatRoomId();
+        Post post = postRepository.findById(postId).orElseThrow();
+        assertEquals(PostStatus.CLOSED, post.getStatus());
+        assertEquals(3, post.getCurrentParticipantCount());
+        assertNull(firstAccepted.chatRoomId());
+        assertTrue(groupChatRoomId != null);
+        assertEquals(groupChatRoomId, chatService.getRoomByTradeRequest(firstRequester.getId(), firstRequestId).chatRoomId());
+        assertEquals(groupChatRoomId, chatService.getRoomByTradeRequest(secondRequester.getId(), secondRequestId).chatRoomId());
+        assertEquals(3, chatRoomMemberRepository.findAllByChatRoomId(groupChatRoomId).size());
+        assertEquals(1, chatService.getRooms(firstRequester.getId(), "GROUP_BUY").size());
     }
 
     @Test

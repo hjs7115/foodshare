@@ -106,8 +106,7 @@ public class TradeRequestService {
         }
         validateRequestablePost(tradeRequest.getPost());
         tradeRequest.accept();
-        applyAcceptedTradePolicy(tradeRequest);
-        ChatRoom chatRoom = chatService.openRoomForTradeRequest(tradeRequest);
+        ChatRoom chatRoom = applyAcceptedTradePolicy(tradeRequest);
         if (tradeRequest.getRequester().isNotificationTradeAccepted()) {
             notificationService.createNotification(
                     tradeRequest.getRequester().getId(),
@@ -118,15 +117,17 @@ public class TradeRequestService {
                     tradeRequest.getId()
             );
         }
-        notificationService.createNotification(
+        if (chatRoom != null) {
+            notificationService.createNotification(
                 tradeRequest.getRequester().getId(),
                 "CHAT_ROOM_OPENED",
                 "채팅방 개설",
                 "'" + tradeRequest.getPost().getTitle() + "' 거래 채팅방이 개설되었습니다.",
                 "CHAT_ROOM",
                 chatRoom.getId()
-        );
-        return toResponse(tradeRequest, chatRoom.getId());
+            );
+        }
+        return toResponse(tradeRequest, chatRoom == null ? null : chatRoom.getId());
     }
 
     @Transactional
@@ -191,11 +192,21 @@ public class TradeRequestService {
                 .toList();
     }
 
-    private void applyAcceptedTradePolicy(TradeRequest acceptedRequest) {
+    private ChatRoom applyAcceptedTradePolicy(TradeRequest acceptedRequest) {
         Post post = acceptedRequest.getPost();
         if (post.getPostType() == PostType.GROUP_BUY) {
             post.increaseParticipantCount();
-            return;
+            if (isGroupBuyFull(post)) {
+                post.close();
+                List<TradeRequest> acceptedRequests = tradeRequestRepository.findAllByPostIdAndStatus(
+                        post.getId(),
+                        TradeRequestStatus.ACCEPTED
+                );
+                tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.PENDING)
+                        .forEach(TradeRequest::reject);
+                return chatService.openGroupRoomForTradeRequests(acceptedRequests);
+            }
+            return null;
         }
 
         post.close();
@@ -203,6 +214,13 @@ public class TradeRequestService {
                 .stream()
                 .filter(request -> !request.getId().equals(acceptedRequest.getId()))
                 .forEach(TradeRequest::reject);
+        return chatService.openRoomForTradeRequest(acceptedRequest);
+    }
+
+    private boolean isGroupBuyFull(Post post) {
+        return post.getCurrentParticipantCount() != null
+                && post.getTargetParticipantCount() != null
+                && post.getCurrentParticipantCount() >= post.getTargetParticipantCount();
     }
 
     private void notifyTradeCompleted(TradeRequest tradeRequest) {

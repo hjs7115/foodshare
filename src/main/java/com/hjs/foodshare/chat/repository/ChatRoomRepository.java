@@ -13,6 +13,14 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     Optional<ChatRoom> findByTradeRequestId(Long tradeRequestId);
 
     @Query("""
+            select cr
+            from ChatRoom cr
+            where cr.groupRoom = true
+              and cr.tradeRequest.post.id = :postId
+            """)
+    Optional<ChatRoom> findGroupRoomByPostId(@Param("postId") Long postId);
+
+    @Query("""
             select distinct cr
             from ChatRoom cr
             where cr.writer.id = :userId

@@ -13,11 +13,14 @@ import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.notification.service.NotificationService;
 import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.trade.domain.TradeRequest;
+import com.hjs.foodshare.trade.domain.TradeRequestStatus;
+import com.hjs.foodshare.trade.repository.TradeRequestRepository;
 import com.hjs.foodshare.user.domain.User;
 import com.hjs.foodshare.user.repository.UserRepository;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,19 +35,22 @@ public class ChatService {
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final TradeRequestRepository tradeRequestRepository;
 
     public ChatService(
             ChatRoomRepository chatRoomRepository,
             ChatMessageRepository chatMessageRepository,
             ChatRoomMemberRepository chatRoomMemberRepository,
             UserRepository userRepository,
-            NotificationService notificationService
+            NotificationService notificationService,
+            TradeRequestRepository tradeRequestRepository
     ) {
         this.chatRoomRepository = chatRoomRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.chatRoomMemberRepository = chatRoomMemberRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.tradeRequestRepository = tradeRequestRepository;
     }
 
     @Transactional
@@ -65,11 +71,18 @@ public class ChatService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "At least one trade request is required.");
         }
         TradeRequest primaryRequest = tradeRequests.get(0);
-        ChatRoom room = openRoomForTradeRequest(primaryRequest);
-        room.markAsGroupRoom();
+        ChatRoom room = chatRoomRepository.findGroupRoomByPostId(primaryRequest.getPost().getId())
+                .orElseGet(() -> chatRoomRepository.findByTradeRequestId(primaryRequest.getId())
+                        .orElseGet(() -> chatRoomRepository.save(ChatRoom.create(primaryRequest))));
+        boolean newlyPromotedGroupRoom = !room.isGroupRoom();
+        if (newlyPromotedGroupRoom) {
+            room.markAsGroupRoom();
+        }
         addMemberIfAbsent(room, primaryRequest.getPost().getWriter(), 0);
         tradeRequests.forEach(request -> addMemberIfAbsent(room, request.getRequester(), 1));
-        chatMessageRepository.save(ChatMessage.system(room, "공동구매 채팅방이 개설되었습니다."));
+        if (newlyPromotedGroupRoom) {
+            chatMessageRepository.save(ChatMessage.system(room, "공동구매 채팅방이 개설되었습니다."));
+        }
         return room;
     }
 
@@ -138,7 +151,7 @@ public class ChatService {
     }
 
     public ChatRoomResponse getRoomByTradeRequest(Long userId, Long tradeRequestId) {
-        ChatRoom room = chatRoomRepository.findByTradeRequestId(tradeRequestId)
+        ChatRoom room = findRoomForTradeRequest(tradeRequestId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Chat room not found."));
         validateParticipant(room, userId);
         return toResponse(room, userId);
@@ -171,9 +184,22 @@ public class ChatService {
     }
 
     public Long findRoomIdByTradeRequestId(Long tradeRequestId) {
-        return chatRoomRepository.findByTradeRequestId(tradeRequestId)
+        return findRoomForTradeRequest(tradeRequestId)
                 .map(ChatRoom::getId)
                 .orElse(null);
+    }
+
+    private Optional<ChatRoom> findRoomForTradeRequest(Long tradeRequestId) {
+        Optional<ChatRoom> directRoom = chatRoomRepository.findByTradeRequestId(tradeRequestId);
+        if (directRoom.isPresent()) {
+            return directRoom;
+        }
+
+        return tradeRequestRepository.findById(tradeRequestId)
+                .filter(request -> request.getPost().getPostType() == PostType.GROUP_BUY)
+                .filter(request -> request.getStatus() == TradeRequestStatus.ACCEPTED
+                        || request.getStatus() == TradeRequestStatus.COMPLETED)
+                .flatMap(request -> chatRoomRepository.findGroupRoomByPostId(request.getPost().getId()));
     }
 
     public Long findPartnerId(Long userId, Long roomId) {

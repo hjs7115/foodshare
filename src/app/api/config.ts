@@ -10,7 +10,12 @@ export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL
 ).replace(/\/+$/, '');
 
-export const WS_BASE_URL = API_BASE_URL.replace(/^http/i, 'ws');
+export const WS_BASE_URL =
+  API_BASE_URL.startsWith('http://') || API_BASE_URL.startsWith('https://')
+    ? API_BASE_URL.replace(/^http/i, 'ws')
+    : typeof window !== 'undefined'
+      ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
+      : '';
 
 export function resolveImageUrl(value?: string | null): string {
   if (!value) return '/assets/food-placeholder.png';

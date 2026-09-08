@@ -1,11 +1,12 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Ban, Bell, BellOff, ChevronDown, ChevronUp, Flag, Leaf, MessageCircle, MoreVertical, Pencil, Pin, Search, Send, ShoppingCart, Snowflake, Trash2, User, X, type LucideIcon } from 'lucide-react';
-import { API_ENDPOINTS, WS_BASE_URL, apiRequest, blockUser, createReport, getNotifications, resolveImageUrl } from '../../api/config';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Ban, Bell, BellOff, Camera, ChevronDown, ChevronUp, File as FileIcon, Flag, Image as ImageIcon, Leaf, Loader2, MapPin, MessageCircle, MoreVertical, Pencil, Pin, Plus, Search, Send, ShoppingCart, Snowflake, Trash2, User, X, type LucideIcon } from 'lucide-react';
+import { API_ENDPOINTS, WS_BASE_URL, apiRequest, blockUser, createReport, getNotifications, resolveImageUrl, uploadImage } from '../../api/config';
 import { getAuthToken, getStoredUserInfo } from '../../auth/session';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
 import { showToast, showConfirm, showPrompt } from '../../utils/feedback';
 import { getChatSettings } from '../profile/ChatSettingsScreen';
+import KakaoMapModal from '../KakaoMapModal';
 
 type ChatFilter = 'ALL' | 'SHARING' | 'GROUP_BUY' | 'UNREAD';
 const PROFILE_PLACEHOLDER = '/assets/profile-placeholder.svg';
@@ -36,7 +37,9 @@ interface ChatMessage {
   content: string;
   mine: boolean;
   systemMessage: boolean;
+  unreadCount?: number;
   unreadByPartner?: boolean;
+  readByUserIds?: number[];
   createdAt?: string;
 }
 
@@ -66,8 +69,14 @@ export default function ChatScreen({
   const [isSearchingMessages, setIsSearchingMessages] = useState(false);
   const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [activeSearchMatchIndex, setActiveSearchMatchIndex] = useState(0);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [showChatMapModal, setShowChatMapModal] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const messageRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -101,6 +110,8 @@ export default function ChatScreen({
       setIsSearchingMessages(false);
       setMessageSearchQuery('');
       setActiveSearchMatchIndex(0);
+      setShowAttachmentMenu(false);
+      setShowChatMapModal(false);
       return;
     }
 
@@ -194,9 +205,27 @@ export default function ChatScreen({
     muted: Boolean(room.muted ?? room.isMuted),
   });
 
-  const normalizeMessage = (message: any): ChatMessage => {
+  const normalizeMessage = (message: any, room?: ChatRoom): ChatMessage => {
     const rawId = getNumberValue(message.messageId ?? message.id ?? message.chatMessageId);
     const senderId = getNumberValue(message.senderId ?? message.sender?.id ?? message.userId);
+    const explicitUnreadCount = getNumberValue(
+      message.unreadCount ??
+      message.unread_count ??
+      message.unreadByCount ??
+      message.unread_by_count ??
+      message.unreadUserCount ??
+      message.unread_user_count
+    );
+    const readByUserIds = extractReadByUserIds(message);
+    const mine = currentUserId !== undefined
+      ? senderId !== undefined ? senderId === currentUserId : Boolean(message.mine || message.isMine)
+      : Boolean(message.mine || message.isMine);
+    const unreadByPartnerFlag = message.unreadByPartner ?? message.unread_by_partner;
+    const unreadCount = mine
+      ? explicitUnreadCount ?? (unreadByPartnerFlag !== undefined
+        ? unreadByPartnerFlag ? getUnreadRecipientCount(room) : 0
+        : undefined)
+      : undefined;
 
     return {
       messageId: rawId ?? getNextTempMessageId(),
@@ -204,11 +233,13 @@ export default function ChatScreen({
       senderNickname: message.senderNickname ?? message.sender?.nickname,
       senderProfileImage: message.senderProfileImage ?? message.sender?.profileImage,
       content: message.content ?? message.message ?? '',
-      mine: currentUserId !== undefined
-        ? senderId !== undefined ? senderId === currentUserId : Boolean(message.mine || message.isMine)
-        : Boolean(message.mine || message.isMine),
+      mine,
       systemMessage: Boolean(message.systemMessage || message.type === 'SYSTEM'),
-      unreadByPartner: Boolean(message.unreadByPartner || message.unread_by_partner),
+      unreadCount,
+      unreadByPartner: unreadCount !== undefined
+        ? unreadCount > 0
+        : Boolean(unreadByPartnerFlag),
+      readByUserIds,
       createdAt: message.createdAt ?? message.sentAt ?? message.created_at,
     };
   };
@@ -247,17 +278,16 @@ export default function ChatScreen({
         const roomId = getPayloadRoomId(payload);
 
         if (type === 'READ' && roomId === room.chatRoomId) {
-          if (Number(payload.readerId) !== currentUserId) {
-            setMessages((prev) => prev.map((message) => (
-              message.mine ? { ...message, unreadByPartner: false } : message
-            )));
+          const readerId = getNumberValue(payload.readerId ?? payload.userId ?? payload.memberId);
+          if (readerId !== undefined && readerId !== currentUserId) {
+            setMessages((prev) => prev.map((message) => applyReadReceipt(message, readerId)));
           }
           return;
         }
 
         if (!isMessagePayload(type) || roomId !== room.chatRoomId) return;
 
-        const incoming = normalizeMessage(payload.message ?? payload.data ?? payload);
+        const incoming = normalizeMessage(payload.message ?? payload.data ?? payload, room);
         setMessages((prev) => mergeMessages(prev, incoming, currentUserId));
         setRooms((prev) => prev.map((item) => (
           item.chatRoomId === room.chatRoomId
@@ -326,7 +356,7 @@ export default function ChatScreen({
     try {
       const response = await apiRequest(API_ENDPOINTS.chatMessages(room.chatRoomId), { method: 'GET' });
       const raw = response?.data?.content || response?.data || response?.messages || response;
-      const normalized = Array.isArray(raw) ? mergeMessageList(raw.map(normalizeMessage), currentUserId) : [];
+      const normalized = Array.isArray(raw) ? mergeMessageList(raw.map((message) => normalizeMessage(message, room)), currentUserId) : [];
       const hasNewIncoming = normalized.some((message) => (
         !message.mine && !hasEquivalentMessage(messagesRef.current, message)
       ));
@@ -359,19 +389,19 @@ export default function ChatScreen({
     }
   };
 
-  const sendMessage = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!selectedRoom || !messageText.trim()) return;
+  const sendChatContent = async (rawContent: string, options: { restoreInputOnFail?: boolean } = {}) => {
+    if (!selectedRoom || !rawContent.trim()) return false;
 
-    const content = messageText.trim();
-    setMessageText('');
+    const content = rawContent.trim();
+    const unreadCount = getUnreadRecipientCount(selectedRoom);
     const optimisticMessage: ChatMessage = {
       messageId: getNextTempMessageId(),
       senderId: currentUserId,
       content,
       mine: true,
       systemMessage: false,
-      unreadByPartner: true,
+      unreadCount,
+      unreadByPartner: unreadCount > 0,
       createdAt: new Date().toISOString(),
     };
     try {
@@ -391,14 +421,14 @@ export default function ChatScreen({
         window.setTimeout(() => {
           loadMessages(selectedRoom, { markRead: true }).catch(() => null);
         }, 600);
-        return;
+        return true;
       }
 
       const response = await apiRequest(API_ENDPOINTS.chatMessages(selectedRoom.chatRoomId), {
         method: 'POST',
         body: JSON.stringify({ content }),
       });
-      const created = normalizeMessage(response?.data || response);
+      const created = normalizeMessage(response?.data || response, selectedRoom);
       setMessages((prev) => mergeMessages(prev, created, currentUserId));
       setRooms((prev) => prev.map((room) => (
         room.chatRoomId === selectedRoom.chatRoomId
@@ -409,10 +439,87 @@ export default function ChatScreen({
       window.setTimeout(() => {
         loadMessages(selectedRoom, { markRead: true }).catch(() => null);
       }, 600);
+      return true;
     } catch (error: any) {
       showToast(error.message || '메시지 전송에 실패했습니다.');
-      setMessageText(content);
+      if (options.restoreInputOnFail) {
+        setMessageText(content);
+      }
+      return false;
     }
+  };
+
+  const sendMessage = (event: FormEvent) => {
+    event.preventDefault();
+    if (!messageText.trim()) return;
+
+    const content = messageText;
+    setMessageText('');
+    setShowAttachmentMenu(false);
+    sendChatContent(content, { restoreInputOnFail: true });
+  };
+
+  const handleImageAttachment = async (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('이미지 파일만 첨부할 수 있습니다.');
+      return;
+    }
+
+    setShowAttachmentMenu(false);
+    setIsUploadingAttachment(true);
+    try {
+      const imageUrl = await uploadImage(file);
+      if (!imageUrl) {
+        throw new Error('업로드된 이미지 주소를 확인하지 못했습니다.');
+      }
+      await sendChatContent(`[사진]\n${imageUrl}`);
+    } catch (error: any) {
+      showToast(error.message || '사진 첨부에 실패했습니다.');
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  };
+
+  const handleFileAttachment = async (file?: File | null) => {
+    if (!file) return;
+
+    setShowAttachmentMenu(false);
+    const sizeLabel = formatFileSize(file.size);
+    await sendChatContent(`[파일]\n${file.name}\n${sizeLabel}`);
+  };
+
+  const handleSelectChatLocation = (address: string, lat: number, lng: number) => {
+    const mapUrl = `https://map.kakao.com/link/map/${encodeURIComponent(address)},${lat},${lng}`;
+    sendChatContent(`[지도]\n${address}\n${mapUrl}`);
+  };
+
+  const handleAttachmentInputChange = (
+    event: ChangeEvent<HTMLInputElement>,
+    handler: (file?: File | null) => void
+  ) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    handler(file);
+  };
+
+  const openAttachmentPicker = (type: 'camera' | 'photo' | 'map' | 'file') => {
+    if (!selectedRoom) return;
+    setShowAttachmentMenu(false);
+
+    if (type === 'camera') {
+      cameraInputRef.current?.click();
+      return;
+    }
+    if (type === 'photo') {
+      photoInputRef.current?.click();
+      return;
+    }
+    if (type === 'file') {
+      fileInputRef.current?.click();
+      return;
+    }
+    setShowChatMapModal(true);
   };
 
   const filterTabs: { key: ChatFilter; label: string }[] = [
@@ -778,7 +885,7 @@ export default function ChatScreen({
                     </p>
                   )}
                   <div className={`rounded-3xl px-4 py-3 text-sm leading-relaxed shadow-sm transition ${message.mine ? 'bg-[#14b8a6] text-white' : 'bg-white text-[#1a202c] border border-[#e2e8f0]'} ${searchHighlightClass}`}>
-                    {message.content}
+                    <ChatMessageContent message={message} />
                   </div>
                 </div>
                 {!message.mine && (
@@ -790,17 +897,66 @@ export default function ChatScreen({
           <div ref={messagesEndRef} />
         </div>
 
-        <form onSubmit={sendMessage} className="fixed bottom-0 left-0 right-0 z-40 flex items-center gap-3 border-t border-[#e2e8f0] bg-white px-5 py-4">
-          <input
-            value={messageText}
-            onChange={(event) => setMessageText(event.target.value)}
-            placeholder="메시지를 입력하세요."
-            className="min-w-0 flex-1 rounded-full bg-[#f1f5f9] px-5 py-3 text-sm outline-none focus:ring-2 focus:ring-[#14b8a6]"
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#e2e8f0] bg-white px-5 py-4">
+          {showAttachmentMenu && (
+            <div className="absolute bottom-[84px] left-5 rounded-3xl border border-[#ccfbf1] bg-white p-2 shadow-2xl">
+              <AttachmentMenuButton icon={Camera} label="카메라" onClick={() => openAttachmentPicker('camera')} />
+              <AttachmentMenuButton icon={ImageIcon} label="사진" onClick={() => openAttachmentPicker('photo')} />
+              <AttachmentMenuButton icon={MapPin} label="지도" onClick={() => openAttachmentPicker('map')} />
+              <AttachmentMenuButton icon={FileIcon} label="파일" onClick={() => openAttachmentPicker('file')} />
+            </div>
+          )}
+
+          <form onSubmit={sendMessage} className="flex items-center gap-3">
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(event) => handleAttachmentInputChange(event, handleImageAttachment)}
+            />
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => handleAttachmentInputChange(event, handleImageAttachment)}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={(event) => handleAttachmentInputChange(event, handleFileAttachment)}
+            />
+            <button
+              type="button"
+              onClick={() => setShowAttachmentMenu((current) => !current)}
+              disabled={isUploadingAttachment}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[#ccfbf1] bg-[#f0fdfa] text-[#0f766e] disabled:opacity-60"
+              aria-label="첨부 메뉴 열기"
+            >
+              {isUploadingAttachment ? <Loader2 size={20} className="animate-spin" /> : <Plus size={22} />}
+            </button>
+            <input
+              value={messageText}
+              onChange={(event) => setMessageText(event.target.value)}
+              placeholder="메시지를 입력하세요."
+              className="min-w-0 flex-1 rounded-full bg-[#f1f5f9] px-5 py-3 text-sm outline-none focus:ring-2 focus:ring-[#14b8a6]"
+            />
+            <button type="submit" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#14b8a6] text-white" aria-label="전송">
+              <Send size={20} />
+            </button>
+          </form>
+        </div>
+
+        {showChatMapModal && (
+          <KakaoMapModal
+            isOpen={showChatMapModal}
+            onClose={() => setShowChatMapModal(false)}
+            onSelectAddress={handleSelectChatLocation}
           />
-          <button type="submit" className="flex h-12 w-12 items-center justify-center rounded-full bg-[#14b8a6] text-white" aria-label="전송">
-            <Send size={20} />
-          </button>
-        </form>
+        )}
 
         {showRoomMenu && (
           <div className="fixed inset-0 z-[70] bg-black/35 flex items-end" onClick={() => setShowRoomMenu(false)}>
@@ -1074,6 +1230,44 @@ function getPayloadRoomId(payload: any) {
   );
 }
 
+function getUnreadRecipientCount(room?: ChatRoom | null) {
+  if (!room) return 1;
+  if (Array.isArray(room.participants) && room.participants.length > 0) {
+    return Math.max(0, room.participants.length - 1);
+  }
+  return Math.max(0, Number(room.participantCount ?? 2) - 1);
+}
+
+function extractReadByUserIds(message: any): number[] {
+  const raw =
+    message.readByUserIds ??
+    message.read_by_user_ids ??
+    message.readers ??
+    message.readMembers ??
+    message.readBy;
+
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((reader: any) => Number(reader?.userId ?? reader?.id ?? reader))
+    .filter((readerId: number) => Number.isFinite(readerId));
+}
+
+function applyReadReceipt(message: ChatMessage, readerId: number): ChatMessage {
+  if (!message.mine || message.systemMessage) return message;
+  if (message.readByUserIds?.includes(readerId)) return message;
+
+  const currentUnreadCount = message.unreadCount ?? (message.unreadByPartner ? 1 : 0);
+  const nextUnreadCount = Math.max(0, currentUnreadCount - 1);
+
+  return {
+    ...message,
+    unreadCount: nextUnreadCount,
+    unreadByPartner: nextUnreadCount > 0,
+    readByUserIds: [...(message.readByUserIds || []), readerId],
+  };
+}
+
 function mergeMessageList(messages: ChatMessage[], currentUserId?: number) {
   return sortMessages(messages.reduce<ChatMessage[]>((merged, message) => (
     mergeMessages(merged, message, currentUserId)
@@ -1088,14 +1282,14 @@ function mergeMessages(messages: ChatMessage[], incoming: ChatMessage, currentUs
     : -1;
   if (idIndex >= 0) {
     const next = [...messages];
-    next[idIndex] = { ...next[idIndex], ...normalizedIncoming };
+    next[idIndex] = mergeMessageState(next[idIndex], normalizedIncoming);
     return sortMessages(next);
   }
 
   const pendingIndex = messages.findIndex((message) => isMatchingPendingMessage(message, normalizedIncoming, currentUserId));
   if (pendingIndex >= 0) {
     const next = [...messages];
-    next[pendingIndex] = { ...normalizedIncoming, mine: true };
+    next[pendingIndex] = mergeMessageState(next[pendingIndex], { ...normalizedIncoming, mine: true });
     return sortMessages(next);
   }
 
@@ -1104,6 +1298,20 @@ function mergeMessages(messages: ChatMessage[], incoming: ChatMessage, currentUs
   }
 
   return sortMessages([...messages, normalizedIncoming]);
+}
+
+function mergeMessageState(existing: ChatMessage, incoming: ChatMessage): ChatMessage {
+  const unreadCount = incoming.unreadCount !== undefined ? incoming.unreadCount : existing.unreadCount;
+
+  return {
+    ...existing,
+    ...incoming,
+    unreadCount,
+    unreadByPartner: unreadCount !== undefined ? unreadCount > 0 : incoming.unreadByPartner,
+    readByUserIds: incoming.readByUserIds && incoming.readByUserIds.length > 0
+      ? incoming.readByUserIds
+      : existing.readByUserIds,
+  };
 }
 
 function normalizeMine(message: ChatMessage, currentUserId?: number) {
@@ -1159,6 +1367,7 @@ function areMessageListsEqual(left: ChatMessage[], right: ChatMessage[]) {
       message.content === other.content &&
       message.mine === other.mine &&
       message.systemMessage === other.systemMessage &&
+      (message.unreadCount ?? 0) === (other.unreadCount ?? 0) &&
       Boolean(message.unreadByPartner) === Boolean(other.unreadByPartner) &&
       message.createdAt === other.createdAt;
   });
@@ -1190,18 +1399,101 @@ function getMessageTime(message: ChatMessage) {
 }
 
 function MessageMeta({ message, align }: { message: ChatMessage; align: 'left' | 'right' }) {
+  const unreadCount = message.unreadCount ?? (message.unreadByPartner ? 1 : 0);
+
   return (
     <div className={`flex shrink-0 self-end pb-1 text-[10px] leading-tight text-[#a0aec0] ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}>
       <div>
         {message.mine && (
-          <p className={message.unreadByPartner ? 'text-[#f59e0b]' : 'text-[#a0aec0]'}>
-            {message.unreadByPartner ? '1' : '읽음'}
+          <p className={unreadCount > 0 ? 'text-[#f59e0b]' : 'text-[#a0aec0]'}>
+            {unreadCount > 0 ? unreadCount : '읽음'}
           </p>
         )}
         <p>{formatMessageTime(message.createdAt)}</p>
       </div>
     </div>
   );
+}
+
+function ChatMessageContent({ message }: { message: ChatMessage }) {
+  const attachment = parseAttachmentMessage(message.content);
+  const linkClassName = message.mine ? 'text-white underline decoration-white/70' : 'text-[#0f766e] underline';
+
+  if (attachment?.type === 'image') {
+    return (
+      <div className="space-y-2">
+        <img
+          src={resolveImageUrl(attachment.url)}
+          alt="첨부 사진"
+          className="max-h-64 w-full rounded-2xl object-cover"
+        />
+        <a href={resolveImageUrl(attachment.url)} target="_blank" rel="noreferrer" className={linkClassName}>
+          사진 보기
+        </a>
+      </div>
+    );
+  }
+
+  if (attachment?.type === 'map') {
+    return (
+      <div className="space-y-2">
+        <div className={`rounded-2xl p-3 ${message.mine ? 'bg-white/15' : 'bg-[#f0fdfa]'}`}>
+          <div className="mb-2 flex items-center gap-2" style={{ fontWeight: 800 }}>
+            <MapPin size={17} />
+            <span>위치 공유</span>
+          </div>
+          <p>{attachment.address}</p>
+        </div>
+        {attachment.url && (
+          <a href={attachment.url} target="_blank" rel="noreferrer" className={linkClassName}>
+            지도에서 보기
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  if (attachment?.type === 'file') {
+    return (
+      <div className="flex items-center gap-3">
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${message.mine ? 'bg-white/15' : 'bg-[#f1f5f9]'}`}>
+          <FileIcon size={20} />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate" style={{ fontWeight: 800 }}>{attachment.name}</span>
+          {attachment.size && <span className="block text-xs opacity-75">{attachment.size}</span>}
+        </span>
+      </div>
+    );
+  }
+
+  return <span className="whitespace-pre-wrap break-words">{message.content}</span>;
+}
+
+function parseAttachmentMessage(content: string):
+  | { type: 'image'; url: string }
+  | { type: 'map'; address: string; url?: string }
+  | { type: 'file'; name: string; size?: string }
+  | null {
+  const lines = content.split('\n').map((line) => line.trim()).filter(Boolean);
+  if (lines[0] === '[사진]' && lines[1]) {
+    return { type: 'image', url: lines[1] };
+  }
+  if (lines[0] === '[지도]' && lines[1]) {
+    return { type: 'map', address: lines[1], url: lines[2] };
+  }
+  if (lines[0] === '[파일]' && lines[1]) {
+    return { type: 'file', name: lines[1], size: lines[2] };
+  }
+  return null;
+}
+
+function formatFileSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / 1024 ** index;
+  return `${value >= 10 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`;
 }
 
 function formatMessageTime(value?: string) {
@@ -1326,6 +1618,29 @@ function RoomMenuButton({
       <span className={`text-lg ${danger ? 'text-[#ef4444]' : 'text-[#1a202c]'}`} style={{ fontWeight: 700 }}>
         {label}
       </span>
+    </button>
+  );
+}
+
+function AttachmentMenuButton({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-left text-[#1a202c] transition-colors hover:bg-[#f0fdfa]"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#ccfbf1] text-[#0f766e]">
+        <Icon size={19} />
+      </span>
+      <span className="text-sm" style={{ fontWeight: 800 }}>{label}</span>
     </button>
   );
 }

@@ -5,9 +5,38 @@ import { showToast } from '../../utils/feedback';
 
 type ResetStep = 'email' | 'code' | 'password';
 
-export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
+const PASSWORD_REQUIREMENT_MESSAGE = '영문, 숫자, 특수문자 포함 8자 이상';
+
+function isValidPassword(password: string) {
+  return password.length >= 8
+    && /[A-Za-z]/.test(password)
+    && /[0-9]/.test(password)
+    && /[^A-Za-z0-9]/.test(password);
+}
+
+interface FindPasswordScreenProps {
+  onBack: () => void;
+  initialEmail?: string;
+  lockEmail?: boolean;
+  title?: string;
+  description?: string;
+  successMessage?: string;
+  backLabel?: string;
+  submitLabel?: string;
+}
+
+export default function FindPasswordScreen({
+  onBack,
+  initialEmail = '',
+  lockEmail = false,
+  title = '비밀번호 재설정',
+  description = '이메일 인증 후 새로운 비밀번호를 설정할 수 있습니다.',
+  successMessage = '비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.',
+  backLabel = '돌아가기',
+  submitLabel = '비밀번호 변경',
+}: FindPasswordScreenProps) {
   const [step, setStep] = useState<ResetStep>('email');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -86,8 +115,8 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
       setStep('code');
       return;
     }
-    if (newPassword.length < 8) {
-      showToast('비밀번호는 8자 이상이어야 합니다.');
+    if (!isValidPassword(newPassword)) {
+      showToast(`비밀번호는 ${PASSWORD_REQUIREMENT_MESSAGE}이어야 합니다.`);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -107,7 +136,7 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
         }),
       });
 
-      showToast('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.');
+      showToast(successMessage);
       onBack();
     } catch (error: any) {
       showToast(error.message || '비밀번호 변경에 실패했습니다.');
@@ -129,7 +158,7 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
         className="text-[#2d3748] mb-8 text-left text-lg"
         style={{ fontWeight: 500 }}
       >
-        ← 돌아가기
+        ← {backLabel}
       </button>
 
       <div className="flex-1 flex flex-col justify-center max-w-md w-full mx-auto pb-8">
@@ -137,10 +166,10 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
           <div>
             <div className="text-center mb-10">
               <h1 className="text-4xl mb-3 text-[#2d3748]" style={{ fontWeight: 600 }}>
-                비밀번호 재설정
+                {title}
               </h1>
               <p className="text-[#718096] text-base">
-                이메일 인증 후 새로운 비밀번호를 설정할 수 있습니다.
+                {description}
               </p>
             </div>
 
@@ -155,7 +184,8 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="이메일 주소를 입력해주세요."
-                  className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
+                  readOnly={lockEmail}
+                  className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc] read-only:text-[#718096]"
                   required
                 />
               </div>
@@ -261,7 +291,7 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
                 onChange={setNewPassword}
                 onToggle={() => setShowPassword(!showPassword)}
               />
-              <p className="text-sm text-[#718096] -mt-2">영문, 숫자, 특수문자 포함 8자 이상</p>
+              <p className="text-sm text-[#718096] -mt-2">{PASSWORD_REQUIREMENT_MESSAGE}</p>
 
               <PasswordField
                 id="confirmPassword"
@@ -282,7 +312,7 @@ export default function FindPasswordScreen({ onBack }: { onBack: () => void }) {
                 className="w-full bg-[#bef264] text-[#0a0a0a] py-4 rounded-2xl hover:bg-[#a3e635] transition-colors mt-8 shadow-sm disabled:opacity-50"
                 style={{ fontWeight: 600 }}
               >
-                {isSubmitting ? '변경 중...' : '비밀번호 변경'}
+                {isSubmitting ? '변경 중...' : submitLabel}
               </button>
             </form>
           </div>

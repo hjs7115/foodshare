@@ -164,6 +164,32 @@ export default function KakaoMapModal({
     window.setTimeout(() => newMap.relayout(), 0);
   }, [isOpen, isKakaoLoaded]);
 
+  useEffect(() => {
+    if (!map || !mapRef.current) return;
+
+    const mapContainer = mapRef.current;
+    let animationFrameId = 0;
+    const relayoutMap = () => {
+      window.cancelAnimationFrame(animationFrameId);
+      animationFrameId = window.requestAnimationFrame(() => {
+        const center = map.getCenter();
+        map.relayout();
+        map.setCenter(center);
+      });
+    };
+    const resizeObserver = new ResizeObserver(relayoutMap);
+
+    resizeObserver.observe(mapContainer);
+    window.addEventListener('resize', relayoutMap);
+    relayoutMap();
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', relayoutMap);
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [map]);
+
   const setPickedLocation = (targetMap: any, coords: any, address: string) => {
     if (markerRef.current) {
       markerRef.current.setPosition(coords);
@@ -284,10 +310,10 @@ export default function KakaoMapModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[#e2e8f0] p-6">
-          <h2 className="text-2xl text-[#2d3748]" style={{ fontWeight: 600 }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/50 p-2 sm:p-4">
+      <div className="flex h-[calc(100dvh-1rem)] max-h-[820px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[calc(100dvh-2rem)] sm:rounded-3xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#e2e8f0] p-4 sm:p-6">
+          <h2 className="text-xl text-[#2d3748] sm:text-2xl" style={{ fontWeight: 600 }}>
             주소 검색
           </h2>
           <button onClick={onClose} className="text-[#718096] transition-colors hover:text-[#2d3748]" aria-label="지도 닫기">
@@ -295,7 +321,7 @@ export default function KakaoMapModal({
           </button>
         </div>
 
-        <div className="border-b border-[#e2e8f0] p-6">
+        <div className="shrink-0 border-b border-[#e2e8f0] p-4 sm:p-6">
           <div className="mb-3 flex gap-2">
             <input
               type="text"
@@ -324,13 +350,13 @@ export default function KakaoMapModal({
               <MapPin size={18} />
               <span>현재 위치로 이동</span>
             </button>
-            {locationStatus && <p className="min-w-0 text-right text-sm text-[#718096]">{locationStatus}</p>}
+            {locationStatus && <p className="min-w-0 text-right text-xs text-[#718096] sm:text-sm">{locationStatus}</p>}
           </div>
         </div>
 
-        <div className="min-h-[400px] flex-1 overflow-hidden p-6">
+        <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-6">
           {loadError ? (
-            <div className="flex min-h-[400px] flex-col justify-center rounded-2xl border border-[#fecaca] bg-[#fff5f5] p-6">
+            <div className="flex h-full min-h-0 flex-col justify-center overflow-y-auto rounded-2xl border border-[#fecaca] bg-[#fff5f5] p-4 sm:p-6">
               <div className="mb-5 text-center">
                 <AlertCircle size={34} className="mx-auto mb-3 text-[#ef4444]" />
                 <p className="text-sm leading-6 text-[#991b1b]">{loadError}</p>
@@ -364,16 +390,16 @@ export default function KakaoMapModal({
               </div>
             </div>
           ) : !isKakaoLoaded ? (
-            <div className="flex h-[400px] items-center justify-center rounded-2xl border border-[#e2e8f0] bg-[#f7fafc] text-sm text-[#718096]">
+            <div className="flex h-full min-h-0 items-center justify-center rounded-2xl border border-[#e2e8f0] bg-[#f7fafc] text-sm text-[#718096]">
               카카오맵을 불러오는 중입니다.
             </div>
           ) : (
-            <div ref={mapRef} className="h-full min-h-[400px] w-full rounded-2xl border border-[#e2e8f0]" />
+            <div ref={mapRef} className="h-full min-h-0 w-full rounded-2xl border border-[#e2e8f0]" />
           )}
         </div>
 
         {selectedAddress && (
-          <div className="border-t border-[#e2e8f0] bg-[#f7fafc] px-6 py-4">
+          <div className="shrink-0 border-t border-[#e2e8f0] bg-[#f7fafc] px-4 py-3 sm:px-6 sm:py-4">
             <p className="mb-1 text-sm text-[#718096]">선택한 주소</p>
             <p className="text-base text-[#2d3748]" style={{ fontWeight: 500 }}>
               {selectedAddress}
@@ -381,7 +407,7 @@ export default function KakaoMapModal({
           </div>
         )}
 
-        <div className="flex gap-3 border-t border-[#e2e8f0] p-6">
+        <div className="flex shrink-0 gap-3 border-t border-[#e2e8f0] p-3 sm:p-6">
           <button
             onClick={onClose}
             className="flex-1 rounded-2xl border border-[#e2e8f0] px-6 py-3.5 text-[#2d3748] transition-colors hover:border-[#bef264]"

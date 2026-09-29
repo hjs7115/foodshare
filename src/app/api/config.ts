@@ -2,7 +2,7 @@
 // .env에 VITE_API_BASE_URL을 설정하면 그 주소를 우선 사용합니다.
 // 예) VITE_API_BASE_URL=http://localhost:8080
 // 예) VITE_API_BASE_URL=https://your-ngrok-url.ngrok-free.app
-import { clearAuthSession, getAuthToken } from '../auth/session';
+import { clearAuthSession, getAuthToken, isLocalTestSession } from '../auth/session';
 
 const DEFAULT_API_BASE_URL = "https://enticing-feel-fresh.ngrok-free.dev";
 
@@ -318,6 +318,7 @@ export async function apiRequest(
       const errorMessage = data.message || data.error || `요청 실패 (${response.status})`;
       if (
         !isPublicAuthEndpoint(url) &&
+        !isLocalTestSession() &&
         (response.status === 401 || (response.status === 404 && errorMessage === 'User not found.'))
       ) {
         clearAuthSession();

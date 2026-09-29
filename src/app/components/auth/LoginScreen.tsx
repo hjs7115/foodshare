@@ -2,8 +2,20 @@ import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
 import { registerFirebaseMessaging } from '../../firebase';
-import { saveAuthSession } from '../../auth/session';
+import { LOCAL_TEST_AUTH_TOKEN, saveAuthSession } from '../../auth/session';
 import { showToast } from '../../utils/feedback';
+
+const TEST_LOGIN_EMAIL = import.meta.env.VITE_TEST_LOGIN_EMAIL?.trim();
+const TEST_LOGIN_PASSWORD = import.meta.env.VITE_TEST_LOGIN_PASSWORD;
+
+function isLocalTestLogin(email: string, password: string) {
+  return (
+    import.meta.env.DEV &&
+    Boolean(TEST_LOGIN_EMAIL && TEST_LOGIN_PASSWORD) &&
+    email.trim().toLowerCase() === TEST_LOGIN_EMAIL.toLowerCase() &&
+    password === TEST_LOGIN_PASSWORD
+  );
+}
 
 export default function LoginScreen({ onLogin, onBack, onFindId, onFindPassword, onShowSignup }: { onLogin: () => void; onBack: () => void; onFindId: () => void; onFindPassword: () => void; onShowSignup: () => void }) {
   const [email, setEmail] = useState('');
@@ -13,6 +25,26 @@ export default function LoginScreen({ onLogin, onBack, onFindId, onFindPassword,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isLocalTestLogin(email, password)) {
+      saveAuthSession(
+        LOCAL_TEST_AUTH_TOKEN,
+        {
+          id: -1,
+          userId: -1,
+          email: TEST_LOGIN_EMAIL,
+          nickname: '테스트사용자',
+          name: '테스트 사용자',
+          freshness: 50,
+          shareCompletedCount: 0,
+          saleCompletedCount: 0,
+          groupBuyParticipationCount: 0,
+        },
+        autoLogin
+      );
+      onLogin();
+      return;
+    }
 
     try {
       const response = await apiRequest(API_ENDPOINTS.login, {

@@ -1,6 +1,7 @@
 const AUTH_TOKEN_KEY = 'authToken';
 const USER_INFO_KEY = 'userInfo';
 const AUTO_LOGIN_KEY = 'autoLogin';
+export const LOCAL_TEST_AUTH_TOKEN = 'local-test-session';
 
 function normalizeAuthToken(token: string | null): string | null {
   if (!token) return null;
@@ -66,6 +67,10 @@ export function saveStoredUserInfo(userInfo: any) {
 
 export function hasAuthSession(): boolean {
   return Boolean(getAuthToken());
+}
+
+export function isLocalTestSession(): boolean {
+  return import.meta.env.DEV && getAuthToken() === LOCAL_TEST_AUTH_TOKEN;
 }
 
 export function clearAuthSession(notify = true) {

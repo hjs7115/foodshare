@@ -1,5 +1,7 @@
 package com.hjs.foodshare.post.service;
 
+import com.hjs.foodshare.ai.domain.IngredientAnalysis;
+import com.hjs.foodshare.ai.service.IngredientAnalysisService;
 import com.hjs.foodshare.comment.repository.CommentRepository;
 import com.hjs.foodshare.favorite.repository.FavoriteRepository;
 import com.hjs.foodshare.global.exception.BusinessException;
@@ -36,11 +38,13 @@ public class PostService {
     private final ReviewRepository reviewRepository;
     private final UserBlockRepository userBlockRepository;
     private final ImageUploadService imageUploadService;
+    private final IngredientAnalysisService ingredientAnalysisService;
 
     public PostService(PostRepository postRepository, UserRepository userRepository,
                        CommentRepository commentRepository, FavoriteRepository favoriteRepository,
                        ReviewRepository reviewRepository, UserBlockRepository userBlockRepository,
-                       ImageUploadService imageUploadService) {
+                       ImageUploadService imageUploadService,
+                       IngredientAnalysisService ingredientAnalysisService) {
         this.postRepository = postRepository;
         this.userRepository = userRepository;
         this.commentRepository = commentRepository;
@@ -48,6 +52,7 @@ public class PostService {
         this.reviewRepository = reviewRepository;
         this.userBlockRepository = userBlockRepository;
         this.imageUploadService = imageUploadService;
+        this.ingredientAnalysisService = ingredientAnalysisService;
     }
 
     @Transactional
@@ -60,6 +65,9 @@ public class PostService {
                 request.targetParticipantCount(),
                 request.deadlineDateValue()
         );
+        IngredientAnalysis ingredientAnalysis = request.postType() == PostType.GROUP_BUY
+                ? null
+                : ingredientAnalysisService.claimForPost(request.analysisId(), userId);
 
         Post post = Post.create(
                 writer,
@@ -77,7 +85,8 @@ public class PostService {
                 request.content(),
                 normalizeCurrentParticipantCount(request.postType(), request.currentParticipantCount()),
                 normalizeTargetParticipantCount(request.postType(), request.targetParticipantCount()),
-                normalizeDeadlineDate(request.postType(), request.deadlineDateValue())
+                normalizeDeadlineDate(request.postType(), request.deadlineDateValue()),
+                ingredientAnalysis
         );
 
         return toResponse(postRepository.save(post), userId);

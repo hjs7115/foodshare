@@ -2,7 +2,7 @@ spring:
   application:
     name: foodshare
   config:
-    import: optional:file:./application-local.properties
+    import: optional:file:./.env[.properties]
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/foodshare?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
     username: ${SPRING_DATASOURCE_USERNAME:root}
@@ -47,3 +47,6 @@ app:
   firebase:
     enabled: ${APP_FIREBASE_ENABLED:true}
     service-account: ${APP_FIREBASE_SERVICE_ACCOUNT:}
+  ai:
+    openai-api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_MODEL:gpt-4o-mini}

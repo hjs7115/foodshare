@@ -62,8 +62,31 @@ public record PostCreateRequest(
         Integer targetParticipantCount,
 
         @JsonAlias("deadline")
-        Object deadlineDate
+        Object deadlineDate,
+
+        Long analysisId
 ) {
+    public PostCreateRequest(
+            PostType postType,
+            String title,
+            String ingredientName,
+            String quantity,
+            Object price,
+            String tradeLocation,
+            Double distanceKm,
+            Double latitude,
+            Double longitude,
+            Object expirationDate,
+            String imageUrl,
+            String content,
+            Integer currentParticipantCount,
+            Integer targetParticipantCount,
+            Object deadlineDate
+    ) {
+        this(postType, title, ingredientName, quantity, price, tradeLocation, distanceKm, latitude, longitude,
+                expirationDate, imageUrl, content, currentParticipantCount, targetParticipantCount, deadlineDate, null);
+    }
+
     public PostCreateRequest {
         if (ingredientName == null || ingredientName.isBlank()) {
             ingredientName = title;

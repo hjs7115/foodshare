@@ -2,7 +2,9 @@ import { showToast } from '../../utils/feedback';
 ﻿import { useState, useRef } from 'react';
 import { X, Camera } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl, uploadImage } from '../../api/config';
+import type { IngredientAnalysisResult } from '../../api/ingredientAnalysis';
 import { getStoredUserInfo } from '../../auth/session';
+import IngredientAiAnalysisPanel from './IngredientAiAnalysisPanel';
 
 interface CreatePostScreenProps {
   onClose: () => void;
@@ -23,6 +25,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imageError, setImageError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<IngredientAnalysisResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,11 +128,38 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
     setDeadline(`${value.slice(0, 13)}:00`);
   };
 
+  const handleApplyAiAnalysis = (
+    result: IngredientAnalysisResult,
+    priceMode: 'recommended' | 'quick'
+  ) => {
+    setTitle((current) => current.trim() || `${result.ingredient.name} ${category === '나눔' ? '나눔합니다' : '판매합니다'}`);
+
+    const consumeBy = new Date();
+    consumeBy.setDate(consumeBy.getDate() + result.consumptionEstimate.daysMax);
+    const year = consumeBy.getFullYear();
+    const month = String(consumeBy.getMonth() + 1).padStart(2, '0');
+    const day = String(consumeBy.getDate()).padStart(2, '0');
+    setExpiry(`${year}-${month}-${day}`);
+
+    if (category === '판매') {
+      const selectedPrice = priceMode === 'quick'
+        ? result.pricing.quickSalePrice
+        : result.pricing.recommendedPrice;
+      if (selectedPrice != null) setPrice(String(selectedPrice));
+    }
+    setAiAnalysis(result);
+    showToast(priceMode === 'quick' ? '빠른 거래 가격을 적용했습니다.' : 'AI 분석 결과를 적용했습니다.');
+  };
+
   const handleSubmit = async () => {
     if (isSubmitting) return;
 
     if (!title || !amount) {
       showToast('제목과 수량은 필수 입력 항목입니다.');
+      return;
+    }
+    if (currentBoard === '나눔 및 판매' && !category) {
+      showToast('나눔 또는 판매 카테고리를 선택해주세요.');
       return;
     }
     if (images.length === 0) {
@@ -152,6 +182,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
 
       const postData = {
         title,
+        ingredientName: aiAnalysis?.ingredient.name || title,
         content,
         amount,
         price: category === '나눔' ? '무료나눔' : price || '가격미정',
@@ -160,6 +191,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
         category: currentBoard === '나눔 및 판매' ? category : '공동구매',
         image: uploadedImageUrl,
         imageUrl: uploadedImageUrl,
+        analysisId: aiAnalysis?.analysisMode === 'AI' ? aiAnalysis.analysisId : null,
         ...authorLocation,
         ...(currentBoard === '나눔 및 판매' && { expiry, deadline }),
         ...(currentBoard === '공동구매' && {
@@ -196,6 +228,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
         latitude: serverPost.latitude || authorLocation.latitude,
         longitude: serverPost.longitude || authorLocation.longitude,
         createdAt: serverPost.createdAt || new Date().toISOString(),
+        aiAnalysis: serverPost.aiAnalysis || aiAnalysis,
         ...(currentBoard === '나눔 및 판매' && {
           expiry: serverPost.expiry || expiry,
           deadline: serverPost.deadline || deadline,
@@ -227,6 +260,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
             latitude: newPost.latitude,
             longitude: newPost.longitude,
             createdAt: newPost.createdAt,
+            aiAnalysis: newPost.aiAnalysis,
           }
         : {
             id: newPost.id,
@@ -360,21 +394,6 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
             </div>
           )}
 
-          {/* Title */}
-          <div>
-            <label htmlFor="title" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
-              제목
-            </label>
-            <input
-              id="title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="제목을 입력하세요"
-              className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
-            />
-          </div>
-
           {/* Amount */}
           <div>
             <label htmlFor="amount" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
@@ -386,6 +405,31 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="예: 300g, 1개"
+              className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
+            />
+          </div>
+
+          {currentBoard === '나눔 및 판매' && (
+            <IngredientAiAnalysisPanel
+              imageFile={imageFiles[0]}
+              amount={amount}
+              category={category}
+              onApply={handleApplyAiAnalysis}
+              onResultChange={setAiAnalysis}
+            />
+          )}
+
+          {/* Title */}
+          <div>
+            <label htmlFor="title" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
+              제목
+            </label>
+            <input
+              id="title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="제목을 입력하세요"
               className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
             />
           </div>
@@ -411,7 +455,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
             <>
               <div>
                 <label htmlFor="expiry" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
-                  유통기한
+                  소비 권장일
                 </label>
                 <input
                   id="expiry"

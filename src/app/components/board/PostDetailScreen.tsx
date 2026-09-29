@@ -1,6 +1,6 @@
 import { showToast, showConfirm, showPrompt } from '../../utils/feedback';
 ﻿import { useState, useEffect } from 'react';
-import { X, Heart, MessageCircle, Send, User, Leaf, MoreVertical, Edit2, Trash2, Flag, Ban } from 'lucide-react';
+import { X, Heart, MessageCircle, Send, User, Leaf, MoreVertical, Edit2, Trash2, Flag, Ban, Sparkles } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl, createReport, blockUser, type ReportTargetType } from '../../api/config';
 import BackendImage from '../common/BackendImage';
 import { getStoredUserInfo } from '../../auth/session';
@@ -49,6 +49,26 @@ interface Post {
   mine?: boolean;
   owner?: boolean;
   editable?: boolean;
+  aiAnalysis?: {
+    analysisId: number;
+    analyzedAt: string;
+    analysisMode: 'AI' | 'DEMO';
+    ingredient: {
+      name: string;
+      qualityGrade: 'EXCELLENT' | 'GOOD' | 'FAIR' | 'POOR';
+      qualityReason: string;
+    };
+    consumptionEstimate: {
+      daysMin: number;
+      daysMax: number;
+    };
+    confidenceLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+    pricing?: {
+      recommendedPrice?: number;
+      quickSalePrice?: number;
+      policyVersion?: string;
+    };
+  };
 }
 
 interface Comment {
@@ -336,6 +356,26 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
     }
 
     return formatKoreanDate(value);
+  };
+
+  const getQualityLabel = (grade?: string) => ({
+    EXCELLENT: '매우 양호',
+    GOOD: '양호',
+    FAIR: '빠른 소비 권장',
+    POOR: '직접 확인 필요',
+  }[grade || ''] || grade || '확인 필요');
+
+  const getConfidenceLabel = (level?: string) => ({
+    HIGH: '높음',
+    MEDIUM: '보통',
+    LOW: '낮음',
+  }[level || ''] || level || '확인 필요');
+
+  const isAiEstimateExpired = (postData: Post) => {
+    if (!postData.aiAnalysis?.analyzedAt) return false;
+    const end = new Date(postData.aiAnalysis.analyzedAt);
+    end.setDate(end.getDate() + postData.aiAnalysis.consumptionEstimate.daysMax);
+    return end.getTime() < Date.now();
   };
 
   const getPostLocation = (postData: any): string => (
@@ -830,6 +870,43 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
               </div>
             )}
           </div>
+
+          {post.aiAnalysis && (
+            <section className="mb-4 rounded-lg border border-[#d9f99d] bg-[#fbfff4] p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-[#365314]">
+                  <Sparkles size={18} />
+                  <h3 className="text-sm" style={{ fontWeight: 700 }}>AI 분석 완료</h3>
+                </div>
+                <span className="text-xs text-[#718096]">분석 확실성 {getConfidenceLabel(post.aiAnalysis.confidenceLevel)}</span>
+              </div>
+              {isAiEstimateExpired(post) && (
+                <p className="mb-3 rounded-lg bg-[#fff7ed] px-3 py-2 text-xs text-[#9a3412]">분석 당시의 권장 소비 예상 기간이 경과했습니다.</p>
+              )}
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-[#718096]">분석 품목</span>
+                  <span className="text-right text-[#2d3748]" style={{ fontWeight: 600 }}>{post.aiAnalysis.ingredient.name}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-[#718096]">외관 상태</span>
+                  <span className="text-right text-[#2d3748]" style={{ fontWeight: 600 }}>{getQualityLabel(post.aiAnalysis.ingredient.qualityGrade)}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-[#718096]">권장 소비 예상 기간</span>
+                  <span className="text-right text-[#2d3748]" style={{ fontWeight: 600 }}>
+                    분석일 기준 {post.aiAnalysis.consumptionEstimate.daysMin}~{post.aiAnalysis.consumptionEstimate.daysMax}일
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-[#718096]">분석일</span>
+                  <span className="text-right text-[#2d3748]" style={{ fontWeight: 500 }}>{formatKoreanDate(post.aiAnalysis.analyzedAt)}</span>
+                </div>
+                <p className="rounded-lg bg-white px-3 py-2 text-xs leading-5 text-[#4a5568]">{post.aiAnalysis.ingredient.qualityReason}</p>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-[#718096]">사진과 입력 정보를 바탕으로 한 예상 결과이며, 섭취 안전을 보장하지 않습니다.</p>
+            </section>
+          )}
 
           <div className="pt-4 border-t border-[#e2e8f0]">
             <p className="text-[#2d3748] whitespace-pre-wrap">

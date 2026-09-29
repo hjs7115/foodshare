@@ -1,5 +1,6 @@
 package com.hjs.foodshare.post.domain;
 
+import com.hjs.foodshare.ai.domain.IngredientAnalysis;
 import com.hjs.foodshare.user.domain.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -87,13 +89,17 @@ public class Post {
     @Column(nullable = false)
     private boolean deleted;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ingredient_analysis_id", unique = true)
+    private IngredientAnalysis ingredientAnalysis;
+
     protected Post() {
     }
 
     private Post(User writer, PostType postType, String title, String ingredientName, String quantity,
                  Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,
                  Double latitude, Double longitude, String imageUrl, String content, Integer currentParticipantCount,
-                 Integer targetParticipantCount, LocalDateTime deadlineDate) {
+                 Integer targetParticipantCount, LocalDateTime deadlineDate, IngredientAnalysis ingredientAnalysis) {
         this.writer = writer;
         this.postType = postType;
         this.status = PostStatus.OPEN;
@@ -111,6 +117,7 @@ public class Post {
         this.currentParticipantCount = currentParticipantCount;
         this.targetParticipantCount = targetParticipantCount;
         this.deadlineDate = deadlineDate;
+        this.ingredientAnalysis = ingredientAnalysis;
         this.createdAt = LocalDateTime.now();
         this.deleted = false;
     }
@@ -119,9 +126,19 @@ public class Post {
                               Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,
                               Double latitude, Double longitude, String imageUrl, String content, Integer currentParticipantCount,
                               Integer targetParticipantCount, LocalDateTime deadlineDate) {
+        return create(writer, postType, title, ingredientName, quantity, price, tradeLocation, distanceKm,
+                expirationDate, latitude, longitude, imageUrl, content, currentParticipantCount,
+                targetParticipantCount, deadlineDate, null);
+    }
+
+    public static Post create(User writer, PostType postType, String title, String ingredientName, String quantity,
+                              Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,
+                              Double latitude, Double longitude, String imageUrl, String content, Integer currentParticipantCount,
+                              Integer targetParticipantCount, LocalDateTime deadlineDate,
+                              IngredientAnalysis ingredientAnalysis) {
         return new Post(writer, postType, title, ingredientName, quantity, price, tradeLocation,
                 distanceKm, expirationDate, latitude, longitude, imageUrl, content, currentParticipantCount,
-                targetParticipantCount, deadlineDate);
+                targetParticipantCount, deadlineDate, ingredientAnalysis);
     }
 
     public Long getId() { return id; }
@@ -163,6 +180,8 @@ public class Post {
     public LocalDateTime getCreatedAt() { return createdAt; }
 
     public boolean isDeleted() { return deleted; }
+
+    public IngredientAnalysis getIngredientAnalysis() { return ingredientAnalysis; }
 
     public boolean isOpen() { return status == PostStatus.OPEN && !deleted; }
 

@@ -1,6 +1,7 @@
 package com.hjs.foodshare.post.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.hjs.foodshare.ai.dto.IngredientAnalysisResponse;
 import com.hjs.foodshare.post.domain.Post;
 import com.hjs.foodshare.post.domain.PostStatus;
 import com.hjs.foodshare.post.domain.PostType;
@@ -50,7 +51,8 @@ public record PostResponse(
         LocalDateTime deadlineDate,
         Long daysUntilDeadline,
         String deadlineText,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        IngredientAnalysisResponse aiAnalysis
 ) {
 
     public static PostResponse from(Post post) {
@@ -113,7 +115,8 @@ public record PostResponse(
                 post.getDeadlineDate(),
                 daysUntilDeadline,
                 daysUntilDeadline == null ? null : toDeadlineText(daysUntilDeadline),
-                post.getCreatedAt()
+                post.getCreatedAt(),
+                IngredientAnalysisResponse.from(post.getIngredientAnalysis())
         );
     }
 
@@ -157,7 +160,8 @@ public record PostResponse(
                 deadlineDate,
                 daysUntilDeadline,
                 deadlineText,
-                createdAt
+                createdAt,
+                aiAnalysis
         );
     }
 

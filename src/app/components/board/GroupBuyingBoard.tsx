@@ -240,24 +240,29 @@ export default function GroupBuyingBoard({
             <p className="text-xs text-[#92400e]">이웃과 함께 필요한 만큼 구매해요</p>
           </div>
         </div>
-        <button onClick={() => setShowNotifications(true)} className="text-[#2d3748] relative" aria-label="알림 열기">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-[#e2e8f0] hover:border-[#fbbf24] transition-colors">
-            <Bell size={20} />
-          </div>
-          {hasUnreadNotifications && (
-            <div className="absolute top-0 right-0 w-2 h-2 bg-[#ef4444] rounded-full border-2 border-white" />
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowLocationSettings(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#e2e8f0] bg-white text-[#2d3748] shadow-sm transition-colors hover:border-[#fbbf24]"
+            aria-label="위치 설정"
+            title={location}
+          >
+            <MapPin size={20} className="text-[#f59e0b]" />
+          </button>
+          <button onClick={() => setShowNotifications(true)} className="text-[#2d3748] relative" aria-label="알림 열기">
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-[#e2e8f0] hover:border-[#fbbf24] transition-colors">
+              <Bell size={20} />
+            </div>
+            {hasUnreadNotifications && (
+              <div className="absolute top-0 right-0 w-2 h-2 bg-[#ef4444] rounded-full border-2 border-white" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Sort Options */}
       <div className="px-5 py-3 bg-white border-b border-[#e2e8f0]">
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowLocationSettings(true)} className="min-w-0 flex-1 text-left flex items-center gap-2 px-3 py-2 bg-[#f7fafc] border border-[#e2e8f0] rounded-full hover:border-[#fbbf24] transition-colors">
-            <span className="text-base flex-shrink-0">📍</span>
-            <span className="min-w-0 text-sm text-[#2d3748] truncate" style={{ fontWeight: 500 }}>{location}</span>
-          </button>
-
           <div className="relative shrink-0">
             <button
               onClick={() => {
@@ -469,19 +474,15 @@ export default function GroupBuyingBoard({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs text-[#718096]">
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-[#718096]">
                       <span className="flex items-center gap-1 text-[#16a34a]" style={{ fontWeight: 600 }}>
                         <span>{item.freshnessIcon || '🌱'}</span>
                         <span>신선도 {Math.round(item.freshness ?? 50)}% · {stripFreshnessIcon(item.freshnessLabel || '')}</span>
                       </span>
-                      <span className="text-[#cbd5e0]">|</span>
-                      <span className="flex items-center gap-1">
-                        <span className="text-[#16a34a]">📍</span> {item.distance}
-                      </span>
-                      <span className="text-[#cbd5e0]">|</span>
-                      <span className="flex items-center gap-1">
-                        <span className="text-[#dc2626]">⏰</span> {item.deadline}
-                      </span>
+                      <span>·</span>
+                      <span>{item.distance}</span>
+                      <span>·</span>
+                      <span>{item.deadline}</span>
                     </div>
                   </div>
                   <div className="ml-4">
@@ -502,20 +503,19 @@ export default function GroupBuyingBoard({
 
       <button
         onClick={() => setShowCreatePost(true)}
-        className="fixed bottom-24 right-5 z-40 flex h-13 items-center justify-center gap-1.5 rounded-full bg-[#fbbf24] px-5 py-3 text-[#0a0a0a] shadow-lg hover:bg-[#f59e0b] transition-colors"
+        className="fixed bottom-24 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-[#fbbf24] text-[#0a0a0a] shadow-lg hover:bg-[#f59e0b] transition-colors"
         aria-label="게시글 작성"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
         </svg>
-        <span className="text-sm" style={{ fontWeight: 800 }}>글쓰기</span>
       </button>
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-3 py-4 grid grid-cols-5 z-40">
-        <button onClick={() => onSwitchBoard('나눔 및 판매')} className="flex flex-col items-center gap-1">
+        <button onClick={() => onSwitchBoard('시장')} className="flex flex-col items-center gap-1">
           <BottomNavIcon icon={Leaf} color="#65a30d" borderColor="#bef264" />
-          <span className="text-[11px] text-[#bef264]">나눔/판매</span>
+          <span className="text-[11px] text-[#bef264]">시장</span>
         </button>
         <button onClick={() => onSwitchBoard('공동구매')} className="flex flex-col items-center gap-1">
           <BottomNavIcon icon={ShoppingCart} color="#f59e0b" borderColor="#fbbf24" />

@@ -104,8 +104,8 @@ export default function NotificationSettingsScreen({ onClose }: { onClose: () =>
               }`}
             >
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f0fdf4]">
-                  <item.icon size={20} className="text-[#65a30d]" />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#e2e8f0] bg-[#f8fafc]">
+                  <item.icon size={20} className="text-[#475569]" />
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm text-[#2d3748]" style={{ fontWeight: 800 }}>{item.label}</h3>

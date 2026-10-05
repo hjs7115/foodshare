@@ -135,7 +135,7 @@ export const API_ENDPOINTS = {
 };
 
 // 게시글 필터링 파라미터 타입
-export type PostType = 'SHARE' | 'SALE' | 'GROUP_BUY';
+export type PostType = 'SHARE' | 'SALE' | 'BUY' | 'GROUP_BUY';
 export type SortType = 'LATEST' | 'EXPIRING_SOON' | 'DISTANCE' | 'FRESHNESS' | 'PRICE_LOW';
 
 export interface PostQueryParams {

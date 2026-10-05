@@ -108,9 +108,9 @@ export default function App() {
   };
 
   const handleMainNavigate = (screen: string) => {
-    if (screen === '나눔 및 판매' || screen === '공동구매') {
+    if (screen === '시장' || screen === '나눔 및 판매' || screen === '공동구매') {
       setProfileTradeHistorySignal(0);
-      setSelectedCategory(screen);
+      setSelectedCategory(screen === '나눔 및 판매' ? '시장' : screen);
       setMainView('board');
       return;
     }
@@ -375,7 +375,7 @@ export default function App() {
     return renderWithChatToast(<ChatScreen onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} onChatUnreadChange={setChatUnreadCount} />);
   }
 
-  if (selectedCategory === '나눔 및 판매') {
+  if (selectedCategory === '시장' || selectedCategory === '나눔 및 판매') {
     return renderWithChatToast(<SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} />);
   }
 

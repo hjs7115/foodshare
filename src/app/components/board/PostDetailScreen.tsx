@@ -11,7 +11,7 @@ interface Post {
   content: string;
   price: string;
   amount: string;
-  postType: 'SHARE' | 'SALE' | 'GROUP_BUY';
+  postType: 'SHARE' | 'SALE' | 'BUY' | 'GROUP_BUY';
   status?: 'OPEN' | 'CLOSED';
   image: string;
   emoji?: string;
@@ -633,7 +633,13 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       return;
     }
 
-    const typeLabel = post?.postType === 'SHARE' ? '나눔' : post?.postType === 'SALE' ? '구매' : '공동구매 참여';
+    const typeLabel = post?.postType === 'SHARE'
+      ? '나눔'
+      : post?.postType === 'SALE'
+        ? '구매'
+        : post?.postType === 'BUY'
+          ? '판매 제안'
+          : '공동구매 참여';
 
     if (!(await showConfirm(`${typeLabel} 요청을 보내시겠습니까?`, '거래 요청', '요청'))) return;
 
@@ -689,6 +695,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       default:
         if (post?.postType === 'SHARE') return '나눔 요청하기';
         if (post?.postType === 'SALE') return '구매 요청하기';
+        if (post?.postType === 'BUY') return '판매 제안하기';
         return '공동구매 참여하기';
     }
   };
@@ -699,6 +706,8 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
         return <span className="bg-[#dcfce7] text-[#166534] px-3 py-1 rounded-full text-sm" style={{ fontWeight: 500 }}>나눔</span>;
       case 'SALE':
         return <span className="bg-[#dbeafe] text-[#1e40af] px-3 py-1 rounded-full text-sm" style={{ fontWeight: 500 }}>판매</span>;
+      case 'BUY':
+        return <span className="bg-[#fef3c7] text-[#92400e] px-3 py-1 rounded-full text-sm" style={{ fontWeight: 500 }}>구매희망</span>;
       case 'GROUP_BUY':
         return <span className="bg-[#fef3c7] text-[#92400e] px-3 py-1 rounded-full text-sm" style={{ fontWeight: 500 }}>공동구매</span>;
       default:

@@ -114,39 +114,37 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex flex-col bg-white">
       <SettingsHeader title="설정" onClose={onClose} />
 
-      <div className="flex-1 overflow-y-auto bg-[#f7fafc] pb-6">
+      <div className="flex-1 overflow-y-auto bg-[#f7fafc] px-5 py-5 pb-6">
         {settingsSections.map((section) => (
-          <section key={section.title} className="bg-white">
-            <div className="px-5 py-3 bg-[#f7fafc]">
-              <h2 className="text-xs text-[#718096]" style={{ fontWeight: 800 }}>{section.title}</h2>
-            </div>
-            {section.items.map((item, itemIndex) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={item.action}
-                className={`w-full px-5 py-4 text-left transition-colors hover:bg-[#f7fafc] ${
-                  itemIndex !== section.items.length - 1 ? 'border-b border-[#e2e8f0]' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
+          <section key={section.title} className="mb-5 last:mb-0">
+            <h2 className="mb-2 px-1 text-xs text-[#718096]" style={{ fontWeight: 800 }}>{section.title}</h2>
+            <div className="overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
+              {section.items.map((item, itemIndex) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={item.action}
+                  className={`flex min-h-[76px] w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[#f8fafc] ${
+                    itemIndex !== section.items.length - 1 ? 'border-b border-[#e2e8f0]' : ''
+                  }`}
+                >
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f1f5f9]">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#e2e8f0] bg-[#f8fafc]">
                       <item.icon size={20} className="text-[#475569]" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm text-[#1a202c]" style={{ fontWeight: 800 }}>{item.label}</p>
-                      <p className="mt-1 text-xs leading-5 text-[#718096]">{item.description}</p>
+                      <p className="text-sm leading-5 text-[#1a202c]" style={{ fontWeight: 800 }}>{item.label}</p>
+                      <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-[#718096]">{item.description}</p>
                     </div>
                   </div>
                   <ChevronRight size={20} className="shrink-0 text-[#cbd5e0]" />
-                </div>
-              </button>
-            ))}
+                </button>
+              ))}
+            </div>
           </section>
         ))}
 
-        <div className="mx-5 mt-5 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4">
+        <div className="mt-5 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4">
           <p className="text-sm leading-6 text-[#1e3a8a]">
             게시글, 댓글, 거래 내역, 관심 목록은 서버에 저장됩니다. 이 화면의 기기 저장 데이터 삭제는 현재 브라우저에 남은 로그인과 화면 설정만 정리합니다.
           </p>
@@ -277,7 +275,7 @@ const tutorialSteps = [
   },
   {
     title: '2. 게시글 둘러보기',
-    body: '나눔/판매 또는 공동구매 탭에서 게시글을 확인합니다. 검색어, 정렬, 거리 필터를 사용하면 필요한 식재료를 더 빠르게 찾을 수 있습니다.',
+    body: '시장 또는 공동구매 탭에서 게시글을 확인합니다. 검색어, 정렬, 거리 필터를 사용하면 필요한 식재료를 더 빠르게 찾을 수 있습니다.',
   },
   {
     title: '3. 거래 요청 보내기',

@@ -58,7 +58,7 @@ export default function FavoritesScreen({ onClose }: { onClose: () => void }) {
 
   const filteredFavorites = favorites.filter((fav) => {
     if (activeTab === 'all') return true;
-    if (activeTab === 'share') return fav.postType === 'SHARE' || fav.postType === 'SALE';
+    if (activeTab === 'share') return fav.postType === 'SHARE' || fav.postType === 'SALE' || fav.postType === 'BUY';
     if (activeTab === 'groupbuy') return fav.postType === 'GROUP_BUY';
     return true;
   });
@@ -96,7 +96,7 @@ export default function FavoritesScreen({ onClose }: { onClose: () => void }) {
           }`}
           style={{ fontWeight: activeTab === 'share' ? 600 : 400 }}
         >
-          나눔/판매
+          시장
         </button>
         <button
           onClick={() => setActiveTab('groupbuy')}

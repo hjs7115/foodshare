@@ -11,7 +11,7 @@ interface MyPost {
   content: string;
   price: string;
   amount: string;
-  postType: 'SHARE' | 'SALE' | 'GROUP_BUY';
+  postType: 'SHARE' | 'SALE' | 'BUY' | 'GROUP_BUY';
   status?: 'OPEN' | 'CLOSED';
   image: string;
   createdAt: string;
@@ -19,7 +19,7 @@ interface MyPost {
 
 export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
   const [myPosts, setMyPosts] = useState<MyPost[]>([]);
-  const [activeTab, setActiveTab] = useState<'all' | 'share' | 'sale' | 'groupbuy'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'share' | 'sale' | 'buy' | 'groupbuy'>('all');
   const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
 
@@ -72,6 +72,7 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
     if (activeTab === 'all') return true;
     if (activeTab === 'share') return post.postType === 'SHARE';
     if (activeTab === 'sale') return post.postType === 'SALE';
+    if (activeTab === 'buy') return post.postType === 'BUY';
     if (activeTab === 'groupbuy') return post.postType === 'GROUP_BUY';
     return true;
   });
@@ -80,6 +81,7 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
     switch (type) {
       case 'SHARE': return '나눔';
       case 'SALE': return '판매';
+      case 'BUY': return '구매';
       case 'GROUP_BUY': return '공동구매';
       default: return '';
     }
@@ -89,6 +91,7 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
     switch (type) {
       case 'SHARE': return 'bg-[#dcfce7] text-[#166534]';
       case 'SALE': return 'bg-[#dbeafe] text-[#1e40af]';
+      case 'BUY': return 'bg-[#fef3c7] text-[#92400e]';
       case 'GROUP_BUY': return 'bg-[#fef3c7] text-[#92400e]';
       default: return 'bg-[#f3f4f6] text-[#374151]';
     }
@@ -141,6 +144,17 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
           style={{ fontWeight: activeTab === 'sale' ? 600 : 400 }}
         >
           판매
+        </button>
+        <button
+          onClick={() => setActiveTab('buy')}
+          className={`py-3 px-2 border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === 'buy'
+              ? 'border-[#bef264] text-[#2d3748]'
+              : 'border-transparent text-[#718096]'
+          }`}
+          style={{ fontWeight: activeTab === 'buy' ? 600 : 400 }}
+        >
+          구매
         </button>
         <button
           onClick={() => setActiveTab('groupbuy')}

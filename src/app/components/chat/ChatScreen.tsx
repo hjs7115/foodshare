@@ -524,7 +524,7 @@ export default function ChatScreen({
 
   const filterTabs: { key: ChatFilter; label: string }[] = [
     { key: 'ALL', label: '전체' },
-    { key: 'SHARING', label: '나눔 및 판매' },
+    { key: 'SHARING', label: '시장' },
     { key: 'GROUP_BUY', label: '공동구매' },
     { key: 'UNREAD', label: '안읽음' },
   ];
@@ -1089,7 +1089,7 @@ export default function ChatScreen({
                           {room.pinned && <Pin size={15} className="shrink-0 fill-[#a0aec0] text-[#a0aec0]" />}
                           {room.muted && <BellOff size={15} className="shrink-0 text-[#a0aec0]" />}
                           <span className={`rounded-full px-2 py-0.5 text-[11px] ${isGroup ? 'bg-[#fef3c7] text-[#92400e]' : 'bg-[#ecfccb] text-[#65a30d]'}`}>
-                            {isGroup ? '공동구매' : '나눔/판매'}
+                            {isGroup ? '공동구매' : '시장'}
                           </span>
                         </div>
                         <span className="flex shrink-0 items-center gap-2">
@@ -1141,9 +1141,9 @@ export default function ChatScreen({
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 border-t border-[#e2e8f0] bg-white px-3 py-4">
-        <button onClick={() => onNavigate('나눔 및 판매')} className="flex flex-col items-center gap-1">
+        <button onClick={() => onNavigate('시장')} className="flex flex-col items-center gap-1">
           <BottomNavIcon icon={Leaf} color="#65a30d" borderColor="#bef264" />
-          <span className="text-[11px] text-[#bef264]">나눔/판매</span>
+          <span className="text-[11px] text-[#bef264]">시장</span>
         </button>
         <button onClick={() => onNavigate('공동구매')} className="flex flex-col items-center gap-1">
           <BottomNavIcon icon={ShoppingCart} color="#f59e0b" borderColor="#fbbf24" />

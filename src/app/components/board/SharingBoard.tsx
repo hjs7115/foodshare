@@ -11,6 +11,7 @@ import { API_ENDPOINTS, apiRequest, buildPostsUrl, getNotifications, resolveImag
 
 interface FoodItem {
   id: number;
+  tradeType: TradeType;
   emoji: string;
   name: string;
   amount: string;
@@ -32,6 +33,14 @@ interface FoodItem {
 }
 
 type SortType = 'latest' | 'expiry' | 'rating' | 'distance' | 'price';
+type TradeType = 'ALL' | 'SHARE' | 'SALE' | 'BUY';
+
+const TRADE_FILTERS: { value: TradeType; label: string }[] = [
+  { value: 'ALL', label: '전체' },
+  { value: 'SHARE', label: '나눔' },
+  { value: 'SALE', label: '판매' },
+  { value: 'BUY', label: '구매' },
+];
 
 export default function SharingBoard({
   onSwitchBoard,
@@ -53,6 +62,7 @@ export default function SharingBoard({
   const [isLoading, setIsLoading] = useState(true);
   const [location, setLocation] = useState('위치를 설정해주세요');
   const [sortType, setSortType] = useState<SortType>('latest');
+  const [tradeType, setTradeType] = useState<TradeType>('ALL');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [radiusKm, setRadiusKm] = useState(5);
   const [showRadiusFilter, setShowRadiusFilter] = useState(false);
@@ -64,10 +74,6 @@ export default function SharingBoard({
   }, []);
 
   // 서버에서 게시글 목록 불러오기
-  useEffect(() => {
-    loadPosts();
-  }, []);
-
   // 정렬 타입 변경 시 재정렬
   useEffect(() => {
     if (foodItems.length > 0) {
@@ -78,7 +84,7 @@ export default function SharingBoard({
   // 반경 필터 변경 시 새로고침
   useEffect(() => {
     loadPosts();
-  }, [radiusKm]);
+  }, [radiusKm, tradeType]);
 
   const loadLocation = () => {
     const savedLocation = localStorage.getItem('userLocation');
@@ -147,16 +153,21 @@ export default function SharingBoard({
       const allPosts = Array.isArray(serverPosts) ? serverPosts : [];
 
       let filteredPosts = allPosts
-        .filter((post: any) => (post.postType || post.type || post.category) === 'SHARE' || (post.postType || post.type || post.category) === 'SALE' || post.category === '나눔' || post.category === '판매')
+        .filter((post: any) => ['SHARE', 'SALE', 'BUY', '나눔', '판매', '구매'].includes(post.postType || post.type || post.category))
+        .filter((post: any) => {
+          if (tradeType === 'ALL') return true;
+          return getTradeType(post) === tradeType;
+        })
         .map((post: any) => {
           const distanceValue = getDistanceValue(post);
-          const postType = post.postType || post.type || post.category;
+          const postType = getTradeType(post);
           return {
             id: post.id,
+            tradeType: postType,
             emoji: post.emoji || '🥬',
             name: post.title || post.name,
             amount: post.amount || '수량 미정',
-            price: post.price || (postType === 'SHARE' ? '무료나눔' : '가격미정'),
+            price: post.price || (postType === 'SHARE' ? '무료나눔' : postType === 'BUY' ? '희망가 협의' : '가격미정'),
             distance: post.distance || `${distanceValue.toFixed(1)}km`,
             distanceValue,
             tradeLocation: getPostLocation(post),
@@ -222,6 +233,14 @@ export default function SharingBoard({
     if (typeof post.distanceValue === 'number') return post.distanceValue;
     const parsedDistance = parseFloat(String(post.distance || '').replace(/[^0-9.]/g, ''));
     return Number.isFinite(parsedDistance) ? parsedDistance : 0.5;
+  };
+
+  const getTradeType = (post: any): TradeType => {
+    const rawType = post.postType || post.type || post.category;
+    if (rawType === 'SHARE' || rawType === '나눔') return 'SHARE';
+    if (rawType === 'SALE' || rawType === '판매') return 'SALE';
+    if (rawType === 'BUY' || rawType === '구매') return 'BUY';
+    return 'SALE';
   };
 
   const getPostLocation = (post: any): string => (
@@ -321,28 +340,51 @@ export default function SharingBoard({
             <Leaf size={22} className="text-[#65a30d]" />
           </div>
           <div>
-            <h1 className="text-lg text-[#1a202c]" style={{ fontWeight: 800 }}>나눔 및 판매</h1>
+            <h1 className="text-lg text-[#1a202c]" style={{ fontWeight: 800 }}>시장</h1>
             <p className="text-xs text-[#365314]">이웃과 식재료를 나누고 거래해요</p>
           </div>
         </div>
-        <button onClick={() => setShowNotifications(true)} className="text-[#2d3748] relative" aria-label="알림 열기">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-[#e2e8f0] hover:border-[#bef264] transition-colors">
-            <Bell size={20} />
-          </div>
-          {hasUnreadNotifications && (
-            <div className="absolute top-0 right-0 w-2 h-2 bg-[#ef4444] rounded-full border-2 border-white" />
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowLocationSettings(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#e2e8f0] bg-white text-[#2d3748] shadow-sm transition-colors hover:border-[#bef264]"
+            aria-label="위치 설정"
+            title={location}
+          >
+            <MapPin size={20} className="text-[#65a30d]" />
+          </button>
+          <button onClick={() => setShowNotifications(true)} className="text-[#2d3748] relative" aria-label="알림 열기">
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-[#e2e8f0] hover:border-[#bef264] transition-colors">
+              <Bell size={20} />
+            </div>
+            {hasUnreadNotifications && (
+              <div className="absolute top-0 right-0 w-2 h-2 bg-[#ef4444] rounded-full border-2 border-white" />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Sort Options */}
       <div className="px-5 py-3 bg-white border-b border-[#e2e8f0]">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowLocationSettings(true)} className="min-w-0 flex-1 text-left flex items-center gap-2 px-3 py-2 bg-[#f7fafc] border border-[#e2e8f0] rounded-full hover:border-[#bef264] transition-colors">
-            <span className="text-base flex-shrink-0">📍</span>
-            <span className="min-w-0 text-sm text-[#2d3748] truncate" style={{ fontWeight: 500 }}>{location}</span>
-          </button>
+        <div className="mb-3 grid grid-cols-4 rounded-full bg-[#f1f5f9] p-1">
+          {TRADE_FILTERS.map((filter) => (
+            <button
+              key={filter.value}
+              type="button"
+              onClick={() => setTradeType(filter.value)}
+              className={`rounded-full px-2 py-2 text-sm transition-colors ${
+                tradeType === filter.value
+                  ? 'bg-white text-[#1a202c] shadow-sm'
+                  : 'text-[#718096] hover:text-[#2d3748]'
+              }`}
+              style={{ fontWeight: tradeType === filter.value ? 800 : 600 }}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
 
+        <div className="flex items-center gap-2">
           <div className="relative shrink-0">
             <button
               onClick={() => {
@@ -497,7 +539,7 @@ export default function SharingBoard({
               <Leaf size={78} strokeWidth={2.35} className="text-[#65a30d]" />
             </div>
             <p className="text-xl text-[#2d3748] mb-2" style={{ fontWeight: 600 }}>
-              아직 나눔 식재료가 없어요
+              아직 표시할 식재료가 없어요
             </p>
             <p className="text-sm text-[#718096] mb-6">
               냉장고에 남은 신선한 식재료를<br />이웃과 나눠보세요
@@ -513,7 +555,8 @@ export default function SharingBoard({
         ) : (
           <div className="space-y-3">
             {foodItems.map((item) => {
-              const isFree = item.price === '무료나눔' || item.price === 'Free' || item.price === 0;
+              const isFree = item.tradeType === 'SHARE' || item.price === '무료나눔' || item.price === 'Free' || item.price === 0;
+              const isBuying = item.tradeType === 'BUY';
               const neighborhood = getNeighborhood(item.tradeLocation);
               return (
                 <button
@@ -532,7 +575,11 @@ export default function SharingBoard({
                     </div>
 
                     <div className="flex items-center gap-2 mb-2">
-                      {isFree ? (
+                      {isBuying ? (
+                        <span className="inline-block bg-gradient-to-r from-[#fde68a] to-[#fbbf24] text-[#92400e] px-3 py-1 rounded-full text-xs" style={{ fontWeight: 700 }}>
+                          구매희망
+                        </span>
+                      ) : isFree ? (
                         <span className="inline-block bg-gradient-to-r from-[#86efac] to-[#bef264] text-[#0a0a0a] px-3 py-1 rounded-full text-xs" style={{ fontWeight: 700 }}>
                           무료나눔
                         </span>
@@ -591,20 +638,19 @@ export default function SharingBoard({
 
       <button
         onClick={() => setShowCreatePost(true)}
-        className="fixed bottom-24 right-5 z-40 flex h-13 items-center justify-center gap-1.5 rounded-full bg-[#bef264] px-5 py-3 text-[#0a0a0a] shadow-lg hover:bg-[#a3e635] transition-colors"
+        className="fixed bottom-24 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-[#bef264] text-[#0a0a0a] shadow-lg hover:bg-[#a3e635] transition-colors"
         aria-label="게시글 작성"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
         </svg>
-        <span className="text-sm" style={{ fontWeight: 800 }}>글쓰기</span>
       </button>
 
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-3 py-4 grid grid-cols-5 z-40">
-        <button onClick={() => onSwitchBoard('나눔 및 판매')} className="flex flex-col items-center gap-1">
+        <button onClick={() => onSwitchBoard('시장')} className="flex flex-col items-center gap-1">
           <BottomNavIcon icon={Leaf} color="#65a30d" borderColor="#bef264" />
-          <span className="text-[11px] text-[#bef264]">나눔/판매</span>
+          <span className="text-[11px] text-[#bef264]">시장</span>
         </button>
         <button onClick={() => onSwitchBoard('공동구매')} className="flex flex-col items-center gap-1">
           <BottomNavIcon icon={ShoppingCart} color="#f59e0b" borderColor="#fbbf24" />
@@ -633,7 +679,7 @@ export default function SharingBoard({
 
       {showCreatePost && (
         <CreatePostScreen
-          currentBoard="나눔 및 판매"
+          currentBoard="시장"
           onClose={() => setShowCreatePost(false)}
           onCreatePost={handleCreatePost}
         />
@@ -641,7 +687,7 @@ export default function SharingBoard({
 
       {showBoardSwitch && (
         <BoardSwitchModal
-          currentBoard="나눔 및 판매"
+          currentBoard="시장"
           onClose={() => setShowBoardSwitch(false)}
           onSelect={(board) => {
             setShowBoardSwitch(false);

@@ -366,9 +366,9 @@ export default function FridgeScreen({
       </button>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-3 py-4 grid grid-cols-5 z-40">
-        <button onClick={() => onNavigate('나눔 및 판매')} className="flex flex-col items-center gap-1">
+        <button onClick={() => onNavigate('시장')} className="flex flex-col items-center gap-1">
           <BottomNavIcon icon={Leaf} color="#65a30d" borderColor="#bef264" />
-          <span className="text-[11px] text-[#bef264]">나눔/판매</span>
+          <span className="text-[11px] text-[#bef264]">시장</span>
         </button>
         <button onClick={() => onNavigate('공동구매')} className="flex flex-col items-center gap-1">
           <BottomNavIcon icon={ShoppingCart} color="#f59e0b" borderColor="#fbbf24" />
@@ -409,7 +409,7 @@ export default function FridgeScreen({
 
       {showCreatePost && (
         <CreatePostScreen
-          currentBoard="나눔 및 판매"
+          currentBoard="시장"
           onClose={() => setShowCreatePost(false)}
           onCreatePost={() => setShowCreatePost(false)}
         />

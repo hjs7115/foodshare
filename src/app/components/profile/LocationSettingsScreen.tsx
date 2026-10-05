@@ -303,6 +303,8 @@ export default function LocationSettingsScreen({ onClose }: { onClose: () => voi
           isOpen={showMapModal}
           onClose={() => setShowMapModal(false)}
           onSelectAddress={handleSelectMapLocation}
+          initialAddress={location}
+          initialCoords={locationCoords}
         />
       )}
     </div>

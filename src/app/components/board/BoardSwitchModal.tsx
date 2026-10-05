@@ -11,9 +11,9 @@
 
         <div className="space-y-3">
           <button
-            onClick={() => onSelect('나눔 및 판매')}
+            onClick={() => onSelect('시장')}
             className={`w-full text-[#2d3748] py-4 rounded-2xl border-2 transition-colors text-left px-6 ${
-              currentBoard === '나눔 및 판매'
+              currentBoard === '시장' || currentBoard === '나눔 및 판매'
                 ? 'bg-[#f0fff4] border-[#bef264]'
                 : 'bg-white border-[#e2e8f0] hover:border-[#bef264] hover:bg-[#f9fafb]'
             }`}
@@ -21,9 +21,9 @@
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-lg">
                 <img src="/assets/app-brand-mark.png" alt="" className="h-8 w-10 object-contain" />
-                나눔 및 판매
+                시장
               </span>
-              {currentBoard === '나눔 및 판매' && (
+              {(currentBoard === '시장' || currentBoard === '나눔 및 판매') && (
                 <span className="text-sm text-[#718096]">현재 게시판</span>
               )}
             </div>

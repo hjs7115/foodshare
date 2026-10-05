@@ -1,4 +1,5 @@
 import { Leaf, ShoppingCart } from 'lucide-react';
+
 export default function CategorySelectScreen({
   onSelectCategory,
 }: {
@@ -14,15 +15,15 @@ export default function CategorySelectScreen({
 
         <div className="space-y-4">
           <button
-            onClick={() => onSelectCategory('나눔 및 판매')}
+            onClick={() => onSelectCategory('시장')}
             className="w-full bg-gradient-to-br from-[#f0fdf4] to-[#bef264] text-[#0a0a0a] py-8 rounded-2xl border-2 border-[#bef264] hover:from-[#dcfce7] hover:to-[#a3e635] transition-colors shadow-sm"
           >
             <div className="text-center">
               <div className="mb-3 flex justify-center">
                 <Leaf size={50} strokeWidth={2.4} className="text-[#65a30d]" />
               </div>
-              <div className="text-xl mb-2" style={{ fontWeight: 600 }}>나눔 및 판매</div>
-              <div className="text-sm text-[#365314]">식재료 나눔과 소분 판매</div>
+              <div className="text-xl mb-2" style={{ fontWeight: 600 }}>시장</div>
+              <div className="text-sm text-[#365314]">식재료를 나누고, 팔고, 구해요</div>
             </div>
           </button>
 

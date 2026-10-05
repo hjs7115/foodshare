@@ -27,6 +27,10 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<IngredientAnalysisResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isMarketBoard = currentBoard === '시장' || currentBoard === '나눔 및 판매';
+  const isShare = category === '나눔';
+  const isSale = category === '판매';
+  const isBuy = category === '구매';
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -132,7 +136,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
     result: IngredientAnalysisResult,
     priceMode: 'recommended' | 'quick'
   ) => {
-    setTitle((current) => current.trim() || `${result.ingredient.name} ${category === '나눔' ? '나눔합니다' : '판매합니다'}`);
+    setTitle((current) => current.trim() || `${result.ingredient.name} ${isShare ? '나눔합니다' : '판매합니다'}`);
 
     const consumeBy = new Date();
     consumeBy.setDate(consumeBy.getDate() + result.consumptionEstimate.daysMax);
@@ -141,7 +145,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
     const day = String(consumeBy.getDate()).padStart(2, '0');
     setExpiry(`${year}-${month}-${day}`);
 
-    if (category === '판매') {
+    if (isSale) {
       const selectedPrice = priceMode === 'quick'
         ? result.pricing.quickSalePrice
         : result.pricing.recommendedPrice;
@@ -158,19 +162,19 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
       showToast('제목과 수량은 필수 입력 항목입니다.');
       return;
     }
-    if (currentBoard === '나눔 및 판매' && !category) {
-      showToast('나눔 또는 판매 카테고리를 선택해주세요.');
+    if (isMarketBoard && !category) {
+      showToast('나눔, 판매, 구매 중 하나를 선택해주세요.');
       return;
     }
-    if (images.length === 0) {
+    if (!isBuy && images.length === 0) {
       const message = '게시글 사진을 최소 1장 첨부해주세요.';
       setImageError(message);
       showToast(message);
       return;
     }
 
-    const postType = currentBoard === '나눔 및 판매'
-      ? (category === '나눔' ? 'SHARE' : 'SALE')
+    const postType = isMarketBoard
+      ? (isShare ? 'SHARE' : isBuy ? 'BUY' : 'SALE')
       : 'GROUP_BUY';
     const authorLocation = getAuthorLocation();
     const currentUser = getCurrentUser();
@@ -178,22 +182,24 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
     setIsSubmitting(true);
 
     try {
-      const uploadedImageUrl = await uploadImage(imageFiles[0]);
+      const uploadedImageUrl = imageFiles[0]
+        ? await uploadImage(imageFiles[0])
+        : '/assets/food-placeholder.png';
 
       const postData = {
         title,
         ingredientName: aiAnalysis?.ingredient.name || title,
         content,
         amount,
-        price: category === '나눔' ? '무료나눔' : price || '가격미정',
+        price: isShare ? '무료나눔' : price || (isBuy ? '희망가 협의' : '가격미정'),
         postType,
         board: currentBoard,
-        category: currentBoard === '나눔 및 판매' ? category : '공동구매',
+        category: isMarketBoard ? category : '공동구매',
         image: uploadedImageUrl,
         imageUrl: uploadedImageUrl,
         analysisId: aiAnalysis?.analysisMode === 'AI' ? aiAnalysis.analysisId : null,
         ...authorLocation,
-        ...(currentBoard === '나눔 및 판매' && { expiry, deadline }),
+        ...(isMarketBoard && { expiry, deadline }),
         ...(currentBoard === '공동구매' && {
           targetCount: parseInt(targetCount) || 5,
           currentCount: 1,
@@ -216,7 +222,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
         postType: serverPost.postType || postType,
         distanceValue: serverPost.distanceValue || 0.5,
         distance: serverPost.distance || '0.5km',
-        emoji: currentBoard === '나눔 및 판매' ? '🥬' : '🛒',
+        emoji: isMarketBoard ? (isBuy ? '📝' : '🥬') : '🛒',
         image: resolveImageUrl(serverPost.image || serverPost.imageUrl || uploadedImageUrl),
         author: getAuthorFromPost(serverPost, currentUser),
         authorId: getUserId(serverPost.user || serverPost.author || serverPost.writer || serverPost.member) ??
@@ -229,7 +235,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
         longitude: serverPost.longitude || authorLocation.longitude,
         createdAt: serverPost.createdAt || new Date().toISOString(),
         aiAnalysis: serverPost.aiAnalysis || aiAnalysis,
-        ...(currentBoard === '나눔 및 판매' && {
+        ...(isMarketBoard && {
           expiry: serverPost.expiry || expiry,
           deadline: serverPost.deadline || deadline,
         }),
@@ -240,10 +246,12 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
         }),
       };
 
-      const localPost = currentBoard === '나눔 및 판매'
+      const localPost = isMarketBoard
         ? {
             id: newPost.id,
-            emoji: '🥬',
+            tradeType: postType,
+            postType,
+            emoji: isBuy ? '📝' : '🥬',
             name: newPost.title,
             amount: newPost.amount,
             price: newPost.price,
@@ -301,7 +309,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
           <X size={24} />
         </button>
         <h1 className="text-lg text-[#2d3748]" style={{ fontWeight: 600 }}>
-          {currentBoard === '나눔 및 판매' ? '나눔/판매 작성' : '공동구매 작성'}
+          {isMarketBoard ? '시장 글쓰기' : '공동구매 작성'}
         </h1>
         <button
           onClick={handleSubmit}
@@ -316,58 +324,13 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
       {/* Form Content */}
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="space-y-5">
-          {/* Image Upload */}
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleImageSelect}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-24 h-24 rounded-2xl border-2 border-dashed border-[#e2e8f0] flex flex-col items-center justify-center bg-[#f7fafc] shrink-0 hover:border-[#bef264] transition-colors"
-            >
-              <Camera size={24} className="text-[#cbd5e0] mb-1" />
-              <span className="text-xs text-[#718096]">
-                {images.length}/10
-              </span>
-            </button>
-
-            {/* Image Preview */}
-            {images.map((image, index) => (
-              <div key={index} className="relative w-24 h-24 rounded-2xl shrink-0">
-                <img
-                  src={image}
-                  alt={`preview ${index + 1}`}
-                  className="w-full h-full object-cover rounded-2xl"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveImage(index)}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-[#2d3748] text-white rounded-full flex items-center justify-center hover:bg-[#1a202c] transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-          {imageError && (
-            <p className="text-sm text-[#e53e3e] -mt-3">
-              {imageError}
-            </p>
-          )}
-
           {/* Category Selection */}
-          {currentBoard === '나눔 및 판매' && (
+          {isMarketBoard && (
             <div>
               <label className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
-                카테고리
+                거래 유형
               </label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => setCategory('나눔')}
                   className={`flex-1 py-3 rounded-xl border-2 transition-colors ${
@@ -390,8 +353,68 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
                 >
                   판매
                 </button>
+                <button
+                  onClick={() => setCategory('구매')}
+                  className={`py-3 rounded-xl border-2 transition-colors ${
+                    category === '구매'
+                      ? 'bg-[#f0fff4] border-[#bef264] text-[#0a0a0a]'
+                      : 'bg-white border-[#e2e8f0] text-[#2d3748]'
+                  }`}
+                  style={{ fontWeight: 500 }}
+                >
+                  구매
+                </button>
               </div>
             </div>
+          )}
+
+          {/* Image Upload */}
+          {!isBuy && (
+            <>
+              <div className="flex gap-3 overflow-x-auto pb-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-24 h-24 rounded-2xl border-2 border-dashed border-[#e2e8f0] flex flex-col items-center justify-center bg-[#f7fafc] shrink-0 hover:border-[#bef264] transition-colors"
+                >
+                  <Camera size={24} className="text-[#cbd5e0] mb-1" />
+                  <span className="text-xs text-[#718096]">
+                    {images.length}/10
+                  </span>
+                </button>
+
+                {/* Image Preview */}
+                {images.map((image, index) => (
+                  <div key={index} className="relative w-24 h-24 rounded-2xl shrink-0">
+                    <img
+                      src={image}
+                      alt={`preview ${index + 1}`}
+                      className="w-full h-full object-cover rounded-2xl"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(index)}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-[#2d3748] text-white rounded-full flex items-center justify-center hover:bg-[#1a202c] transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {imageError && (
+                <p className="text-sm text-[#e53e3e] -mt-3">
+                  {imageError}
+                </p>
+              )}
+            </>
           )}
 
           {/* Amount */}
@@ -409,7 +432,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
             />
           </div>
 
-          {currentBoard === '나눔 및 판매' && (
+          {isMarketBoard && !isBuy && (
             <IngredientAiAnalysisPanel
               imageFile={imageFiles[0]}
               amount={amount}
@@ -436,23 +459,24 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
 
           {/* Price */}
           <div>
-            <label htmlFor="price" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
-              가격
+              <label htmlFor="price" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
+              {isBuy ? '희망 가격' : '가격'}
             </label>
             <input
               id="price"
               type="text"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder={category === '나눔' ? '무료나눔' : '가격을 입력하세요'}
+              placeholder={isShare ? '무료나눔' : isBuy ? '희망 가격을 입력하세요' : '가격을 입력하세요'}
               className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
-              disabled={category === '나눔'}
+              disabled={isShare}
             />
           </div>
 
           {/* Expiry */}
-          {currentBoard === '나눔 및 판매' && (
+          {isMarketBoard && (
             <>
+              {!isBuy && (
               <div>
                 <label htmlFor="expiry" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
                   소비 권장일
@@ -465,9 +489,10 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
                   className="w-full px-4 py-3.5 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
                 />
               </div>
+              )}
               <div>
                 <label htmlFor="shareSaleDeadline" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 500 }}>
-                  거래 마감일
+                  {isBuy ? '희망 구매 기한' : '거래 마감일'}
                 </label>
                 <input
                   id="shareSaleDeadline"

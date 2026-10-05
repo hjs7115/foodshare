@@ -84,7 +84,7 @@ export default function EditProfileScreen({ onClose, onSave }: EditProfileScreen
   };
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col animate-slide-up">
+    <div className="fixed inset-0 bg-white z-50 flex flex-col">
       <div className="bg-white border-b border-[#e2e8f0] px-5 py-4 flex items-center justify-between">
         <button onClick={onClose} className="text-[#2d3748]">
           <X size={24} />

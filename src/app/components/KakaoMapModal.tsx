@@ -12,6 +12,8 @@ interface KakaoMapModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectAddress: (address: string, lat: number, lng: number) => void;
+  initialAddress?: string;
+  initialCoords?: { lat: number; lng: number } | null;
 }
 
 const KAKAO_MAP_APP_KEY =
@@ -96,6 +98,8 @@ export default function KakaoMapModal({
   isOpen,
   onClose,
   onSelectAddress,
+  initialAddress = '',
+  initialCoords = null,
 }: KakaoMapModalProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const markerRef = useRef<any>(null);
@@ -116,8 +120,8 @@ export default function KakaoMapModal({
     setLoadError('');
     setIsKakaoLoaded(false);
     setMap(null);
-    setSelectedAddress('');
-    setSelectedCoords(null);
+    setSelectedAddress(initialCoords ? initialAddress : '');
+    setSelectedCoords(initialCoords);
     setManualAddress('');
     setLocationStatus('');
     markerRef.current = null;
@@ -137,18 +141,27 @@ export default function KakaoMapModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen]);
+  }, [isOpen, initialAddress, initialCoords]);
 
   useEffect(() => {
     if (!isOpen || !isKakaoLoaded || !mapRef.current || !window.kakao?.maps) return;
 
-    const initialCenter = new window.kakao.maps.LatLng(37.5665, 126.978);
+    const initialCenter = initialCoords
+      ? new window.kakao.maps.LatLng(initialCoords.lat, initialCoords.lng)
+      : new window.kakao.maps.LatLng(37.5665, 126.978);
     const newMap = new window.kakao.maps.Map(mapRef.current, {
       center: initialCenter,
       level: 3,
     });
 
     setMap(newMap);
+
+    if (initialCoords) {
+      markerRef.current = new window.kakao.maps.Marker({
+        position: initialCenter,
+        map: newMap,
+      });
+    }
 
     window.kakao.maps.event.addListener(newMap, 'click', (mouseEvent: any) => {
       const latlng = mouseEvent.latLng;
@@ -162,7 +175,7 @@ export default function KakaoMapModal({
     });
 
     window.setTimeout(() => newMap.relayout(), 0);
-  }, [isOpen, isKakaoLoaded]);
+  }, [isOpen, isKakaoLoaded, initialCoords]);
 
   useEffect(() => {
     if (!map || !mapRef.current) return;

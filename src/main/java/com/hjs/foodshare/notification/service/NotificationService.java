@@ -223,7 +223,7 @@ public class NotificationService {
     }
 
     private long countGroupBuyParticipation(Long userId) {
-        return tradeRequestRepository.countByRequesterIdAndPostTypeAndStatus(
+        return tradeRequestRepository.countDistinctPostsByRequesterOrWriterAndPostTypeAndStatus(
                 userId,
                 PostType.GROUP_BUY,
                 TradeRequestStatus.COMPLETED

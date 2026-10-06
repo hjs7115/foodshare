@@ -22,6 +22,7 @@ import com.hjs.foodshare.fridge.service.FridgeItemService;
 import com.hjs.foodshare.notification.repository.NotificationRepository;
 import com.hjs.foodshare.notification.service.ExpiringPostNotificationService;
 import com.hjs.foodshare.notification.service.NotificationService;
+import com.hjs.foodshare.mypage.service.MyPageService;
 import com.hjs.foodshare.post.domain.Post;
 import com.hjs.foodshare.post.domain.PostStatus;
 import com.hjs.foodshare.post.domain.PostType;
@@ -86,6 +87,9 @@ class BackendFeatureFlowTests {
     private ChatService chatService;
 
     @Autowired
+    private MyPageService myPageService;
+
+    @Autowired
     private ExpiringPostNotificationService expiringPostNotificationService;
 
     @Autowired
@@ -145,6 +149,23 @@ class BackendFeatureFlowTests {
         assertEquals(groupChatRoomId, chatService.getRoomByTradeRequest(secondRequester.getId(), secondRequestId).chatRoomId());
         assertEquals(3, chatRoomMemberRepository.findAllByChatRoomId(groupChatRoomId).size());
         assertEquals(1, chatService.getRooms(firstRequester.getId(), "GROUP_BUY").size());
+    }
+
+    @Test
+    void completedGroupBuyCountsWriterAsParticipant() {
+        User writer = saveUser("group_count_writer");
+        User requester = saveUser("group_count_requester");
+        Long postId = postService.createPost(
+                writer.getId(),
+                groupBuyRequest("Counted group apples", 1, 2, LocalDate.now().plusDays(2))
+        ).postId();
+
+        Long requestId = tradeRequestService.createRequest(postId, requester.getId()).requestId();
+        tradeRequestService.accept(requestId, writer.getId());
+        tradeRequestService.complete(requestId, writer.getId());
+
+        assertEquals(1, myPageService.getMyPage(writer.getId()).groupBuyParticipationCount());
+        assertEquals(1, myPageService.getMyPage(requester.getId()).groupBuyParticipationCount());
     }
 
     @Test

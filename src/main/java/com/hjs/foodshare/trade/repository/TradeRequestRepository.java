@@ -50,6 +50,19 @@ public interface TradeRequestRepository extends JpaRepository<TradeRequest, Long
     );
 
     @Query("""
+            select count(distinct tr.post.id)
+            from TradeRequest tr
+            where tr.post.postType = :postType
+              and tr.status = :status
+              and (tr.requester.id = :userId or tr.post.writer.id = :userId)
+            """)
+    long countDistinctPostsByRequesterOrWriterAndPostTypeAndStatus(
+            @Param("userId") Long userId,
+            @Param("postType") PostType postType,
+            @Param("status") TradeRequestStatus status
+    );
+
+    @Query("""
             select count(tr)
             from TradeRequest tr
             where tr.status = :status

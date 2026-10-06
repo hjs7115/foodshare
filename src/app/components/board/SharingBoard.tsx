@@ -475,7 +475,7 @@ export default function SharingBoard({
             </button>
 
             {showRadiusFilter && (
-              <div className="absolute top-full right-0 mt-2 bg-white border border-[#e2e8f0] rounded-2xl shadow-lg p-4 z-10 w-[280px]">
+              <div className="absolute left-1/2 top-full z-20 mt-2 w-[min(280px,calc(100vw-2.5rem))] -translate-x-1/2 rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-lg">
                 <div className="mb-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm text-[#718096]">검색 반경</span>

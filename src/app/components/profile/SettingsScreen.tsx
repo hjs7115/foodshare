@@ -10,10 +10,8 @@ import {
   MapPin,
   MessageCircle,
   Shield,
-  User,
   X,
 } from 'lucide-react';
-import EditProfileScreen from './EditProfileScreen';
 import NotificationSettingsScreen from './NotificationSettingsScreen';
 import LocationSettingsScreen from './LocationSettingsScreen';
 import ChatSettingsScreen from './ChatSettingsScreen';
@@ -21,7 +19,7 @@ import FindPasswordScreen from '../auth/FindPasswordScreen';
 import { clearAuthSession, getStoredUserInfo } from '../../auth/session';
 import { showConfirm, showToast } from '../../utils/feedback';
 
-type SettingsView = 'main' | 'editProfile' | 'password' | 'notifications' | 'location' | 'chat' | 'privacy' | 'terms' | 'help' | 'notice';
+type SettingsView = 'main' | 'password' | 'notifications' | 'location' | 'chat' | 'privacy' | 'terms' | 'help' | 'notice';
 
 export default function SettingsScreen({ onClose }: { onClose: () => void }) {
   const [currentView, setCurrentView] = useState<SettingsView>('main');
@@ -43,10 +41,6 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
     showToast('기기 저장 정보를 삭제했습니다.', 'success');
     window.location.reload();
   };
-
-  if (currentView === 'editProfile') {
-    return <EditProfileScreen onClose={() => setCurrentView('main')} onSave={() => setCurrentView('main')} />;
-  }
 
   if (currentView === 'notifications') {
     return <NotificationSettingsScreen onClose={() => setCurrentView('main')} />;
@@ -85,7 +79,6 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
     {
       title: '계정',
       items: [
-        { icon: User, label: '프로필 수정', description: '닉네임, 연락처, 프로필 이미지를 관리합니다.', action: () => setCurrentView('editProfile') },
         { icon: Lock, label: '비밀번호 변경', description: '이메일 인증 후 새 비밀번호를 설정합니다.', action: () => setCurrentView('password') },
         { icon: Shield, label: '개인정보 처리방침', description: '수집하는 정보와 이용 목적을 확인합니다.', action: () => setCurrentView('privacy') },
         { icon: FileText, label: '이용약관', description: '반띵 서비스 이용 기준을 확인합니다.', action: () => setCurrentView('terms') },
@@ -168,7 +161,7 @@ function SettingsHeader({ title, onClose }: { title: string; onClose: () => void
   );
 }
 
-type InfoView = Exclude<SettingsView, 'main' | 'editProfile' | 'password' | 'notifications' | 'location' | 'chat'>;
+type InfoView = Exclude<SettingsView, 'main' | 'password' | 'notifications' | 'location' | 'chat'>;
 
 const policySections = {
   privacy: {

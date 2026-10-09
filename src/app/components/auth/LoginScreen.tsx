@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
-import { registerFirebaseMessaging } from '../../firebase';
 import { LOCAL_TEST_AUTH_TOKEN, saveAuthSession } from '../../auth/session';
 import { showToast } from '../../utils/feedback';
 
@@ -58,8 +57,7 @@ export default function LoginScreen({ onLogin, onBack, onFindId, onFindPassword,
       saveAuthSession(token || null, user, autoLogin);
 
       onLogin();
-      void registerFirebaseMessaging();
-    } catch (error: any) {
+      } catch (error: any) {
       showToast(error.message || '이메일 또는 비밀번호가 일치하지 않습니다.');
     }
   };
@@ -105,6 +103,7 @@ export default function LoginScreen({ onLogin, onBack, onFindId, onFindPassword,
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="비밀번호를 입력하세요"

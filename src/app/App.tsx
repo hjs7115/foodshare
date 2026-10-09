@@ -177,8 +177,10 @@ export default function App() {
 
     refreshChatUnreadCount();
     refreshNotificationUnreadCount(false);
-    registerFirebaseMessaging().catch(() => null);
-    const timer = window.setInterval(() => {
+    registerFirebaseMessaging().catch((error) => {
+    console.error('FCM 등록 실패:', error);
+   });
+      const timer = window.setInterval(() => {
       refreshChatUnreadCount();
       refreshNotificationUnreadCount(true);
     }, 10000);

@@ -40,7 +40,7 @@ public record TradeRequestResponse(
 ) {
 
     public static TradeRequestResponse from(TradeRequest tradeRequest) {
-        return from(tradeRequest, 0, 0, 0, 0, 0, 0, 0, 0, 0, null);
+        return from(tradeRequest, 0, 0, 0, 0, 0, 0, 0, 0, null);
     }
 
     public static TradeRequestResponse from(

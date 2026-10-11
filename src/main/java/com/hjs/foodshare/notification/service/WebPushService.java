@@ -2,6 +2,7 @@ package com.hjs.foodshare.notification.service;
 
 import com.hjs.foodshare.notification.domain.PushSubscription;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.Security;
 import java.util.concurrent.ExecutionException;
 import nl.martijndwars.webpush.Notification;
@@ -63,7 +64,7 @@ public class WebPushService {
                     subscription.getEndpoint(),
                     subscription.getP256dh(),
                     subscription.getAuth(),
-                    payload,
+                    payload.getBytes(StandardCharsets.UTF_8),
                     60 * 60
             );
             HttpResponse response = pushService.send(notification);

@@ -142,7 +142,7 @@ export default function SharingBoard({
 
   const getPostQueryParams = () => {
     const savedCoords = localStorage.getItem('userLocationCoords');
-    const params: any = { radiusKm };
+    const params: any = {};
 
     if (!savedCoords) return params;
 
@@ -151,6 +151,7 @@ export default function SharingBoard({
       if (typeof coords.lat === 'number' && typeof coords.lng === 'number') {
         params.lat = coords.lat;
         params.lng = coords.lng;
+        params.radiusKm = radiusKm;
       }
     } catch {
       localStorage.removeItem('userLocationCoords');
@@ -163,7 +164,8 @@ export default function SharingBoard({
     setIsLoading(true);
 
     try {
-      const response = await apiRequest(buildPostsUrl(getPostQueryParams()), { method: 'GET' });
+      const queryParams = getPostQueryParams();
+      const response = await apiRequest(buildPostsUrl(queryParams), { method: 'GET' });
       const serverPosts = response.posts || response.data?.posts || response.data || response || [];
       const allPosts = Array.isArray(serverPosts) ? serverPosts : [];
 
@@ -200,7 +202,9 @@ export default function SharingBoard({
           };
         });
 
-      filteredPosts = filteredPosts.filter((post: any) => post.distanceValue <= radiusKm);
+      if (queryParams.lat !== undefined && queryParams.lng !== undefined) {
+        filteredPosts = filteredPosts.filter((post: any) => post.distanceValue <= radiusKm);
+      }
       filteredPosts = sortPosts(filteredPosts);
       setFoodItems(filteredPosts);
     } catch (error) {

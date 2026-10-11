@@ -358,11 +358,10 @@ export default function FridgeScreen({
 
       <button
         onClick={openCreateForm}
-        className="fixed bottom-24 right-5 z-40 flex h-13 items-center justify-center gap-1.5 rounded-full bg-[#0284c7] px-5 py-3 text-white shadow-lg hover:bg-[#0369a1] transition-colors"
+        className="fixed bottom-24 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-[#0284c7] text-white shadow-lg hover:bg-[#0369a1] transition-colors"
         aria-label="식재료 추가"
       >
         <Plus size={20} />
-        <span className="text-sm" style={{ fontWeight: 800 }}>추가</span>
       </button>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-3 py-4 grid grid-cols-5 z-40">

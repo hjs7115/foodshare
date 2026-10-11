@@ -44,9 +44,10 @@ app:
   mail:
     from: ${MAIL_FROM:${MAIL_USERNAME:}}
     auth-code-expiration-millis: ${spring.mail.auth-code-expiration-millis}
-  firebase:
-    enabled: ${APP_FIREBASE_ENABLED:true}
-    service-account: ${APP_FIREBASE_SERVICE_ACCOUNT:}
+  web-push:
+    public-key: ${APP_WEB_PUSH_PUBLIC_KEY:}
+    private-key: ${APP_WEB_PUSH_PRIVATE_KEY:}
+    subject: ${APP_WEB_PUSH_SUBJECT:mailto:admin@foodshare.local}
   ai:
     openai-api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_MODEL:gpt-4o-mini}

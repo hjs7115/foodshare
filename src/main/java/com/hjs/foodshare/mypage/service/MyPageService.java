@@ -132,12 +132,17 @@ public class MyPageService {
 
     private TradeRequestResponse toTradeRequestResponse(TradeRequest tradeRequest) {
         Long requesterId = tradeRequest.getRequester().getId();
+        Long writerId = tradeRequest.getPost().getWriter().getId();
         return TradeRequestResponse.from(
                 tradeRequest,
                 countShareCompleted(requesterId),
                 countSaleCompleted(requesterId),
                 countReceivedShare(requesterId),
                 countGroupBuyParticipation(requesterId),
+                countShareCompleted(writerId),
+                countSaleCompleted(writerId),
+                countReceivedShare(writerId),
+                countGroupBuyParticipation(writerId),
                 chatService.findRoomIdByTradeRequestId(tradeRequest.getId())
         );
     }

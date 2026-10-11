@@ -8,6 +8,7 @@ import BackendImage from '../common/BackendImage';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
 import { API_ENDPOINTS, apiRequest, buildPostsUrl, getNotifications, resolveImageUrl } from '../../api/config';
+import { useNestedBack } from '../../utils/useNestedBack';
 
 interface FoodItem {
   id: number;
@@ -46,10 +47,14 @@ export default function SharingBoard({
   onSwitchBoard,
   onNavigate,
   chatUnreadCount = 0,
+  initialPostId,
+  onInitialPostHandled,
 }: {
   onSwitchBoard: (board: string) => void;
   onNavigate: (screen: string) => void;
   chatUnreadCount?: number;
+  initialPostId?: number | null;
+  onInitialPostHandled?: () => void;
 }) {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showBoardSwitch, setShowBoardSwitch] = useState(false);
@@ -66,6 +71,16 @@ export default function SharingBoard({
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [radiusKm, setRadiusKm] = useState(5);
   const [showRadiusFilter, setShowRadiusFilter] = useState(false);
+
+  useNestedBack(showCreatePost, () => setShowCreatePost(false));
+  useNestedBack(showPostDetail, () => { setShowPostDetail(false); setSelectedPostId(null); });
+
+  useEffect(() => {
+    if (!initialPostId) return;
+    setSelectedPostId(initialPostId);
+    setShowPostDetail(true);
+    onInitialPostHandled?.();
+  }, [initialPostId]);
 
   // 위치 정보 불러오기
   useEffect(() => {

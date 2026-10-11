@@ -34,7 +34,7 @@
   <text x="105" y="248" class="text">- 마이페이지, 신고/차단, 배지 UI</text>
   <text x="105" y="278" class="text">- JWT Access Token 저장/전송</text>
   <text x="105" y="308" class="text">- Refresh Token 기반 재로그인</text>
-  <text x="105" y="338" class="text">- FCM Web Push Token 등록</text>
+  <text x="105" y="338" class="text">- 브라우저 Web Push 구독 등록</text>
   <text x="105" y="368" class="text">- Geolocation 좌표 전송</text>
   <text x="105" y="398" class="text">- Kakao Maps 지도/주소 표시</text>
 
@@ -83,7 +83,7 @@
   <rect x="590" y="720" width="560" height="140" class="box external"/>
   <text x="630" y="770" class="head">External Services</text>
   <text x="630" y="812" class="text">- SMTP Mail: 이메일 인증 / 비밀번호 재설정 코드</text>
-  <text x="630" y="842" class="text">- Firebase FCM: Web Push 알림 발송</text>
+  <text x="630" y="842" class="text">- VAPID 표준 Web Push 발송</text>
 
   <rect x="1270" y="690" width="380" height="170" class="box storage"/>
   <text x="1305" y="740" class="head">File Storage</text>

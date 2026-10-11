@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Bell, MessageCircle, Megaphone, ShoppingBag, UserCheck, X } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
 import { showToast } from '../../utils/feedback';
+import { registerWebPushSubscription, supportsWebPush } from '../../webPush';
 
 interface NotificationSettings {
   newPost: boolean;
@@ -22,6 +23,10 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 export default function NotificationSettingsScreen({ onClose }: { onClose: () => void }) {
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
   const [isSavingKey, setIsSavingKey] = useState<keyof NotificationSettings | null>(null);
+  const [browserPermission, setBrowserPermission] = useState<NotificationPermission>(
+    () => typeof Notification === 'undefined' ? 'denied' : Notification.permission
+  );
+  const [isRegisteringPush, setIsRegisteringPush] = useState(false);
 
   useEffect(() => {
     const savedSettings = localStorage.getItem('notificationSettings');
@@ -73,6 +78,40 @@ export default function NotificationSettingsScreen({ onClose }: { onClose: () =>
     }
   };
 
+  const handleEnableBrowserNotifications = async () => {
+    if (!supportsWebPush()) {
+      showToast('이 브라우저는 푸시 알림을 지원하지 않습니다.', 'error');
+      return;
+    }
+
+    setIsRegisteringPush(true);
+    try {
+      const registered = await registerWebPushSubscription({ requestPermission: true });
+      setBrowserPermission(Notification.permission);
+      if (registered) {
+        try {
+          const response = await apiRequest(API_ENDPOINTS.testPush, {
+            method: 'POST',
+            body: JSON.stringify({}),
+          });
+          if (response?.data) {
+            showToast('이 기기로 테스트 알림을 보냈습니다.', 'success');
+          } else {
+            showToast('구독은 저장됐지만 서버가 푸시를 보내지 못했습니다. 서버 VAPID 설정을 확인해주세요.', 'error');
+          }
+        } catch {
+          showToast('구독은 저장됐지만 테스트 알림 전송에 실패했습니다.', 'error');
+        }
+      } else if (Notification.permission === 'denied') {
+        showToast('브라우저 사이트 설정에서 알림 권한을 허용해주세요.', 'error');
+      } else {
+        showToast('푸시 알림 연결에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+      }
+    } finally {
+      setIsRegisteringPush(false);
+    }
+  };
+
   const settingItems = [
     { key: 'newPost' as const, icon: ShoppingBag, label: '새 게시글 알림', description: '주변에 새 식재료 게시글이 올라오면 알려줍니다.' },
     { key: 'comment' as const, icon: MessageCircle, label: '댓글 알림', description: '내 게시글에 댓글이 달리면 알려줍니다.' },
@@ -121,8 +160,25 @@ export default function NotificationSettingsScreen({ onClose }: { onClose: () =>
 
         <div className="mt-5 rounded-2xl border border-[#fde68a] bg-[#fffbeb] p-4">
           <p className="text-sm leading-6 text-[#92400e]">
-            푸시 알림을 받으려면 브라우저 알림 권한도 허용되어 있어야 합니다. 브라우저에서 알림을 차단하면 앱 설정이 켜져 있어도 푸시가 표시되지 않을 수 있습니다.
+            앱의 알림 종류 설정과 기기 푸시 권한은 별도입니다. 푸시 알림을 받으려면 이 기기에서 알림 권한을 허용하고 연결해야 합니다.
           </p>
+          <button
+            type="button"
+            onClick={handleEnableBrowserNotifications}
+            disabled={isRegisteringPush}
+            className="mt-3 rounded-xl bg-[#92400e] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {isRegisteringPush
+              ? '기기 연결 중…'
+              : browserPermission === 'granted'
+                ? '이 기기 푸시 테스트'
+                : '이 기기 푸시 알림 허용'}
+          </button>
+          {browserPermission === 'denied' && (
+            <p className="mt-2 text-xs leading-5 text-[#92400e]">
+              권한이 차단된 경우 브라우저 또는 기기의 앱 설정에서 반띵 알림을 허용해주세요.
+            </p>
+          )}
         </div>
       </div>
     </div>

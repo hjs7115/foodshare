@@ -3,13 +3,15 @@ package com.hjs.foodshare.notification.service;
 import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.global.response.PageResponse;
 import com.hjs.foodshare.notification.domain.Notification;
-import com.hjs.foodshare.notification.dto.FcmTokenRequest;
+import com.hjs.foodshare.notification.domain.PushSubscription;
 import com.hjs.foodshare.notification.dto.NotificationResponse;
 import com.hjs.foodshare.notification.dto.NotificationSettingsRequest;
 import com.hjs.foodshare.notification.dto.NotificationSettingsResponse;
+import com.hjs.foodshare.notification.dto.PushSubscriptionRequest;
 import com.hjs.foodshare.notification.dto.TestPushRequest;
 import com.hjs.foodshare.notification.dto.UnreadNotificationCountResponse;
 import com.hjs.foodshare.notification.repository.NotificationRepository;
+import com.hjs.foodshare.notification.repository.PushSubscriptionRepository;
 import com.hjs.foodshare.post.domain.PostType;
 import com.hjs.foodshare.trade.domain.TradeRequestStatus;
 import com.hjs.foodshare.trade.repository.TradeRequestRepository;
@@ -18,6 +20,9 @@ import com.hjs.foodshare.user.repository.UserRepository;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.net.URI;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,15 +33,21 @@ public class NotificationService {
 
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
+    private final PushSubscriptionRepository pushSubscriptionRepository;
     private final TradeRequestRepository tradeRequestRepository;
-    private final FcmPushService fcmPushService;
+    private final WebPushService webPushService;
+    private final ObjectMapper objectMapper;
 
     public NotificationService(UserRepository userRepository, NotificationRepository notificationRepository,
-                               TradeRequestRepository tradeRequestRepository, FcmPushService fcmPushService) {
+                               PushSubscriptionRepository pushSubscriptionRepository,
+                               TradeRequestRepository tradeRequestRepository, WebPushService webPushService,
+                               ObjectMapper objectMapper) {
         this.userRepository = userRepository;
         this.notificationRepository = notificationRepository;
+        this.pushSubscriptionRepository = pushSubscriptionRepository;
         this.tradeRequestRepository = tradeRequestRepository;
-        this.fcmPushService = fcmPushService;
+        this.webPushService = webPushService;
+        this.objectMapper = objectMapper;
     }
 
     public NotificationSettingsResponse getSettings(Long userId) {
@@ -105,9 +116,36 @@ public class NotificationService {
     }
 
     @Transactional
-    public void registerFcmToken(Long userId, FcmTokenRequest request) {
+    public String getWebPushPublicKey() {
+        return webPushService.getPublicKey();
+    }
+
+    @Transactional
+    public void registerPushSubscription(Long userId, PushSubscriptionRequest request) {
         User user = getUser(userId);
-        user.updateFcmToken(request.token());
+        URI endpoint;
+        try {
+            endpoint = URI.create(request.endpoint());
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Invalid Web Push endpoint.");
+        }
+        if (!isTrustedPushEndpoint(endpoint)) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Unsupported Web Push provider endpoint.");
+        }
+
+        PushSubscriptionRequest.Keys keys = request.keys();
+        pushSubscriptionRepository.findByEndpoint(request.endpoint())
+                .ifPresentOrElse(
+                        existing -> existing.update(user, keys.p256dh(), keys.auth()),
+                        () -> pushSubscriptionRepository.save(PushSubscription.create(
+                                user, request.endpoint(), keys.p256dh(), keys.auth()))
+                );
+    }
+
+    @Transactional
+    public void removePushSubscription(Long userId, String endpoint) {
+        getUser(userId);
+        pushSubscriptionRepository.deleteByEndpointAndUser_Id(endpoint, userId);
     }
 
     @Transactional
@@ -119,23 +157,13 @@ public class NotificationService {
     public void createNotification(Long userId, String type, String title, String message, String targetType, Long targetId) {
         User user = getUser(userId);
         notificationRepository.save(Notification.create(user, type, title, message, targetType, targetId));
-        clearInvalidFcmTokenIfNeeded(user, fcmPushService.sendPush(
-                user.getFcmToken(),
-                title,
-                message,
-                pushData(type, targetType, targetId)
-        ));
+        sendPushToUser(userId, type, title, message, targetType, targetId);
     }
 
     @Transactional
     public void sendPushOnly(Long userId, String type, String title, String message, String targetType, Long targetId) {
         User user = getUser(userId);
-        clearInvalidFcmTokenIfNeeded(user, fcmPushService.sendPush(
-                user.getFcmToken(),
-                title,
-                message,
-                pushData(type, targetType, targetId)
-        ));
+        sendPushToUser(userId, type, title, message, targetType, targetId);
     }
 
     @Transactional
@@ -147,15 +175,49 @@ public class NotificationService {
                 : request.messageValue();
 
         notificationRepository.save(Notification.create(user, "TEST_PUSH", title, message));
-        boolean pushed = fcmPushService.sendPush(user.getFcmToken(), title, message);
-        clearInvalidFcmTokenIfNeeded(user, pushed);
-        return pushed;
+        return sendPushToUser(userId, "TEST_PUSH", title, message, null, null);
     }
 
-    private void clearInvalidFcmTokenIfNeeded(User user, boolean pushed) {
-        if (fcmPushService.isEnabled() && !pushed && user.getFcmToken() != null && !user.getFcmToken().isBlank()) {
-            user.clearFcmToken();
+    private boolean sendPushToUser(Long userId, String type, String title, String body,
+                                   String targetType, Long targetId) {
+        if (!webPushService.isEnabled()) return false;
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("title", title == null ? "" : title);
+        payload.put("body", body == null ? "" : body);
+        payload.putAll(pushData(type, targetType, targetId));
+        final String serializedPayload;
+        try {
+            serializedPayload = objectMapper.writeValueAsString(payload);
+        } catch (JsonProcessingException exception) {
+            return false;
         }
+
+        boolean delivered = false;
+        for (PushSubscription subscription : pushSubscriptionRepository.findAllByUser_Id(userId)) {
+            int status = webPushService.send(subscription, serializedPayload);
+            if (status >= 200 && status < 300) {
+                delivered = true;
+            } else if (status == 404 || status == 410) {
+                pushSubscriptionRepository.delete(subscription);
+            }
+        }
+        return delivered;
+    }
+
+    private boolean isTrustedPushEndpoint(URI endpoint) {
+        if (!"https".equalsIgnoreCase(endpoint.getScheme()) || endpoint.getHost() == null
+                || endpoint.getUserInfo() != null || endpoint.getPort() != -1 && endpoint.getPort() != 443) {
+            return false;
+        }
+        String host = endpoint.getHost().toLowerCase();
+        return host.equals("fcm.googleapis.com")
+                || host.endsWith(".push.services.mozilla.com")
+                || host.equals("push.services.mozilla.com")
+                || host.endsWith(".push.apple.com")
+                || host.equals("push.apple.com")
+                || host.equals("notify.windows.com")
+                || host.endsWith(".notify.windows.com");
     }
 
     private boolean valueOrCurrent(Boolean value, boolean current) {

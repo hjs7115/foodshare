@@ -8,6 +8,7 @@ import BackendImage from '../common/BackendImage';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
 import { API_ENDPOINTS, apiRequest, buildPostsUrl, getNotifications, resolveImageUrl } from '../../api/config';
+import { useNestedBack } from '../../utils/useNestedBack';
 
 interface GroupItem {
   id: number;
@@ -53,6 +54,9 @@ export default function GroupBuyingBoard({
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [radiusKm, setRadiusKm] = useState(5);
   const [showRadiusFilter, setShowRadiusFilter] = useState(false);
+
+  useNestedBack(showCreatePost, () => setShowCreatePost(false));
+  useNestedBack(showPostDetail, () => { setShowPostDetail(false); setSelectedPostId(null); });
 
   // 위치 정보 불러오기
   useEffect(() => {

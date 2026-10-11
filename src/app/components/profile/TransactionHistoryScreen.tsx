@@ -3,6 +3,8 @@ import { X, ArrowDownLeft, ArrowUpRight, CheckCircle2, XCircle, RefreshCw, User 
 import { API_ENDPOINTS, apiRequest, resolveImageUrl } from '../../api/config';
 import BackendImage from '../common/BackendImage';
 import { showToast, showConfirm } from '../../utils/feedback';
+import { getStoredUserInfo } from '../../auth/session';
+import { useNestedBack } from '../../utils/useNestedBack';
 
 interface TransactionHistoryScreenProps {
   onClose: () => void;
@@ -24,6 +26,15 @@ interface TradeRequest {
   requesterSaleCompletedCount?: number;
   requesterReceivedShareCount?: number;
   requesterGroupBuyCount?: number;
+  writerId?: number;
+  writerNickname?: string;
+  writerProfileImage?: string;
+  writerFreshness?: number;
+  writerFreshnessLabel?: string;
+  writerShareCompletedCount?: number;
+  writerSaleCompletedCount?: number;
+  writerReceivedShareCount?: number;
+  writerGroupBuyCount?: number;
   chatRoomId?: number;
   boardType?: 'sharing' | 'group';
   status: TradeStatus;
@@ -70,6 +81,8 @@ function getGroupDate(requests: TradeRequest[]): string | null | undefined {
 }
 
 export default function TransactionHistoryScreen({ onClose }: TransactionHistoryScreenProps) {
+  const storedUser = getStoredUserInfo<{ id?: number; userId?: number }>();
+  const currentUserId = Number(storedUser?.id ?? storedUser?.userId);
   const [activeTab, setActiveTab] = useState<TransactionTab>('received');
   const [sentRequests, setSentRequests] = useState<TradeRequest[]>([]);
   const [receivedRequests, setReceivedRequests] = useState<TradeRequest[]>([]);
@@ -78,6 +91,8 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [processingGroupKey, setProcessingGroupKey] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
+
+  useNestedBack(Boolean(selectedProfile), () => setSelectedProfile(null));
 
   useEffect(() => {
     loadTradeRequests();
@@ -129,6 +144,15 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       request.requester?.groupPurchaseCount ??
       request.user?.groupBuyCount
     ),
+    writerId: getNumberValue(request.writerId ?? request.writer?.id ?? request.post?.writer?.id),
+    writerNickname: request.writerNickname ?? request.writer?.nickname ?? request.post?.writer?.nickname,
+    writerProfileImage: request.writerProfileImage ?? request.writer?.profileImage ?? request.post?.writer?.profileImage,
+    writerFreshness: getNumberValue(request.writerFreshness ?? request.writer?.freshness ?? request.post?.writer?.freshness),
+    writerFreshnessLabel: request.writerFreshnessLabel ?? request.writer?.freshnessLabel ?? request.post?.writer?.freshnessLabel,
+    writerShareCompletedCount: getNumberValue(request.writerShareCompletedCount ?? request.writer?.shareCompletedCount),
+    writerSaleCompletedCount: getNumberValue(request.writerSaleCompletedCount ?? request.writer?.saleCompletedCount),
+    writerReceivedShareCount: getNumberValue(request.writerReceivedShareCount ?? request.writer?.receivedShareCount),
+    writerGroupBuyCount: getNumberValue(request.writerGroupBuyCount ?? request.writer?.groupBuyCount),
     chatRoomId: getNumberValue(request.chatRoomId ?? request.chatRoom?.id),
     boardType: getBoardType(request),
     status: request.status ?? 'PENDING',
@@ -136,6 +160,29 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     respondedAt: request.respondedAt,
     completedAt: request.completedAt,
   });
+
+  const getPartner = (request: TradeRequest) => {
+    const isRequester = Number.isFinite(currentUserId) && currentUserId === request.requesterId;
+    return isRequester
+      ? {
+          nickname: request.writerNickname,
+          profileImage: request.writerProfileImage,
+          freshness: request.writerFreshness,
+          freshnessLabel: request.writerFreshnessLabel,
+          shareCount: request.writerShareCompletedCount,
+          saleCount: request.writerSaleCompletedCount,
+          groupBuyCount: request.writerGroupBuyCount,
+        }
+      : {
+          nickname: request.requesterNickname,
+          profileImage: request.requesterProfileImage,
+          freshness: request.requesterFreshness,
+          freshnessLabel: request.requesterFreshnessLabel,
+          shareCount: request.requesterShareCompletedCount,
+          saleCount: request.requesterSaleCompletedCount,
+          groupBuyCount: request.requesterGroupBuyCount,
+        };
+  };
 
   const getNumberValue = (value: any): number | undefined => {
     const numeric = Number(value);
@@ -180,6 +227,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       divider: 'border-[#bef264]/30',
     };
   };
+  const selectedPartner = selectedProfile ? getPartner(selectedProfile) : null;
 
   const extractRequests = (response: any): TradeRequest[] => {
     const rawRequests =
@@ -575,16 +623,18 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
                         {group.postTitle || '게시글 제목 없음'}
                       </h3>
                       <div className="mt-3 space-y-2">
-                        {group.requests.map((request) => (
+                        {group.requests.map((request) => {
+                          const partner = getPartner(request);
+                          return (
                           <div
                             key={request.requestId}
                             className={`flex items-center gap-3 rounded-xl border bg-white px-3 py-2 ${tone.profileBorder}`}
                           >
                             <div className="w-9 h-9 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden flex-shrink-0">
-                              {request.requesterProfileImage ? (
+                              {partner.profileImage ? (
                                 <BackendImage
-                                  src={resolveImageUrl(request.requesterProfileImage)}
-                                  alt={request.requesterNickname || '요청자'}
+                                  src={resolveImageUrl(partner.profileImage)}
+                                  alt={partner.nickname || '거래 상대'}
                                   className="w-full h-full object-cover"
                                   fallbackSrc="/assets/profile-placeholder.svg"
                                 />
@@ -594,7 +644,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm text-[#2d3748]" style={{ fontWeight: 700 }}>
-                                {request.requesterNickname || '사용자'}
+                                {partner.nickname || '사용자'}
                               </p>
                             </div>
                             <button
@@ -606,7 +656,8 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
                               프로필보기
                             </button>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -628,10 +679,10 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {selectedProfile.requesterProfileImage ? (
+                  {selectedPartner?.profileImage ? (
                     <BackendImage
-                      src={resolveImageUrl(selectedProfile.requesterProfileImage)}
-                      alt={selectedProfile.requesterNickname || '요청자'}
+                      src={resolveImageUrl(selectedPartner.profileImage)}
+                      alt={selectedPartner.nickname || '거래 상대'}
                       className="w-full h-full object-cover"
                       fallbackSrc="/assets/profile-placeholder.svg"
                     />
@@ -642,12 +693,12 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
                 <div className="min-w-0">
                   <div className="mb-1 flex flex-wrap items-center gap-2">
                     <h2 className="truncate text-lg text-[#2d3748]" style={{ fontWeight: 700 }}>
-                      {selectedProfile.requesterNickname || '요청자'}
+                      {selectedPartner?.nickname || '거래 상대'}
                     </h2>
                     <div className="flex items-center gap-1 rounded-full bg-[#dcfce7] px-2 py-1">
                       <span className="text-xs">🌱</span>
                       <span className="text-xs text-[#16a34a]" style={{ fontWeight: 600 }}>
-                        신선도 {Math.round(selectedProfile.requesterFreshness ?? 50)}% · {stripFreshnessIcon(getFreshnessLabel(selectedProfile.requesterFreshness ?? 50))}
+                        신선도 {Math.round(selectedPartner?.freshness ?? 50)}% · {stripFreshnessIcon(selectedPartner?.freshnessLabel || getFreshnessLabel(selectedPartner?.freshness ?? 50))}
                       </span>
                     </div>
                   </div>
@@ -668,19 +719,19 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center">
                   <p className="mb-1 text-2xl text-[#2d3748]" style={{ fontWeight: 700 }}>
-                    {selectedProfile.requesterShareCompletedCount ?? 0}
+                    {selectedPartner?.shareCount ?? 0}
                   </p>
                   <p className="text-xs text-[#718096]">나눔 완료</p>
                 </div>
                 <div className={`border-x text-center ${getBoardTone(selectedProfile.boardType).divider}`}>
                   <p className="mb-1 text-2xl text-[#2d3748]" style={{ fontWeight: 700 }}>
-                    {selectedProfile.requesterSaleCompletedCount ?? 0}
+                    {selectedPartner?.saleCount ?? 0}
                   </p>
                   <p className="text-xs text-[#718096]">판매 완료</p>
                 </div>
                 <div className="text-center">
                   <p className="mb-1 text-2xl text-[#2d3748]" style={{ fontWeight: 700 }}>
-                    {selectedProfile.requesterGroupBuyCount ?? 0}
+                    {selectedPartner?.groupBuyCount ?? 0}
                   </p>
                   <p className="text-xs text-[#718096]">공구 참여</p>
                 </div>

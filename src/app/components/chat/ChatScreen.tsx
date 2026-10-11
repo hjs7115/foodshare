@@ -7,6 +7,7 @@ import BottomNavIcon from '../common/BottomNavIcon';
 import { showToast, showConfirm, showPrompt } from '../../utils/feedback';
 import { getChatSettings } from '../profile/ChatSettingsScreen';
 import KakaoMapModal from '../KakaoMapModal';
+import { useNestedBack } from '../../utils/useNestedBack';
 
 type ChatFilter = 'ALL' | 'SHARING' | 'GROUP_BUY' | 'UNREAD';
 const PROFILE_PLACEHOLDER = '/assets/profile-placeholder.svg';
@@ -50,10 +51,14 @@ export default function ChatScreen({
   onNavigate,
   chatUnreadCount = 0,
   onChatUnreadChange,
+  initialRoomId,
+  onInitialRoomHandled,
 }: {
   onNavigate: (screen: string) => void;
   chatUnreadCount?: number;
   onChatUnreadChange?: (count: number) => void;
+  initialRoomId?: number | null;
+  onInitialRoomHandled?: () => void;
 }) {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -72,6 +77,8 @@ export default function ChatScreen({
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [showChatMapModal, setShowChatMapModal] = useState(false);
+  const openedInitialRoomIdRef = useRef<number | null>(null);
+  useNestedBack(Boolean(selectedRoom), () => setSelectedRoom(null));
   const socketRef = useRef<WebSocket | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -348,6 +355,16 @@ export default function ChatScreen({
       setIsMessagesLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!initialRoomId || isLoading || openedInitialRoomIdRef.current === initialRoomId) return;
+    const room = rooms.find((item) => item.chatRoomId === initialRoomId);
+    if (room) {
+      openedInitialRoomIdRef.current = initialRoomId;
+      void openRoom(room);
+    }
+    onInitialRoomHandled?.();
+  }, [initialRoomId, isLoading, rooms]);
 
   const loadMessages = async (room: ChatRoom, options: { markRead?: boolean } = {}) => {
     if (refreshInFlightRef.current) return;

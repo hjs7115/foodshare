@@ -45,7 +45,7 @@
 | 📌 **채팅방 관리** | 채팅방 읽음 처리, 상단 고정, 알림 끄기, 상대 프로필 이미지 표시 |
 | ⭐ **리뷰와 평점** | 완료된 거래를 기반으로 리뷰를 작성하고 사용자 신뢰도 확인 |
 | ❤️ **관심 게시글** | 다시 보고 싶은 게시글을 관심 목록으로 저장 |
-| 🔔 **알림 설정** | 거래와 서비스 알림을 위한 설정, DB 알림 목록, FCM 푸시 알림 관리 |
+| 🔔 **알림 설정** | 거래와 서비스 알림, DB 알림 목록, 브라우저별 표준 Web Push 구독 관리 |
 | 🔐 **회원 인증** | JWT·Refresh Token 기반 로그인, 이메일 인증, 비밀번호 재설정 코드 인증, 닉네임·이메일·전화번호 중복 확인 제공 |
 | 🖼️ **이미지 업로드** | 게시글 이미지 업로드와 이미지 교체·삭제 시 로컬 파일 정리 지원 |
 | 🚨 **신고와 차단** | 사용자·게시글·댓글 신고, 사용자 차단/해제, 차단 사용자 콘텐츠 숨김 |
@@ -83,7 +83,7 @@ sequenceDiagram
     반띵->>작성자: 거래 요청 전달
     작성자->>반띵: 수락 / 거절 / 모집마감 / 완료 처리
     반띵->>사용자: 1대1 또는 공동구매 단체 채팅방 개설
-    반띵-->>사용자: DB 알림 / FCM 푸시 알림
+    반띵-->>사용자: DB 알림 / Web Push 알림
     사용자->>반띵: 완료된 거래에 리뷰 작성
     사용자->>반띵: 냉장고 식재료 등록 / 수정 / 삭제
     반띵->>사용자: 평점과 리뷰 정보 제공
@@ -99,7 +99,7 @@ sequenceDiagram
 graph TB
     subgraph Client["👤 Client / PWA"]
         Web["React + TypeScript + Vite"]
-        SW["Service Worker<br/>PWA / FCM"]
+        SW["Service Worker<br/>PWA / Web Push"]
     end
 
     subgraph Server["🖥️ Spring Boot"]
@@ -116,12 +116,12 @@ graph TB
         MySQL["MySQL"]
         Files["uploads/"]
         Mail["SMTP Mail"]
-        FCM["Firebase FCM"]
+        Push["Browser Push Services"]
     end
 
     Web --> API
     Web --> WS
-    SW --> FCM
+    SW --> Push
     API --> Security
     Security --> Domain
     WS --> Domain
@@ -129,7 +129,7 @@ graph TB
     Domain --> Badge
     Domain --> MySQL
     Domain --> Mail
-    Domain --> FCM
+    Domain --> Push
     API --> Upload
     Upload --> Files
 ```
@@ -197,7 +197,7 @@ graph TB
 
 나눔·판매 거래 요청을 수락하면 작성자와 요청자 사이의 1대1 채팅방이 열립니다. 공동구매는 모집마감 시 현재 참여자들을 채팅방 참여자로 묶어 단체 채팅방을 개설할 수 있습니다.
 
-채팅방은 메시지 조회와 전송, 읽음 처리, 읽지 않은 메시지 수, 상단 고정, 알림 끄기, 상대 프로필 이미지 표시를 지원하며, FCM 토큰이 등록된 사용자는 새 메시지 푸시 알림도 받을 수 있습니다.
+채팅방은 메시지 조회와 전송, 읽음 처리, 읽지 않은 메시지 수, 상단 고정, 알림 끄기, 상대 프로필 이미지 표시를 지원하며, 브라우저 구독이 등록된 사용자는 새 메시지 푸시 알림도 받을 수 있습니다.
 
 ### ⭐ 리뷰
 
@@ -207,7 +207,7 @@ graph TB
 
 ### 🔔 알림
 
-댓글, 거래 요청, 거래 수락, 거래 완료, 유통기한 임박 상황에서 사용자별 DB 알림을 생성합니다. 알림은 읽음 처리와 페이지 조회를 지원하며, FCM 토큰이 등록된 경우 웹 푸시 전송도 함께 시도합니다.
+댓글, 거래 요청, 거래 수락, 거래 완료, 유통기한 임박 상황에서 사용자별 DB 알림을 생성합니다. 알림은 읽음 처리와 페이지 조회를 지원하며, 브라우저 구독이 등록된 경우 표준 Web Push 전송도 함께 시도합니다.
 
 ### 🚨 신고와 차단
 
@@ -265,7 +265,7 @@ foodshare/
 ├── public/
 │   ├── assets/                        # PWA 아이콘, 기본 이미지 자산
 │   ├── manifest.webmanifest           # PWA 매니페스트
-│   └── firebase-messaging-sw.js       # PWA/FCM 서비스워커
+│   └── service-worker.js              # PWA/Web Push 서비스워커
 │
 ├── src/
 │   ├── app/                           # React 화면, 컴포넌트, API 클라이언트
@@ -294,7 +294,7 @@ foodshare/
 │   │   │   ├── review/                # 리뷰
 │   │   │   ├── mypage/                # 마이페이지
 │   │   │   ├── admin/                 # 관리자 통계, 신고 처리
-│   │   │   ├── notification/          # 알림, FCM, 유통기한 임박 알림
+│   │   │   ├── notification/          # 알림, Web Push, 유통기한 임박 알림
 │   │   │   ├── moderation/            # 신고, 차단
 │   │   │   ├── badge/                 # 배지, 업적
 │   │   │   ├── upload/                # 이미지 업로드
@@ -330,7 +330,7 @@ foodshare/
 | ORM | Spring Data JPA, Hibernate |
 | Validation | Jakarta Validation |
 | Mail | Spring Boot Mail, Angus Mail |
-| Push | Firebase Cloud Messaging |
+| Push | Web Push API, VAPID |
 | Build | Gradle, npm |
 | Test | JUnit Platform, H2 Database |
 | Library | Lombok |
@@ -501,7 +501,8 @@ sort=LATEST | EXPIRING_SOON | DISTANCE | FRESHNESS | PRICE_LOW
 | GET | `/api/notifications` | 알림 목록 조회 |
 | GET | `/api/notifications/page` | 알림 목록 페이지 조회 |
 | POST/PUT/PATCH | `/api/notifications/{notificationId}/read` | 알림 읽음 처리 |
-| POST | `/api/notifications/fcm-token` | FCM 토큰 등록 |
+| GET | `/api/notifications/web-push/public-key` | Web Push 공개 키 조회 |
+| POST | `/api/notifications/web-push/subscriptions` | 브라우저 구독 등록 |
 | POST | `/api/notifications/test-push` | 테스트 푸시 알림 전송 |
 
 ### Reports / Blocks
@@ -710,7 +711,7 @@ file
 - 완료된 거래 기반 리뷰 작성
 - 사용자 리뷰 및 평점 조회
 - 마이페이지 조회, 나눔 완료/판매 완료/공구 참여 통계, 프로필·위치 수정
-- DB 알림 목록/읽음 처리, 알림 설정, FCM 토큰 등록 및 테스트 푸시 API
+- DB 알림 목록/읽음 처리, 알림 설정, 브라우저 구독 등록 및 테스트 푸시 API
 - 이미지 업로드와 게시글 이미지 파일 정리
 - 신고/차단, 배지/업적 진행률과 종류 확장, 관리자 통계/신고 처리 API
 - React 기반 사용자 화면 구성

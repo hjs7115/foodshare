@@ -256,12 +256,17 @@ public class TradeRequestService {
 
     private TradeRequestResponse toResponse(TradeRequest tradeRequest, Long chatRoomId) {
         Long requesterId = tradeRequest.getRequester().getId();
+        Long writerId = tradeRequest.getPost().getWriter().getId();
         return TradeRequestResponse.from(
                 tradeRequest,
                 countShareCompleted(requesterId),
                 countSaleCompleted(requesterId),
                 countReceivedShare(requesterId),
                 countGroupBuyParticipation(requesterId),
+                countShareCompleted(writerId),
+                countSaleCompleted(writerId),
+                countReceivedShare(writerId),
+                countGroupBuyParticipation(writerId),
                 chatRoomId
         );
     }

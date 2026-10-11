@@ -1,7 +1,4 @@
-importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
-
-const CACHE_NAME = 'foodshare-pwa-v4';
+const CACHE_NAME = 'foodshare-pwa-v6';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -25,35 +22,26 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(
+        keys.filter((key) => key.startsWith('foodshare-pwa-') && key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      ))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-
-  if (request.method !== 'GET') {
-    return;
-  }
+  if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) {
-    return;
-  }
-
-  if (url.pathname.startsWith('/api/')) {
-    return;
-  }
-
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
   if (
     url.pathname.startsWith('/src/') ||
     url.pathname.startsWith('/@vite') ||
     url.pathname.startsWith('/@react-refresh') ||
     url.pathname.startsWith('/node_modules/')
-  ) {
-    return;
-  }
+  ) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -70,10 +58,7 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
-
+      if (cached) return cached;
       return fetch(request).then((response) => {
         if (response.ok) {
           const copy = response.clone();
@@ -85,34 +70,37 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-firebase.initializeApp({
-  apiKey: 'AIzaSyCJb7J--Z4oCbmLZFNFCS-sWxa87j9zmDY',
-  authDomain: 'foodshare-27405.firebaseapp.com',
-  projectId: 'foodshare-27405',
-  storageBucket: 'foodshare-27405.firebasestorage.app',
-  messagingSenderId: '1027733868360',
-  appId: '1:1027733868360:web:ef80eb6b455f4d53f5ad7d',
-  measurementId: 'G-MHRY9FK291',
-});
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data?.text() || '' };
+  }
 
-const messaging = firebase.messaging();
-
-messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || payload.data?.title || '반띵';
-  const clickAction = payload.data?.clickAction || '/';
-  const options = {
-    body: payload.notification?.body || payload.data?.body || '',
-    icon: '/assets/notification-icon-192.png',
-    badge: '/assets/notification-badge-96.png',
-    data: {
-      clickAction,
-      type: payload.data?.type || '',
-      targetType: payload.data?.targetType || '',
-      targetId: payload.data?.targetId || '',
-    },
+  const notification = {
+    title: payload.title || '반띵 알림',
+    body: payload.body || '새 알림이 도착했습니다.',
+    type: payload.type || '',
+    targetType: payload.targetType || '',
+    targetId: payload.targetId || '',
+    clickAction: payload.clickAction || '/?screen=notifications',
   };
 
-  self.registration.showNotification(title, options);
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(notification.title, {
+      body: notification.body,
+      icon: '/assets/notification-icon-192.png',
+      badge: '/assets/notification-badge-96.png',
+      data: notification,
+    }),
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      clients.forEach((client) => client.postMessage({
+        type: 'FOODSHARE_PUSH_RECEIVED',
+        payload: notification,
+      }));
+    }),
+  ]));
 });
 
 self.addEventListener('notificationclick', (event) => {

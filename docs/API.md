@@ -386,23 +386,27 @@ Authorization: Bearer {accessToken}
 
 Only the notification owner can mark it as read.
 
-### Register FCM Token
+### Get Web Push Public Key
 
 ```http
-POST /api/notifications/fcm-token
+GET /api/notifications/web-push/public-key
+```
+
+Returns the VAPID public key used by browser Push API subscriptions.
+
+### Register Web Push Subscription
+
+```http
+POST /api/notifications/web-push/subscriptions
 Content-Type: application/json
 Authorization: Bearer {accessToken}
 ```
 
-```json
-{
-  "token": "browser-fcm-token"
-}
-```
+The request body uses the standard `PushSubscription.toJSON()` shape: `endpoint` and `keys.p256dh` / `keys.auth`. Each browser installation registers separately.
 
 ### Send Test Push
 
-Creates a DB notification for the current user and attempts FCM delivery to the registered token.
+Creates a DB notification for the current user and attempts Web Push delivery to each registered browser subscription.
 
 ```http
 POST /api/notifications/test-push
@@ -417,9 +421,7 @@ Authorization: Bearer {accessToken}
 }
 ```
 
-Response `data` is `true` when FCM delivery was attempted successfully. It can be `false` when Firebase is disabled, no FCM token exists, or FCM rejects the token. The DB notification is still created.
-
-When Firebase is enabled and a registered FCM token is rejected, the backend clears the stored token so the client can register a fresh one.
+Response `data` is `true` when at least one push service accepts the message. It is `false` when VAPID is not configured, there are no subscriptions, or no push service accepts the message. The DB notification is still created. Expired subscriptions (HTTP 404/410) are removed.
 
 Paged notification list:
 

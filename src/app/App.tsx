@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   LandingScreen,
   LoginScreen,
@@ -13,11 +13,42 @@ import { FridgeScreen } from './components/fridge';
 import { ChatScreen } from './components/chat';
 import { getAuthToken, hasAuthSession } from './auth/session';
 import { API_ENDPOINTS, WS_BASE_URL, apiRequest, getNotificationUnreadCount, getNotifications } from './api/config';
-import { listenForegroundMessages, registerFirebaseMessaging } from './firebase';
-import { useRef } from 'react';
 
 type Screen = 'landing' | 'login' | 'signup' | 'findId' | 'findPassword' | 'category' | 'main';
 type MainView = 'board' | 'chat' | 'fridge' | 'profile';
+type AppRoute = { screen: Screen; selectedCategory: string | null; mainView: MainView };
+
+const APP_ROUTE_STATE_KEY = '__foodshareRoute';
+const APP_ROUTE_INDEX_KEY = '__foodshareRouteIndex';
+
+function isAppRoute(value: unknown): value is AppRoute {
+  if (!value || typeof value !== 'object') return false;
+  const route = value as Partial<AppRoute>;
+  return ['landing', 'login', 'signup', 'findId', 'findPassword', 'category', 'main'].includes(String(route.screen))
+    && ['board', 'chat', 'fridge', 'profile'].includes(String(route.mainView))
+    && (route.selectedCategory === null || typeof route.selectedCategory === 'string');
+}
+
+function getInitialRoute(): AppRoute {
+  if (!hasAuthSession()) {
+    return { screen: 'landing', selectedCategory: null, mainView: 'board' };
+  }
+
+  const requestedScreen = new URLSearchParams(window.location.search).get('screen');
+  const mainView: MainView = requestedScreen === 'chat'
+    ? 'chat'
+    : requestedScreen === 'fridge'
+      ? 'fridge'
+      : requestedScreen === 'profile' || requestedScreen === 'tradeHistory' || requestedScreen === 'notifications'
+        ? 'profile'
+        : 'board';
+
+  return {
+    screen: requestedScreen ? 'main' : 'category',
+    selectedCategory: requestedScreen === 'groupBuy' ? '공동구매' : '시장',
+    mainView,
+  };
+}
 
 interface ChatToast {
   roomId?: number;
@@ -26,35 +57,84 @@ interface ChatToast {
   clickAction?: string;
 }
 
-function showSystemNotification(title: string, body: string, clickAction = '/') {
-  if (!('Notification' in window) || Notification.permission !== 'granted') {
-    return;
-  }
-
-  const notification = new Notification(title, {
-    body,
-    icon: '/assets/notification-icon-192.png',
-    badge: '/assets/notification-badge-96.png',
-    data: { clickAction },
-  });
-
-  notification.onclick = () => {
-    window.focus();
-    const target = new URL(clickAction, window.location.origin);
-    window.history.pushState({}, '', target);
-    window.dispatchEvent(new PopStateEvent('popstate'));
-    notification.close();
-  };
-}
-
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('landing');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [mainView, setMainView] = useState<MainView>('board');
+  const [initialRoute] = useState(getInitialRoute);
+  const [currentScreen, setCurrentScreen] = useState<Screen>(initialRoute.screen);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(initialRoute.selectedCategory);
+  const [mainView, setMainView] = useState<MainView>(initialRoute.mainView);
+  const [chatRoomTargetId, setChatRoomTargetId] = useState<number | null>(() => {
+    const roomId = Number(new URLSearchParams(window.location.search).get('roomId'));
+    return new URLSearchParams(window.location.search).get('screen') === 'chat' && Number.isFinite(roomId) && roomId > 0 ? roomId : null;
+  });
+  const [postTargetId, setPostTargetId] = useState<number | null>(() => {
+    const postId = Number(new URLSearchParams(window.location.search).get('postId'));
+    return new URLSearchParams(window.location.search).get('screen') === 'post' && Number.isFinite(postId) && postId > 0 ? postId : null;
+  });
   const [profileTradeHistorySignal, setProfileTradeHistorySignal] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [chatToast, setChatToast] = useState<ChatToast | null>(null);
   const notificationUnreadCountRef = useRef<number | null>(null);
+  const appHistoryRef = useRef<{ route: AppRoute | null; index: number; suppressRoutePush: boolean }>({
+    route: null,
+    index: 0,
+    suppressRoutePush: false,
+  });
+
+  useEffect(() => {
+    const route: AppRoute = { screen: currentScreen, selectedCategory, mainView };
+    const routeKey = JSON.stringify(route);
+    const historyState = window.history.state && typeof window.history.state === 'object'
+      ? window.history.state
+      : {};
+
+    if (!appHistoryRef.current.route) {
+      const rootState = {
+        ...historyState,
+        [APP_ROUTE_STATE_KEY]: route,
+        [APP_ROUTE_INDEX_KEY]: 0,
+      };
+      window.history.replaceState(rootState, '', window.location.href);
+      appHistoryRef.current = { route, index: 0, suppressRoutePush: false };
+      return;
+    }
+
+    if (appHistoryRef.current.suppressRoutePush) {
+      appHistoryRef.current = { ...appHistoryRef.current, route, suppressRoutePush: false };
+      return;
+    }
+
+    if (JSON.stringify(appHistoryRef.current.route) === routeKey) return;
+
+    const nextIndex = Math.max(
+      appHistoryRef.current.index,
+      Number(window.history.state?.[APP_ROUTE_INDEX_KEY] ?? 0)
+    ) + 1;
+    window.history.pushState({
+      ...historyState,
+      [APP_ROUTE_STATE_KEY]: route,
+      [APP_ROUTE_INDEX_KEY]: nextIndex,
+    }, '', window.location.href);
+    appHistoryRef.current = { route, index: nextIndex, suppressRoutePush: false };
+  }, [currentScreen, selectedCategory, mainView]);
+
+  useEffect(() => {
+    const handleBackNavigation = (event: PopStateEvent) => {
+      const state = event.state && typeof event.state === 'object' ? event.state : {};
+      const route = isAppRoute(state[APP_ROUTE_STATE_KEY])
+        ? state[APP_ROUTE_STATE_KEY] as AppRoute
+        : appHistoryRef.current.route || initialRoute;
+      const index = Number(state[APP_ROUTE_INDEX_KEY] ?? appHistoryRef.current.index);
+      const routeChanged = JSON.stringify(route) !== JSON.stringify(appHistoryRef.current.route);
+
+      appHistoryRef.current = { route, index, suppressRoutePush: routeChanged };
+      setCurrentScreen(route.screen);
+      setSelectedCategory(route.selectedCategory);
+      setMainView(route.mainView);
+    };
+
+    window.addEventListener('popstate', handleBackNavigation);
+    return () => window.removeEventListener('popstate', handleBackNavigation);
+  }, [initialRoute]);
 
   const refreshChatUnreadCount = async () => {
     if (!hasAuthSession()) {
@@ -107,6 +187,14 @@ export default function App() {
     }
   };
 
+  const goBack = (fallbackScreen: Screen = 'landing') => {
+    if (appHistoryRef.current.index > 0) {
+      window.history.back();
+      return;
+    }
+    setCurrentScreen(fallbackScreen);
+  };
+
   const handleMainNavigate = (screen: string) => {
     if (screen === '시장' || screen === '나눔 및 판매' || screen === '공동구매') {
       setProfileTradeHistorySignal(0);
@@ -136,7 +224,18 @@ export default function App() {
     const url = new URL(clickAction, window.location.origin);
     const screen = url.searchParams.get('screen');
     if (screen === 'chat') {
+      const roomId = Number(url.searchParams.get('roomId'));
+      setChatRoomTargetId(Number.isFinite(roomId) && roomId > 0 ? roomId : null);
       handleMainNavigate('chat');
+      return;
+    }
+    if (screen === 'post') {
+      const postId = Number(url.searchParams.get('postId'));
+      if (Number.isFinite(postId) && postId > 0) {
+        setPostTargetId(postId);
+        setSelectedCategory('시장');
+        setMainView('board');
+      }
       return;
     }
     if (screen === 'tradeHistory') {
@@ -153,12 +252,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (hasAuthSession()) {
-      setCurrentScreen('category');
-    }
-  }, []);
-
-  useEffect(() => {
     const handleSessionCleared = () => {
       notificationUnreadCountRef.current = 0;
       setChatUnreadCount(0);
@@ -166,6 +259,10 @@ export default function App() {
       setSelectedCategory(null);
       setMainView('board');
       setCurrentScreen('landing');
+      const landingRoute: AppRoute = { screen: 'landing', selectedCategory: null, mainView: 'board' };
+      const historyState = window.history.state && typeof window.history.state === 'object' ? window.history.state : {};
+      window.history.replaceState({ ...historyState, [APP_ROUTE_STATE_KEY]: landingRoute, [APP_ROUTE_INDEX_KEY]: 0 }, '', window.location.href);
+      appHistoryRef.current = { route: landingRoute, index: 0, suppressRoutePush: true };
     };
 
     window.addEventListener('auth-session-cleared', handleSessionCleared);
@@ -177,10 +274,7 @@ export default function App() {
 
     refreshChatUnreadCount();
     refreshNotificationUnreadCount(false);
-    registerFirebaseMessaging().catch((error) => {
-    console.error('FCM 등록 실패:', error);
-   });
-      const timer = window.setInterval(() => {
+    const timer = window.setInterval(() => {
       refreshChatUnreadCount();
       refreshNotificationUnreadCount(true);
     }, 10000);
@@ -199,34 +293,26 @@ export default function App() {
   useEffect(() => {
     if (currentScreen !== 'main') return;
 
-    let unsubscribe: (() => void) | undefined;
     let toastTimer: number | undefined;
-
-    listenForegroundMessages((payload) => {
-      const type = payload.data?.type || '';
-      if (type === 'CHAT_MESSAGE') {
-        showSystemNotification(
-          payload.notification?.title || '새 채팅',
-          payload.notification?.body || '새 채팅이 도착했습니다.',
-          payload.data?.clickAction || '/?screen=chat'
-        );
-        return;
-      }
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type !== 'FOODSHARE_PUSH_RECEIVED') return;
+      const payload = event.data.payload || {};
+      if (payload.type === 'CHAT_MESSAGE') return;
 
       setChatToast({
-        senderNickname: payload.notification?.title || '반띵 알림',
-        content: payload.notification?.body || '새 알림이 도착했습니다.',
-        clickAction: payload.data?.clickAction || '/?screen=notifications',
+        senderNickname: payload.title || '반띵 알림',
+        content: payload.body || '새 알림이 도착했습니다.',
+        clickAction: payload.clickAction || '/?screen=notifications',
       });
       window.clearTimeout(toastTimer);
       toastTimer = window.setTimeout(() => setChatToast(null), 4500);
-    }).then((cleanup) => {
-      unsubscribe = cleanup;
-    });
+    };
+
+    navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
 
     return () => {
       window.clearTimeout(toastTimer);
-      unsubscribe?.();
+      navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
     };
   }, [currentScreen]);
 
@@ -320,7 +406,7 @@ export default function App() {
     return (
       <LoginScreen
         onLogin={() => setCurrentScreen('category')}
-        onBack={() => setCurrentScreen('landing')}
+        onBack={() => goBack('landing')}
         onFindId={() => setCurrentScreen('findId')}
         onFindPassword={() => setCurrentScreen('findPassword')}
         onShowSignup={() => setCurrentScreen('signup')}
@@ -332,7 +418,7 @@ export default function App() {
     return (
       <SignupScreen
         onSignup={() => setCurrentScreen('login')}
-        onBack={() => setCurrentScreen('landing')}
+        onBack={() => goBack('landing')}
         onShowLogin={() => setCurrentScreen('login')}
       />
     );
@@ -341,7 +427,7 @@ export default function App() {
   if (currentScreen === 'findId') {
     return (
       <FindIdScreen
-        onBack={() => setCurrentScreen('login')}
+        onBack={() => goBack('login')}
       />
     );
   }
@@ -349,7 +435,7 @@ export default function App() {
   if (currentScreen === 'findPassword') {
     return (
       <FindPasswordScreen
-        onBack={() => setCurrentScreen('login')}
+        onBack={() => goBack('login')}
       />
     );
   }
@@ -374,16 +460,16 @@ export default function App() {
   }
 
   if (mainView === 'chat') {
-    return renderWithChatToast(<ChatScreen onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} onChatUnreadChange={setChatUnreadCount} />);
+    return renderWithChatToast(<ChatScreen onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} onChatUnreadChange={setChatUnreadCount} initialRoomId={chatRoomTargetId} onInitialRoomHandled={() => setChatRoomTargetId(null)} />);
   }
 
   if (selectedCategory === '시장' || selectedCategory === '나눔 및 판매') {
-    return renderWithChatToast(<SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} />);
+    return renderWithChatToast(<SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} initialPostId={postTargetId} onInitialPostHandled={() => setPostTargetId(null)} />);
   }
 
   if (selectedCategory === '공동구매') {
     return renderWithChatToast(<GroupBuyingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} />);
   }
 
-  return renderWithChatToast(<SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} />);
+  return renderWithChatToast(<SharingBoard onSwitchBoard={(board) => setSelectedCategory(board)} onNavigate={handleMainNavigate} chatUnreadCount={chatUnreadCount} initialPostId={postTargetId} onInitialPostHandled={() => setPostTargetId(null)} />);
 }

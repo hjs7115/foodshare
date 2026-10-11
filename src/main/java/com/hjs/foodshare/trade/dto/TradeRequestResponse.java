@@ -23,6 +23,15 @@ public record TradeRequestResponse(
         long requesterSaleCompletedCount,
         long requesterReceivedShareCount,
         long requesterGroupBuyCount,
+        Long writerId,
+        String writerNickname,
+        String writerProfileImage,
+        double writerFreshness,
+        String writerFreshnessLabel,
+        long writerShareCompletedCount,
+        long writerSaleCompletedCount,
+        long writerReceivedShareCount,
+        long writerGroupBuyCount,
         Long chatRoomId,
         TradeRequestStatus status,
         LocalDateTime createdAt,
@@ -31,7 +40,7 @@ public record TradeRequestResponse(
 ) {
 
     public static TradeRequestResponse from(TradeRequest tradeRequest) {
-        return from(tradeRequest, 0, 0, 0, 0, null);
+        return from(tradeRequest, 0, 0, 0, 0, 0, 0, 0, 0, 0, null);
     }
 
     public static TradeRequestResponse from(
@@ -40,11 +49,18 @@ public record TradeRequestResponse(
             long requesterSaleCompletedCount,
             long requesterReceivedShareCount,
             long requesterGroupBuyCount,
+            long writerShareCompletedCount,
+            long writerSaleCompletedCount,
+            long writerReceivedShareCount,
+            long writerGroupBuyCount,
             Long chatRoomId
     ) {
         User requester = tradeRequest.getRequester();
+        User writer = tradeRequest.getPost().getWriter();
         double freshness = requester.getFreshnessScore();
         FreshnessGrade freshnessGrade = FreshnessGrade.fromScore(freshness);
+        double writerFreshness = writer.getFreshnessScore();
+        FreshnessGrade writerFreshnessGrade = FreshnessGrade.fromScore(writerFreshness);
         return new TradeRequestResponse(
                 tradeRequest.getId(),
                 tradeRequest.getPost().getId(),
@@ -61,6 +77,15 @@ public record TradeRequestResponse(
                 requesterSaleCompletedCount,
                 requesterReceivedShareCount,
                 requesterGroupBuyCount,
+                writer.getId(),
+                writer.getNickname(),
+                writer.getProfileImage(),
+                writerFreshness,
+                writerFreshnessGrade.getLabel(),
+                writerShareCompletedCount,
+                writerSaleCompletedCount,
+                writerReceivedShareCount,
+                writerGroupBuyCount,
                 chatRoomId,
                 tradeRequest.getStatus(),
                 tradeRequest.getCreatedAt(),

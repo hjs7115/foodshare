@@ -14,6 +14,7 @@ import BlockedUsersScreen from './BlockedUsersScreen';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
 import { showConfirm } from '../../utils/feedback';
+import { useNestedBack } from '../../utils/useNestedBack';
 
 interface UserInfo {
   name: string;
@@ -52,6 +53,15 @@ export default function ProfileScreen({
   const [showBadges, setShowBadges] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
   const [pendingReceivedRequestCount, setPendingReceivedRequestCount] = useState(0);
+
+  useNestedBack(showEditProfile, () => setShowEditProfile(false));
+  useNestedBack(showFavorites, () => setShowFavorites(false));
+  useNestedBack(showMyPosts, () => setShowMyPosts(false));
+  useNestedBack(showSettings, () => setShowSettings(false));
+  useNestedBack(showRatingDetail, () => setShowRatingDetail(false));
+  useNestedBack(showTransactionHistory, () => setShowTransactionHistory(false));
+  useNestedBack(showBadges, () => setShowBadges(false));
+  useNestedBack(showBlockedUsers, () => setShowBlockedUsers(false));
 
   useEffect(() => {
     loadUserInfo();

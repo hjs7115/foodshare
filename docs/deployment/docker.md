@@ -53,18 +53,12 @@ MAIL_PASSWORD=이메일_앱_비밀번호
 MAIL_FROM=보내는_이메일
 ```
 
-Firebase Admin FCM 서버 발송까지 사용할 경우:
-
-```bash
-mkdir -p secrets
-# Firebase Admin SDK JSON 파일을 secrets/firebase-service-account.json 위치에 둔다.
-```
-
-그리고 `.env.docker`에서 다음처럼 바꾼다.
+브라우저 푸시를 사용하려면 VAPID 키 쌍을 생성하고 `.env.docker`에 설정한다. 공개 키와 비공개 키는 같은 쌍이어야 하며 비공개 키는 저장소에 올리지 않는다.
 
 ```env
-APP_FIREBASE_ENABLED=true
-APP_FIREBASE_SERVICE_ACCOUNT=/run/secrets/firebase-service-account.json
+APP_WEB_PUSH_PUBLIC_KEY=<VAPID 공개 키>
+APP_WEB_PUSH_PRIVATE_KEY=<VAPID 비공개 키>
+APP_WEB_PUSH_SUBJECT=mailto:admin@example.com
 ```
 
 ### 4. 실행
@@ -97,9 +91,11 @@ PWA 파일 확인:
 
 ```text
 http://EC2_PUBLIC_IP/manifest.webmanifest
-http://EC2_PUBLIC_IP/firebase-messaging-sw.js
+http://EC2_PUBLIC_IP/service-worker.js
 http://EC2_PUBLIC_IP/assets/pwa-icon-192.png
 ```
+
+브라우저 푸시는 HTTPS 연결이 필요하다. 운영에서는 도메인과 TLS 인증서를 연결한 HTTPS 주소에서 PWA를 설치해야 한다. HTTP 퍼블릭 IP는 서비스워커 파일 확인에는 쓸 수 있지만 푸시 권한 구독에는 사용할 수 없다.
 
 ## AWS 보안 그룹
 

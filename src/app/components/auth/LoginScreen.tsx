@@ -57,7 +57,7 @@ export default function LoginScreen({ onLogin, onBack, onFindId, onFindPassword,
       saveAuthSession(token || null, user, autoLogin);
 
       onLogin();
-      } catch (error: any) {
+    } catch (error: any) {
       showToast(error.message || '이메일 또는 비밀번호가 일치하지 않습니다.');
     }
   };

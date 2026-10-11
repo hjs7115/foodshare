@@ -98,12 +98,14 @@ export const API_ENDPOINTS = {
 
   // ========== 알림 ==========
   notificationSettings: `${API_BASE_URL}/api/mypage/notifications/settings`,
+  webPushPublicKey: `${API_BASE_URL}/api/notifications/web-push/public-key`,
+  webPushSubscriptions: `${API_BASE_URL}/api/notifications/web-push/subscriptions`,
+  testPush: `${API_BASE_URL}/api/notifications/test-push`,
   notifications: `${API_BASE_URL}/api/notifications`,
   notificationUnreadCount: `${API_BASE_URL}/api/notifications/unread-count`,
   readNotification: (notificationId: number) => `${API_BASE_URL}/api/notifications/${notificationId}/read`,
   deleteNotification: (notificationId: number) => `${API_BASE_URL}/api/notifications/${notificationId}`,
   deleteReadNotifications: `${API_BASE_URL}/api/notifications/read`,
-  registerFcmToken: `${API_BASE_URL}/api/notifications/fcm-token`,
 
   // ========== 채팅 ==========
   chatRooms: `${API_BASE_URL}/api/chat/rooms`,

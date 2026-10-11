@@ -54,9 +54,6 @@ public class User {
 
     private Boolean notificationMarketing;
 
-    @Column(columnDefinition = "TEXT")
-    private String fcmToken;
-
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -149,10 +146,6 @@ public class User {
         return Boolean.TRUE.equals(notificationMarketing);
     }
 
-    public String getFcmToken() {
-        return fcmToken;
-    }
-
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -192,14 +185,6 @@ public class User {
         this.notificationTradeRequest = tradeRequest;
         this.notificationTradeAccepted = tradeAccepted;
         this.notificationMarketing = marketing;
-    }
-
-    public void updateFcmToken(String fcmToken) {
-        this.fcmToken = fcmToken;
-    }
-
-    public void clearFcmToken() {
-        this.fcmToken = null;
     }
 
     public void updateFreshnessScore(double freshnessScore) {

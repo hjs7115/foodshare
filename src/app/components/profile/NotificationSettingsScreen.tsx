@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Bell, MessageCircle, Megaphone, ShoppingBag, UserCheck, X } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
 import { showToast } from '../../utils/feedback';
-import { registerWebPushSubscription, supportsWebPush } from '../../webPush';
+import { registerFirebaseMessaging } from '../../firebase';
 
 interface NotificationSettings {
   newPost: boolean;
@@ -23,10 +23,10 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 export default function NotificationSettingsScreen({ onClose }: { onClose: () => void }) {
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
   const [isSavingKey, setIsSavingKey] = useState<keyof NotificationSettings | null>(null);
+  const [isRegisteringPush, setIsRegisteringPush] = useState(false);
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission>(
     () => typeof Notification === 'undefined' ? 'denied' : Notification.permission
   );
-  const [isRegisteringPush, setIsRegisteringPush] = useState(false);
 
   useEffect(() => {
     const savedSettings = localStorage.getItem('notificationSettings');
@@ -78,35 +78,28 @@ export default function NotificationSettingsScreen({ onClose }: { onClose: () =>
     }
   };
 
-  const handleEnableBrowserNotifications = async () => {
-    if (!supportsWebPush()) {
-      showToast('이 브라우저는 푸시 알림을 지원하지 않습니다.', 'error');
+  const handleEnablePush = async () => {
+    if (!('Notification' in window)) {
+      showToast('이 브라우저는 알림을 지원하지 않습니다.', 'error');
       return;
     }
-
     setIsRegisteringPush(true);
     try {
-      const registered = await registerWebPushSubscription({ requestPermission: true });
+      const registered = await registerFirebaseMessaging({ requestPermission: true });
       setBrowserPermission(Notification.permission);
       if (registered) {
-        try {
-          const response = await apiRequest(API_ENDPOINTS.testPush, {
-            method: 'POST',
-            body: JSON.stringify({}),
-          });
-          if (response?.data) {
-            showToast('이 기기로 테스트 알림을 보냈습니다.', 'success');
-          } else {
-            showToast('구독은 저장됐지만 서버가 푸시를 보내지 못했습니다. 서버 VAPID 설정을 확인해주세요.', 'error');
-          }
-        } catch {
-          showToast('구독은 저장됐지만 테스트 알림 전송에 실패했습니다.', 'error');
-        }
+        const response = await apiRequest(API_ENDPOINTS.testPush, {
+          method: 'POST',
+          body: JSON.stringify({}),
+        });
+        showToast(response?.data ? '이 기기에 테스트 알림을 보냈습니다.' : 'FCM 토큰을 등록했습니다.', 'success');
       } else if (Notification.permission === 'denied') {
         showToast('브라우저 사이트 설정에서 알림 권한을 허용해주세요.', 'error');
       } else {
-        showToast('푸시 알림 연결에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
+        showToast('FCM 등록에 실패했습니다. Firebase 설정과 브라우저 지원 여부를 확인해주세요.', 'error');
       }
+    } catch (error: any) {
+      showToast(error?.message || '이 기기 알림 등록에 실패했습니다.', 'error');
     } finally {
       setIsRegisteringPush(false);
     }
@@ -131,6 +124,25 @@ export default function NotificationSettingsScreen({ onClose }: { onClose: () =>
       </div>
 
       <div className="flex-1 overflow-y-auto bg-[#f7fafc] px-5 py-5">
+        <section className="mb-4 rounded-2xl border border-[#bef264] bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm text-[#1a202c]" style={{ fontWeight: 800 }}>이 기기 푸시 알림</h2>
+              <p className="mt-1 text-xs text-[#718096]">
+                {browserPermission === 'granted' ? '이 기기에서 알림을 받을 수 있습니다.' : '기기마다 한 번씩 알림 연결이 필요합니다.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleEnablePush}
+              disabled={isRegisteringPush}
+              className="shrink-0 rounded-xl bg-[#bef264] px-4 py-2 text-sm text-[#1a202c] disabled:opacity-60"
+              style={{ fontWeight: 800 }}
+            >
+              {isRegisteringPush ? '연결 중…' : '알림 연결'}
+            </button>
+          </div>
+        </section>
         <section className="overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
           {settingItems.map((item, index) => (
             <button
@@ -162,18 +174,6 @@ export default function NotificationSettingsScreen({ onClose }: { onClose: () =>
           <p className="text-sm leading-6 text-[#92400e]">
             앱의 알림 종류 설정과 기기 푸시 권한은 별도입니다. 푸시 알림을 받으려면 이 기기에서 알림 권한을 허용하고 연결해야 합니다.
           </p>
-          <button
-            type="button"
-            onClick={handleEnableBrowserNotifications}
-            disabled={isRegisteringPush}
-            className="mt-3 rounded-xl bg-[#92400e] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {isRegisteringPush
-              ? '기기 연결 중…'
-              : browserPermission === 'granted'
-                ? '이 기기 푸시 테스트'
-                : '이 기기 푸시 알림 허용'}
-          </button>
           {browserPermission === 'denied' && (
             <p className="mt-2 text-xs leading-5 text-[#92400e]">
               권한이 차단된 경우 브라우저 또는 기기의 앱 설정에서 반띵 알림을 허용해주세요.

@@ -98,8 +98,9 @@ export const API_ENDPOINTS = {
 
   // ========== 알림 ==========
   notificationSettings: `${API_BASE_URL}/api/mypage/notifications/settings`,
-  webPushPublicKey: `${API_BASE_URL}/api/notifications/web-push/public-key`,
-  webPushSubscriptions: `${API_BASE_URL}/api/notifications/web-push/subscriptions`,
+  chatSettings: `${API_BASE_URL}/api/mypage/chat-settings`,
+  registerFcmToken: `${API_BASE_URL}/api/notifications/fcm-token`,
+  removeFcmToken: `${API_BASE_URL}/api/notifications/fcm-token`,
   testPush: `${API_BASE_URL}/api/notifications/test-push`,
   notifications: `${API_BASE_URL}/api/notifications`,
   notificationUnreadCount: `${API_BASE_URL}/api/notifications/unread-count`,

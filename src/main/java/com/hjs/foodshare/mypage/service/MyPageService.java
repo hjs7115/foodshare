@@ -8,6 +8,8 @@ import com.hjs.foodshare.comment.repository.CommentRepository;
 import com.hjs.foodshare.global.exception.BusinessException;
 import com.hjs.foodshare.mypage.dto.LocationResponse;
 import com.hjs.foodshare.mypage.dto.LocationUpdateRequest;
+import com.hjs.foodshare.mypage.dto.ChatSettingsRequest;
+import com.hjs.foodshare.mypage.dto.ChatSettingsResponse;
 import com.hjs.foodshare.mypage.dto.MyPageResponse;
 import com.hjs.foodshare.mypage.dto.ProfileUpdateRequest;
 import com.hjs.foodshare.post.dto.PostResponse;
@@ -74,6 +76,21 @@ public class MyPageService {
                 countSaleCompleted(userId),
                 countGroupBuyParticipation(userId)
         );
+    }
+
+    public ChatSettingsResponse getChatSettings(Long userId) {
+        return ChatSettingsResponse.from(getUser(userId));
+    }
+
+    @Transactional
+    public ChatSettingsResponse updateChatSettings(Long userId, ChatSettingsRequest request) {
+        User user = getUser(userId);
+        user.updateChatSettings(
+                request.push() == null ? user.isChatPushEnabled() : request.push(),
+                request.readReceipt() == null ? user.isChatReadReceiptEnabled() : request.readReceipt(),
+                request.hideLeftRooms() == null ? user.isHideLeftChatRooms() : request.hideLeftRooms()
+        );
+        return ChatSettingsResponse.from(user);
     }
 
     public List<PostResponse> getMyPosts(Long userId) {

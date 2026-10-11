@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bell, CheckCheck, Pin, Trash2, X } from 'lucide-react';
+import { API_ENDPOINTS, apiRequest } from '../../api/config';
+import { showToast } from '../../utils/feedback';
 
 interface ChatSettings {
   push: boolean;
@@ -7,23 +9,15 @@ interface ChatSettings {
   hideLeftRooms: boolean;
 }
 
-export const CHAT_SETTINGS_KEY = 'chatSettings';
+const DEFAULT_SETTINGS: ChatSettings = { push: true, readReceipt: true, hideLeftRooms: false };
+let cachedSettings = DEFAULT_SETTINGS;
 
-export function getChatSettings(): ChatSettings {
-  const fallback = {
-    push: true,
-    readReceipt: true,
-    hideLeftRooms: false,
-  };
-  const savedSettings = localStorage.getItem(CHAT_SETTINGS_KEY);
-  if (!savedSettings) return fallback;
+export function getChatSettings(): ChatSettings { return cachedSettings; }
 
-  try {
-    return { ...fallback, ...JSON.parse(savedSettings) };
-  } catch {
-    localStorage.removeItem(CHAT_SETTINGS_KEY);
-    return fallback;
-  }
+export async function loadChatSettings(): Promise<ChatSettings> {
+  const response = await apiRequest(API_ENDPOINTS.chatSettings, { method: 'GET' });
+  cachedSettings = { ...DEFAULT_SETTINGS, ...(response?.data || response?.settings || response) };
+  return cachedSettings;
 }
 
 export default function ChatSettingsScreen({ onClose }: { onClose: () => void }) {
@@ -34,16 +28,28 @@ export default function ChatSettingsScreen({ onClose }: { onClose: () => void })
   });
 
   useEffect(() => {
-    setSettings(getChatSettings());
+    loadChatSettings().then(setSettings).catch(() => setSettings(getChatSettings()));
   }, []);
 
-  const handleToggle = (key: keyof ChatSettings) => {
+  const handleToggle = async (key: keyof ChatSettings) => {
+    const previous = settings;
     const nextSettings = {
       ...settings,
       [key]: !settings[key],
     };
     setSettings(nextSettings);
-    localStorage.setItem(CHAT_SETTINGS_KEY, JSON.stringify(nextSettings));
+    try {
+      const response = await apiRequest(API_ENDPOINTS.chatSettings, {
+        method: 'PUT',
+        body: JSON.stringify(nextSettings),
+      });
+      cachedSettings = { ...DEFAULT_SETTINGS, ...(response?.data || response?.settings || nextSettings) };
+      setSettings(cachedSettings);
+      showToast('채팅 설정을 저장했습니다.', 'success');
+    } catch (error: any) {
+      setSettings(previous);
+      showToast(error?.message || '채팅 설정 저장에 실패했습니다.', 'error');
+    }
   };
 
   const items = [

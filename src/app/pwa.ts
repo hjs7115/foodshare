@@ -8,7 +8,7 @@ export function registerPwaServiceWorker(): void {
       navigator.serviceWorker.getRegistrations()
         .then((registrations) => Promise.all(
           registrations
-            .filter((registration) => !registration.active?.scriptURL.endsWith('/service-worker.js'))
+            .filter((registration) => !registration.active?.scriptURL.endsWith('/firebase-messaging-sw.js'))
             .map((registration) => registration.unregister())
         ))
         .catch((error) => {
@@ -27,7 +27,7 @@ export function registerPwaServiceWorker(): void {
   }
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch((error) => {
+    navigator.serviceWorker.register('/firebase-messaging-sw.js').catch((error) => {
       console.warn('PWA service worker registration failed.', error);
     });
   });

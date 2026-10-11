@@ -5,7 +5,7 @@ import { getAuthToken, getStoredUserInfo } from '../../auth/session';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
 import { showToast, showConfirm, showPrompt } from '../../utils/feedback';
-import { getChatSettings } from '../profile/ChatSettingsScreen';
+import { getChatSettings, loadChatSettings } from '../profile/ChatSettingsScreen';
 import KakaoMapModal from '../KakaoMapModal';
 import { useNestedBack } from '../../utils/useNestedBack';
 
@@ -105,6 +105,10 @@ export default function ChatScreen({
     loadRooms(activeFilter);
     loadUnreadNotifications();
   }, [activeFilter]);
+
+  useEffect(() => {
+    loadChatSettings().catch((error) => console.warn('채팅 설정 조회에 실패했습니다.', error));
+  }, []);
 
   useEffect(() => {
     messagesRef.current = messages;

@@ -54,6 +54,12 @@ public class User {
 
     private Boolean notificationMarketing;
 
+    private Boolean chatPushEnabled;
+
+    private Boolean chatReadReceiptEnabled;
+
+    private Boolean hideLeftChatRooms;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
@@ -74,6 +80,9 @@ public class User {
         this.notificationTradeRequest = true;
         this.notificationTradeAccepted = true;
         this.notificationMarketing = false;
+        this.chatPushEnabled = true;
+        this.chatReadReceiptEnabled = true;
+        this.hideLeftChatRooms = false;
         this.createdAt = LocalDateTime.now();
     }
 
@@ -146,6 +155,10 @@ public class User {
         return Boolean.TRUE.equals(notificationMarketing);
     }
 
+    public boolean isChatPushEnabled() { return chatPushEnabled == null || chatPushEnabled; }
+    public boolean isChatReadReceiptEnabled() { return chatReadReceiptEnabled == null || chatReadReceiptEnabled; }
+    public boolean isHideLeftChatRooms() { return Boolean.TRUE.equals(hideLeftChatRooms); }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -185,6 +198,12 @@ public class User {
         this.notificationTradeRequest = tradeRequest;
         this.notificationTradeAccepted = tradeAccepted;
         this.notificationMarketing = marketing;
+    }
+
+    public void updateChatSettings(boolean push, boolean readReceipt, boolean hideLeftRooms) {
+        this.chatPushEnabled = push;
+        this.chatReadReceiptEnabled = readReceipt;
+        this.hideLeftChatRooms = hideLeftRooms;
     }
 
     public void updateFreshnessScore(double freshnessScore) {

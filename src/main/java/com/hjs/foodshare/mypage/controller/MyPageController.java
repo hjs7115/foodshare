@@ -6,6 +6,8 @@ import com.hjs.foodshare.global.response.ApiResponse;
 import com.hjs.foodshare.global.security.AuthUser;
 import com.hjs.foodshare.mypage.dto.LocationResponse;
 import com.hjs.foodshare.mypage.dto.LocationUpdateRequest;
+import com.hjs.foodshare.mypage.dto.ChatSettingsRequest;
+import com.hjs.foodshare.mypage.dto.ChatSettingsResponse;
 import com.hjs.foodshare.mypage.dto.MyPageResponse;
 import com.hjs.foodshare.mypage.dto.ProfileUpdateRequest;
 import com.hjs.foodshare.mypage.service.MyPageService;
@@ -54,6 +56,19 @@ public class MyPageController {
     @GetMapping("/received-trade-requests")
     public ResponseEntity<ApiResponse<List<TradeRequestResponse>>> getReceivedTradeRequests(@AuthenticationPrincipal AuthUser authUser) {
         return ResponseEntity.ok(ApiResponse.ok("Received trade requests found.", myPageService.getReceivedTradeRequests(authUser.userId())));
+    }
+
+    @GetMapping("/chat-settings")
+    public ResponseEntity<ApiResponse<ChatSettingsResponse>> getChatSettings(@AuthenticationPrincipal AuthUser authUser) {
+        return ResponseEntity.ok(ApiResponse.ok("Chat settings found.", myPageService.getChatSettings(authUser.userId())));
+    }
+
+    @PutMapping("/chat-settings")
+    public ResponseEntity<ApiResponse<ChatSettingsResponse>> updateChatSettings(
+            @AuthenticationPrincipal AuthUser authUser,
+            @RequestBody ChatSettingsRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok("Chat settings updated.", myPageService.updateChatSettings(authUser.userId(), request)));
     }
 
     @PutMapping

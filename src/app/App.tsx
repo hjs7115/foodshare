@@ -13,6 +13,7 @@ import { FridgeScreen } from './components/fridge';
 import { ChatScreen } from './components/chat';
 import { getAuthToken, hasAuthSession } from './auth/session';
 import { API_ENDPOINTS, WS_BASE_URL, apiRequest, getNotificationUnreadCount, getNotifications } from './api/config';
+import { listenForegroundMessages, registerFirebaseMessaging } from './firebase';
 
 type Screen = 'landing' | 'login' | 'signup' | 'findId' | 'findPassword' | 'category' | 'main';
 type MainView = 'board' | 'chat' | 'fridge' | 'profile';
@@ -272,6 +273,7 @@ export default function App() {
   useEffect(() => {
     if (currentScreen !== 'main') return;
 
+    void registerFirebaseMessaging().catch((error) => console.warn('FCM 토큰 갱신에 실패했습니다.', error));
     refreshChatUnreadCount();
     refreshNotificationUnreadCount(false);
     const timer = window.setInterval(() => {
@@ -287,6 +289,26 @@ export default function App() {
     return () => {
       window.clearInterval(timer);
       window.removeEventListener('focus', handleFocus);
+    };
+  }, [currentScreen]);
+
+  useEffect(() => {
+    if (currentScreen !== 'main') return;
+    let unsubscribe: (() => void) | undefined;
+    let toastTimer: number | undefined;
+    listenForegroundMessages((payload) => {
+      const data = payload.data || {};
+      setChatToast({
+        senderNickname: data.title || payload.notification?.title || '반띵 알림',
+        content: data.body || payload.notification?.body || '새 알림이 도착했습니다.',
+        clickAction: data.clickAction || '/?screen=notifications',
+      });
+      window.clearTimeout(toastTimer);
+      toastTimer = window.setTimeout(() => setChatToast(null), 4500);
+    }).then((stop) => { unsubscribe = stop; }).catch((error) => console.warn('포그라운드 FCM 수신을 시작하지 못했습니다.', error));
+    return () => {
+      window.clearTimeout(toastTimer);
+      unsubscribe?.();
     };
   }, [currentScreen]);
 

@@ -63,8 +63,8 @@
 | `PUT` | `/api/mypage/notifications/settings` | 알림 설정 수정 | { tradeRequest, tradeAccepted, chatMessage, review, marketing } | { success, message, data: { settings } } |
 | `GET` | `/api/notifications` | 알림 목록 조회 | Query: page, size | { success, message, data: { notifications } } |
 | `PATCH` | `/api/notifications/{notificationId}/read` | 알림 읽음 처리 | - | { success, message, data: null } |
-| `GET` | `/api/notifications/web-push/public-key` | Web Push 공개 키 조회 | - | { success, message, data: publicKey } |
-| `POST` | `/api/notifications/web-push/subscriptions` | 브라우저 구독 등록 | { endpoint, keys: { p256dh, auth } } | { success, message, data: null } |
+| `POST` | `/api/notifications/fcm-token` | FCM 기기 토큰 등록 | { token } | { success, message, data: null } |
+| `DELETE` | `/api/notifications/fcm-token` | FCM 기기 토큰 해제 | { token } | { success, message, data: null } |
 
 ## 공통 응답 예시
 

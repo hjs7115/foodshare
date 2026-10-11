@@ -6,7 +6,7 @@ import com.hjs.foodshare.global.security.AuthUser;
 import com.hjs.foodshare.notification.dto.NotificationResponse;
 import com.hjs.foodshare.notification.dto.NotificationSettingsRequest;
 import com.hjs.foodshare.notification.dto.NotificationSettingsResponse;
-import com.hjs.foodshare.notification.dto.PushSubscriptionRequest;
+import com.hjs.foodshare.notification.dto.FcmTokenRequest;
 import com.hjs.foodshare.notification.dto.TestPushRequest;
 import com.hjs.foodshare.notification.dto.UnreadNotificationCountResponse;
 import com.hjs.foodshare.notification.service.NotificationService;
@@ -103,27 +103,22 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.ok("Notification deleted.", null));
     }
 
-    @GetMapping("/api/notifications/web-push/public-key")
-    public ResponseEntity<ApiResponse<String>> getWebPushPublicKey() {
-        return ResponseEntity.ok(ApiResponse.ok("Web Push public key found.", notificationService.getWebPushPublicKey()));
+    @PostMapping("/api/notifications/fcm-token")
+    public ResponseEntity<ApiResponse<Void>> registerFcmToken(
+            @AuthenticationPrincipal AuthUser authUser,
+            @Valid @RequestBody FcmTokenRequest request
+    ) {
+        notificationService.registerFcmToken(authUser.userId(), request);
+        return ResponseEntity.ok(ApiResponse.ok("FCM token registered.", null));
     }
 
-    @PostMapping("/api/notifications/web-push/subscriptions")
-    public ResponseEntity<ApiResponse<Void>> registerPushSubscription(
+    @DeleteMapping("/api/notifications/fcm-token")
+    public ResponseEntity<ApiResponse<Void>> removeFcmToken(
             @AuthenticationPrincipal AuthUser authUser,
-            @Valid @RequestBody PushSubscriptionRequest request
+            @Valid @RequestBody FcmTokenRequest request
     ) {
-        notificationService.registerPushSubscription(authUser.userId(), request);
-        return ResponseEntity.ok(ApiResponse.ok("Web Push subscription registered.", null));
-    }
-
-    @DeleteMapping("/api/notifications/web-push/subscriptions")
-    public ResponseEntity<ApiResponse<Void>> removePushSubscription(
-            @AuthenticationPrincipal AuthUser authUser,
-            @Valid @RequestBody PushSubscriptionRequest request
-    ) {
-        notificationService.removePushSubscription(authUser.userId(), request.endpoint());
-        return ResponseEntity.ok(ApiResponse.ok("Web Push subscription removed.", null));
+        notificationService.removeFcmToken(authUser.userId(), request.token());
+        return ResponseEntity.ok(ApiResponse.ok("FCM token removed.", null));
     }
 
     @PostMapping("/api/notifications/test-push")

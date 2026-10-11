@@ -35,7 +35,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/notifications/web-push/public-key").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users/check-nickname").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*").permitAll()

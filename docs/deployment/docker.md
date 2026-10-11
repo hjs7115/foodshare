@@ -53,13 +53,15 @@ MAIL_PASSWORD=이메일_앱_비밀번호
 MAIL_FROM=보내는_이메일
 ```
 
-브라우저 푸시를 사용하려면 VAPID 키 쌍을 생성하고 `.env.docker`에 설정한다. 공개 키와 비공개 키는 같은 쌍이어야 하며 비공개 키는 저장소에 올리지 않는다.
+FCM 푸시를 사용하려면 Firebase 웹 앱의 공개 설정과 Web Push 인증서 키를 프론트엔드 빌드 변수로 설정하고, Firebase 서비스 계정 JSON을 백엔드에 마운트한다. 서비스 계정 파일은 저장소에 올리지 않는다.
 
 ```env
-APP_WEB_PUSH_PUBLIC_KEY=<VAPID 공개 키>
-APP_WEB_PUSH_PRIVATE_KEY=<VAPID 비공개 키>
-APP_WEB_PUSH_SUBJECT=mailto:admin@example.com
+VITE_FIREBASE_VAPID_KEY=<Firebase Cloud Messaging Web Push 인증서 공개 키>
+APP_FIREBASE_ENABLED=true
+APP_FIREBASE_SERVICE_ACCOUNT=/run/secrets/firebase-service-account.json
 ```
+
+서비스 계정 파일을 `./secrets/firebase-service-account.json` 위치에 두면 Docker Compose가 백엔드 컨테이너 안의 `/run/secrets/firebase-service-account.json`으로 읽는다. Firebase 설정과 기기별 토큰 등록은 [FCM 설정 안내](../FCM_SETUP.md)를 참고한다.
 
 ### 4. 실행
 
@@ -91,7 +93,7 @@ PWA 파일 확인:
 
 ```text
 http://EC2_PUBLIC_IP/manifest.webmanifest
-http://EC2_PUBLIC_IP/service-worker.js
+http://EC2_PUBLIC_IP/firebase-messaging-sw.js
 http://EC2_PUBLIC_IP/assets/pwa-icon-192.png
 ```
 

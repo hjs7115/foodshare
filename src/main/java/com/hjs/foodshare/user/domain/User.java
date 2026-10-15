@@ -183,12 +183,13 @@ public class User {
         if (location != null && !location.isBlank()) {
             this.location = location;
         }
-        if (latitude != null) {
-            this.latitude = latitude;
+        if ((latitude == null) != (longitude == null)
+                || (latitude != null && (!Double.isFinite(latitude) || !Double.isFinite(longitude)
+                || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180))) {
+            throw new IllegalArgumentException("Invalid location coordinates");
         }
-        if (longitude != null) {
-            this.longitude = longitude;
-        }
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public void updateNotificationSettings(boolean newPost, boolean comment, boolean tradeRequest,

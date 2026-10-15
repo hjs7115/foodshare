@@ -1,3 +1,8 @@
+import {lazy,Suspense} from 'react';
+const ShoppingScreen=lazy(()=>import('./ShoppingScreen'));
+const OpenFridgeScreen=lazy(()=>import('./OpenFridgeScreen'));
+import MealPanel from './MealPanel';
+import { classifyExpiry, getDaysLeft } from './expiry';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
@@ -64,8 +69,12 @@ export default function FridgeScreen({
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
   const [items, setItems] = useState<FridgeItem[]>([]);
+  const [showOpenFridge,setShowOpenFridge]=useState(new URLSearchParams(window.location.search).get("exchange")==="1");
+  const [shoppingWeek,setShoppingWeek]=useState<string|null>(()=>{const q=new URLSearchParams(window.location.search);return q.get('shopping')==='1'?(q.get('shoppingWeek')||''):null});
+  const [publicItemId,setPublicItemId]=useState<number|null>(null);
   const [showItemForm, setShowItemForm] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [shareItem, setShareItem] = useState<FridgeItem | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [editingItem, setEditingItem] = useState<FridgeItem | null>(null);
@@ -74,6 +83,8 @@ export default function FridgeScreen({
   useEffect(() => {
     loadFridgeItems();
     loadUnreadNotifications();
+    const refresh=()=>void loadFridgeItems();window.addEventListener('fridge-items-changed',refresh);
+    return ()=>window.removeEventListener('fridge-items-changed',refresh);
   }, []);
 
   const getNotificationItems = (response: any): any[] => {
@@ -120,12 +131,8 @@ export default function FridgeScreen({
   }, [items]);
 
   const selectedItems = itemsByDate.get(toDateKey(selectedDate)) || [];
-  const expiringSoonItems = useMemo(
-    () => [...items]
-      .sort((a, b) => parseDateKey(a.expiryDate).getTime() - parseDateKey(b.expiryDate).getTime())
-      .slice(0, 5),
-    [items]
-  );
+  const { expired: expiredItems, upcoming: upcomingItems } = classifyExpiry(items);
+  const expiringSoonItems = upcomingItems.slice(0, 5);
 
   const monthDays = buildCalendarDays(currentMonth);
   const monthLabel = currentMonth.toLocaleDateString('ko-KR', {
@@ -201,7 +208,7 @@ export default function FridgeScreen({
   };
 
   const handleDeleteItem = async (itemId: number) => {
-    if (!(await showConfirm('이 식재료 기록을 삭제할까요?', '식재료 삭제', '삭제'))) return;
+    if (!(await showConfirm('이 식재료 기록을 삭제할까요? 공개 중이라면 연결된 나눔글과 대기 요청도 종료돼요.', '식재료 삭제', '삭제'))) return;
     try {
       await deleteFridgeItem(itemId);
       await loadFridgeItems();
@@ -212,6 +219,13 @@ export default function FridgeScreen({
       console.warn('냉장고 식재료 삭제에 실패했습니다.', error);
       showToast('식재료 삭제에 실패했습니다. 다시 시도해주세요.');
     }
+  };
+
+  const handleConsumed = async (id: number) => {
+    const item=items.find(i=>i.id===id);
+    if(!item || !(await showConfirm(`${item.name}을 모두 사용했나요? 냉장고 목록에서 삭제하고 연결된 나눔 공개와 대기 요청도 종료해요. 일부 남았다면 수량 수정을 이용해주세요.`, '사용 완료', '다 썼어요')))return;
+    try { await deleteFridgeItem(id); await loadFridgeItems(); showToast('사용한 재료를 냉장고에서 정리했어요.'); }
+    catch { showToast('정리하지 못했어요. 다시 시도해주세요.'); }
   };
 
   const moveMonth = (amount: number) => {
@@ -230,6 +244,8 @@ export default function FridgeScreen({
             <p className="text-xs text-[#075985]">내 식재료와 유통기한을 기록해요</p>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+
         <button onClick={() => setShowNotifications(true)} className="text-[#2d3748] relative" aria-label="알림 열기">
           <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-[#e2e8f0] hover:border-[#0284c7] transition-colors">
             <Bell size={20} />
@@ -238,9 +254,13 @@ export default function FridgeScreen({
             <div className="absolute top-0 right-0 w-2 h-2 bg-[#ef4444] rounded-full border-2 border-white" />
           )}
         </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4 pb-28">
+      <div className="flex-1 overflow-y-auto px-5 py-4 pb-44">
+        <button onClick={()=>{setPublicItemId(null);setShowOpenFridge(true)}} className="mb-4 flex w-full items-center justify-between rounded-2xl border border-[#bae6fd] bg-gradient-to-r from-[#e0f2fe] to-[#ecfccb] p-4 text-left"><span><span className="block font-bold text-[#075985]">열린 냉장고</span><span className="mt-1 block text-xs text-[#475569]">나눌 재료를 공개하고, 이웃 냉장고를 구경해요</span></span><ChevronRight size={22} className="shrink-0 text-[#0284c7]"/></button>
+        <button onClick={()=>setShoppingWeek('')} className="mb-4 flex w-full items-center justify-between rounded-2xl border border-[#bae6fd] bg-white p-4 text-left"><span><span className="block font-bold text-[#075985]">주간 장보기</span><span className="mt-1 block text-xs text-[#475569]">필요한 재료를 모으고, 이미 가진 것은 빼요</span></span><ShoppingCart size={22} className="shrink-0 text-[#0284c7]"/></button>
+        <MealPanel items={items} loading={isLoadingItems} onEdit={id=>{const item=items.find(i=>i.id===id);if(item)openEditForm(item)}} onConsumed={handleConsumed} onShare={id=>{setPublicItemId(id);setShowOpenFridge(true)}} />
         <div className="mb-4 rounded-2xl border border-[#bae6fd] bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <button
@@ -309,7 +329,7 @@ export default function FridgeScreen({
         <div className="mb-4 grid grid-cols-3 gap-2">
           <SummaryTile label="등록 식재료" value={items.length} />
           <SummaryTile label="오늘 만료" value={items.filter((item) => item.expiryDate === toDateKey(new Date())).length} />
-          <SummaryTile label="3일 이내" value={items.filter((item) => getDaysLeft(item.expiryDate) <= 3).length} />
+          <SummaryTile label="3일 이내" value={upcomingItems.length} />
         </div>
 
         <section className="mb-5">
@@ -345,7 +365,7 @@ export default function FridgeScreen({
           <div className="space-y-2">
             {expiringSoonItems.length === 0 ? (
               <div className="rounded-2xl bg-white p-5 text-sm text-[#718096]">
-                기록된 식재료가 없습니다.
+                3일 이내에 기한이 도래하는 식재료가 없습니다.
               </div>
             ) : (
               expiringSoonItems.map((item) => (
@@ -354,16 +374,19 @@ export default function FridgeScreen({
             )}
           </div>
         </section>
+        <section className="mt-5">
+          <h2 className="mb-3 text-base text-[#b91c1c]" style={{ fontWeight: 800 }}>기한이 지난 식재료</h2>
+          <div className="space-y-2">
+            {expiredItems.map((item) => (
+              <FridgeItemRow key={item.id} item={item} onClick={() => openEditForm(item)} compact />
+            ))}
+            {expiredItems.length === 0 && <p className="text-sm text-[#718096]">기한이 지난 식재료가 없습니다.</p>}
+          </div>
+        </section>
       </div>
 
-      <button
-        onClick={openCreateForm}
-        className="fixed bottom-24 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-[#0284c7] text-white shadow-lg hover:bg-[#0369a1] transition-colors"
-        aria-label="식재료 추가"
-      >
-        <Plus size={20} />
-      </button>
 
+      <button onClick={openCreateForm} aria-label="식재료 추가" className="fixed bottom-24 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-[#0284c7] text-white shadow-lg hover:bg-[#0369a1] transition-colors"><Plus size={26}/></button>
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#e2e8f0] px-3 py-4 grid grid-cols-5 z-40">
         <button onClick={() => onNavigate('시장')} className="flex flex-col items-center gap-1">
           <BottomNavIcon icon={Leaf} color="#65a30d" borderColor="#bef264" />
@@ -394,6 +417,8 @@ export default function FridgeScreen({
         </button>
       </div>
 
+      {shoppingWeek!==null&&<Suspense fallback={<div className="fixed inset-0 z-50 bg-white p-5">장보기를 여는 중…</div>}><ShoppingScreen initialWeek={shoppingWeek||undefined} onClose={()=>setShoppingWeek(null)}/></Suspense>}
+      {showOpenFridge&&<Suspense fallback={<div className="fixed inset-0 z-50 flex items-center justify-center bg-white" role="status">열린 냉장고를 여는 중…</div>}><OpenFridgeScreen items={items} initialItemId={publicItemId} onClose={()=>{setShowOpenFridge(false);void loadFridgeItems()}} onAdd={()=>{setShowOpenFridge(false);openCreateForm()}} onTradeHistory={()=>onNavigate("tradeHistory")}/></Suspense>}
       {showItemForm && (
         <FridgeItemFormScreen
           item={editingItem}
@@ -409,6 +434,7 @@ export default function FridgeScreen({
       {showCreatePost && (
         <CreatePostScreen
           currentBoard="시장"
+          initialIngredient={shareItem ? {name:shareItem.name,amount:shareItem.amount,expiryDate:shareItem.expiryDate}:undefined}
           onClose={() => setShowCreatePost(false)}
           onCreatePost={() => setShowCreatePost(false)}
         />
@@ -487,6 +513,7 @@ function FridgeItemFormScreen({
 
       <form id="fridge-item-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-5 pb-28">
         <div className="space-y-5">
+          {item&&<p className="rounded-xl bg-[#e0f2fe] p-3 text-xs leading-5 text-[#075985]">공개 중인 재료를 수정하면 연결된 나눔글과 대기 요청은 종료돼요. 수정 후 열린 냉장고에서 다시 공개해주세요.</p>}
           <div>
             <label htmlFor="fridge-name" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 700 }}>
               식재료 이름
@@ -696,12 +723,6 @@ function toDateKey(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-}
-
-function getDaysLeft(dateKey: string): number {
-  const today = startOfDay(new Date());
-  const date = parseDateKey(dateKey);
-  return Math.ceil((date.getTime() - today.getTime()) / 86400000);
 }
 
 function getExpiryStatus(daysLeft: number) {

@@ -44,6 +44,17 @@ public class ChatRoomMember {
     @Column(nullable = false)
     private LocalDateTime joinedAt;
 
+    private LocalDateTime leftAt;
+
+    public boolean isActive() { return leftAt == null; }
+
+    public void leave() {
+        leftAt = LocalDateTime.now();
+        unreadCount = 0;
+        pinned = false;
+        muted = true;
+    }
+
     protected ChatRoomMember() {
     }
 

@@ -1,3 +1,4 @@
+import { resetDeviceSession } from '../../auth/deviceSession';
 import { useState } from 'react';
 import {
   AlertCircle,
@@ -16,7 +17,7 @@ import NotificationSettingsScreen from './NotificationSettingsScreen';
 import LocationSettingsScreen from './LocationSettingsScreen';
 import ChatSettingsScreen from './ChatSettingsScreen';
 import FindPasswordScreen from '../auth/FindPasswordScreen';
-import { clearAuthSession, getStoredUserInfo } from '../../auth/session';
+import { getStoredUserInfo } from '../../auth/session';
 import { showConfirm, showToast } from '../../utils/feedback';
 
 type SettingsView = 'main' | 'password' | 'notifications' | 'location' | 'chat' | 'privacy' | 'terms' | 'help' | 'notice';
@@ -33,12 +34,12 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
     );
     if (!confirmed) return;
 
-    clearAuthSession();
+    const complete = await resetDeviceSession();
     localStorage.removeItem('userLocation');
     localStorage.removeItem('userLocationCoords');
     localStorage.removeItem('notificationSettings');
     localStorage.removeItem('chatSettings');
-    showToast('기기 저장 정보를 삭제했습니다.', 'success');
+    showToast(complete ? '이 기기의 로그인과 알림 연결을 해제했습니다.' : '기기 정보는 삭제했지만 일부 서버 연결 해제는 확인하지 못했습니다.', complete ? 'success' : 'error');
     window.location.reload();
   };
 

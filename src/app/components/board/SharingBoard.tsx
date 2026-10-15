@@ -65,7 +65,7 @@ export default function SharingBoard({
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [location, setLocation] = useState('위치를 설정해주세요');
+  const [location, setLocation] = useState('위치 미정');
   const [sortType, setSortType] = useState<SortType>('latest');
   const [tradeType, setTradeType] = useState<TradeType>('ALL');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -101,11 +101,15 @@ export default function SharingBoard({
     loadPosts();
   }, [radiusKm, tradeType]);
 
+  useEffect(() => {
+    const changed = () => { loadLocation(); void loadPosts(); };
+    window.addEventListener('location-updated', changed);
+    return () => window.removeEventListener('location-updated', changed);
+  }, [radiusKm, tradeType, sortType]);
+
   const loadLocation = () => {
     const savedLocation = localStorage.getItem('userLocation');
-    if (savedLocation) {
-      setLocation(savedLocation);
-    }
+    setLocation(savedLocation || '위치 미정');
   };
 
   const getNotificationItems = (response: any): any[] => {
@@ -185,7 +189,7 @@ export default function SharingBoard({
             name: post.title || post.name,
             amount: post.amount || '수량 미정',
             price: post.price || (postType === 'SHARE' ? '무료나눔' : postType === 'BUY' ? '희망가 협의' : '가격미정'),
-            distance: post.distance || `${distanceValue.toFixed(1)}km`,
+            distance: queryParams.lat === undefined ? '거리 미정' : post.distance || `${distanceValue.toFixed(1)}km`,
             distanceValue,
             tradeLocation: getPostLocation(post),
             expiry: post.expiry || '유통기한 정보 없음',
@@ -410,15 +414,15 @@ export default function SharingBoard({
                 setShowSortMenu(!showSortMenu);
                 setShowRadiusFilter(false);
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-[#f7fafc] border border-[#e2e8f0] rounded-full hover:border-[#bef264] transition-colors"
+              className="flex h-[38px] items-center gap-2 px-3 py-2 bg-[#f7fafc] border border-[#e2e8f0] rounded-full hover:border-[#bef264] transition-colors"
             >
               <ArrowUpDown size={16} className="text-[#718096]" />
-              <span className="text-sm text-[#2d3748]" style={{ fontWeight: 500 }}>
+              <span className="max-w-[56px] truncate text-sm text-[#2d3748]" style={{ fontWeight: 500 }}>
                 {sortType === 'latest' && '최신순'}
-                {sortType === 'expiry' && '유통기한 임박순'}
-                {sortType === 'rating' && '신선도 높은순'}
-                {sortType === 'distance' && '가까운 거리순'}
-                {sortType === 'price' && '가격 낮은순'}
+                {sortType === 'expiry' && '임박순'}
+                {sortType === 'rating' && '신선도순'}
+                {sortType === 'distance' && '가까운순'}
+                {sortType === 'price' && '낮은가격순'}
               </span>
             </button>
 
@@ -485,7 +489,7 @@ export default function SharingBoard({
                 setShowRadiusFilter(!showRadiusFilter);
                 setShowSortMenu(false);
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-[#f7fafc] border border-[#e2e8f0] rounded-full hover:border-[#bef264] transition-colors whitespace-nowrap"
+              className="flex h-[38px] items-center gap-2 px-3 py-2 bg-[#f7fafc] border border-[#e2e8f0] rounded-full hover:border-[#bef264] transition-colors whitespace-nowrap"
             >
               <MapPin size={16} className="text-[#718096]" />
               <span className="text-sm text-[#2d3748]" style={{ fontWeight: 500 }}>
@@ -547,6 +551,9 @@ export default function SharingBoard({
               </div>
             )}
           </div>
+          <button onClick={() => setShowLocationSettings(true)} title={location} aria-label={'현재 위치: ' + location + ', 위치 변경'} className="flex h-[38px] min-w-0 flex-1 items-center gap-1.5 rounded-full border border-[#e2e8f0] bg-[#f7fafc] px-3 text-sm text-[#2d3748] hover:border-[#bef264]">
+            <MapPin size={15} className="shrink-0 text-[#65a30d]" /><span className="truncate">{location.replace(/^\S+(?:특별시|광역시|특별자치시|도)\s+/, '')}</span>
+          </button>
         </div>
       </div>
 
@@ -731,6 +738,7 @@ export default function SharingBoard({
           onClose={() => {
             setShowLocationSettings(false);
             loadLocation();
+            loadPosts();
           }}
         />
       )}

@@ -64,7 +64,7 @@ public record TradeRequestResponse(
         return new TradeRequestResponse(
                 tradeRequest.getId(),
                 tradeRequest.getPost().getId(),
-                tradeRequest.getPost().getTitle(),
+                tradeRequest.getExchangeDescription()==null?tradeRequest.getPost().getTitle():tradeRequest.getExchangeDescription(),
                 tradeRequest.getPost().getPostType(),
                 requester.getId(),
                 requester.getNickname(),

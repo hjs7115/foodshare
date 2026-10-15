@@ -14,3 +14,10 @@ secrets
 .vscode
 .codex_deps
 .codex_python_root
+*.pem
+*.key
+*.bak
+*.sql
+*.bundle
+server-ops.patch
+application-local.*

@@ -104,6 +104,7 @@ public class ChatService {
         };
 
         return rooms.stream()
+                .filter(room -> isActiveParticipant(room, userId))
                 .filter(room -> !"UNREAD".equalsIgnoreCase(filter) || unreadCount(room, userId) > 0)
                 .map(room -> toResponse(room, userId))
                 .sorted(Comparator
@@ -189,19 +190,43 @@ public class ChatService {
     @Transactional
     public void leaveRoom(Long userId, Long roomId) {
         ChatRoom room = getParticipantRoom(userId, roomId);
-        deleteRoom(room);
+        leaveMember(room, userId);
     }
 
     @Transactional
     public void leaveDirectRoomsBetweenUsers(Long userId, Long otherUserId) {
         chatRoomRepository.findDirectRoomsBetweenUsers(userId, otherUserId)
-                .forEach(this::deleteRoom);
+                .forEach(room -> {
+                    leaveMember(room, userId);
+                    leaveMember(room, otherUserId);
+                });
     }
 
-    private void deleteRoom(ChatRoom room) {
-        chatMessageRepository.deleteAllByChatRoomId(room.getId());
-        chatRoomMemberRepository.deleteAllByChatRoomId(room.getId());
-        chatRoomRepository.delete(room);
+    private void leaveMember(ChatRoom room, Long userId) {
+        // Preserve both legacy participants before adding a per-user tombstone.
+        addMemberIfAbsent(room, room.getWriter(), room.getWriterUnreadCount());
+        addMemberIfAbsent(room, room.getRequester(), room.getRequesterUnreadCount());
+        ChatRoomMember member = chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId)
+                .orElseGet(() -> chatRoomMemberRepository.save(ChatRoomMember.create(room,
+                        userRepository.findById(userId).orElseThrow(), 0)));
+        member.leave();
+    }
+
+    public void requireParticipant(Long userId, Long roomId) {
+        getParticipantRoom(userId, roomId);
+    }
+
+    public boolean canAccessRoom(Long userId, Long roomId) {
+        if (userId == null || roomId == null) return false;
+        return chatRoomRepository.findById(roomId)
+                .map(room -> isActiveParticipant(room, userId)).orElse(false);
+    }
+
+    private boolean isActiveParticipant(ChatRoom room, Long userId) {
+        return chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId)
+                .map(ChatRoomMember::isActive)
+                .orElseGet(() -> room.getWriter().getId().equals(userId)
+                        || room.getRequester().getId().equals(userId));
     }
 
     public Long findRoomIdByTradeRequestId(Long tradeRequestId) {
@@ -221,6 +246,22 @@ public class ChatService {
                 .filter(request -> request.getStatus() == TradeRequestStatus.ACCEPTED
                         || request.getStatus() == TradeRequestStatus.COMPLETED)
                 .flatMap(request -> chatRoomRepository.findGroupRoomByPostId(request.getPost().getId()));
+    }
+
+    public record ParticipantProfile(Long userId, String nickname, String profileImage, double freshness, String freshnessLabel, long shareCount, long saleCount, long groupBuyCount) {}
+
+    public ParticipantProfile getParticipantProfile(Long viewerId, Long roomId, Long targetId) {
+        ChatRoom room = getParticipantRoom(viewerId, roomId);
+        // Permit existing room members, including past message authors, but no unrelated user lookup.
+        boolean member = chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId, targetId).isPresent()
+                || room.getWriter().getId().equals(targetId) || room.getRequester().getId().equals(targetId);
+        if (!member) throw new BusinessException(HttpStatus.NOT_FOUND, "Participant not found.");
+        User user = userRepository.findById(targetId).orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        return new ParticipantProfile(user.getId(), user.getNickname(), user.getProfileImage(), user.getFreshnessScore(),
+                com.hjs.foodshare.user.domain.FreshnessGrade.fromScore(user.getFreshnessScore()).getLabel(),
+                tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(targetId, PostType.SHARE, TradeRequestStatus.COMPLETED),
+                tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(targetId, PostType.SALE, TradeRequestStatus.COMPLETED),
+                tradeRequestRepository.countDistinctPostsByRequesterOrWriterAndPostTypeAndStatus(targetId, PostType.GROUP_BUY, TradeRequestStatus.COMPLETED));
     }
 
     public Long findPartnerId(Long userId, Long roomId) {
@@ -250,9 +291,7 @@ public class ChatService {
     }
 
     private void validateParticipant(ChatRoom room, Long userId) {
-        if (!room.getWriter().getId().equals(userId)
-                && !room.getRequester().getId().equals(userId)
-                && !chatRoomMemberRepository.existsByChatRoomIdAndUserId(room.getId(), userId)) {
+        if (!isActiveParticipant(room, userId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Only chat room participants can access it.");
         }
     }
@@ -277,6 +316,7 @@ public class ChatService {
         if (!members.isEmpty()) {
             return members
                 .stream()
+                .filter(ChatRoomMember::isActive)
                 .filter(member -> !member.getUser().getId().equals(userId))
                 .mapToInt(ChatRoomMember::getUnreadCount)
                 .max()
@@ -301,14 +341,15 @@ public class ChatService {
     }
 
     private int participantCount(ChatRoom room) {
-        int memberCount = chatRoomMemberRepository.findAllByChatRoom(room).size();
-        return memberCount == 0 ? 2 : memberCount;
+        List<ChatRoomMember> members = chatRoomMemberRepository.findAllByChatRoom(room);
+        return members.isEmpty() ? 2 : (int) members.stream().filter(ChatRoomMember::isActive).count();
     }
 
     private List<ChatParticipantResponse> participants(ChatRoom room) {
         List<ChatRoomMember> members = chatRoomMemberRepository.findAllByChatRoom(room);
         if (!members.isEmpty()) {
             return members.stream()
+                    .filter(ChatRoomMember::isActive)
                     .sorted(Comparator.comparing(ChatRoomMember::getJoinedAt))
                     .map(member -> ChatParticipantResponse.from(member.getUser()))
                     .toList();
@@ -342,6 +383,7 @@ public class ChatService {
         }
 
         members.stream()
+                .filter(ChatRoomMember::isActive)
                 .filter(member -> !member.getUser().getId().equals(sender.getId()))
                 .forEach(member -> {
                     member.increaseUnread();

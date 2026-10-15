@@ -93,6 +93,11 @@ public class Post {
     @JoinColumn(name = "ingredient_analysis_id", unique = true)
     private IngredientAnalysis ingredientAnalysis;
 
+    private LocalDateTime openFridgeValidUntil;
+
+    public void setOpenFridgeValidUntil(LocalDateTime until) { openFridgeValidUntil = until; }
+    public boolean isOpenFridgePost() { return openFridgeValidUntil != null; }
+
     protected Post() {
     }
 
@@ -183,7 +188,7 @@ public class Post {
 
     public IngredientAnalysis getIngredientAnalysis() { return ingredientAnalysis; }
 
-    public boolean isOpen() { return status == PostStatus.OPEN && !deleted; }
+    public boolean isOpen() { return status == PostStatus.OPEN && !deleted && (openFridgeValidUntil == null || openFridgeValidUntil.isAfter(LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")))); }
 
     public void update(PostType postType, String title, String ingredientName, String quantity,
                        Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,

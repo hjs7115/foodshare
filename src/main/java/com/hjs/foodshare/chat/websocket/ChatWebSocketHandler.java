@@ -102,6 +102,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void subscribe(WebSocketSession session, Long roomId) {
+        chatService.requireParticipant((Long) session.getAttributes().get(USER_ID_ATTRIBUTE), roomId);
         Object previousRoomId = session.getAttributes().get(ROOM_ID_ATTRIBUTE);
         if (previousRoomId instanceof Long value && !value.equals(roomId)) {
             Set<WebSocketSession> sessions = roomSessions.get(value);
@@ -128,7 +129,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         Set<WebSocketSession> sessions = roomSessions.getOrDefault(roomId, Set.of());
         String json = objectMapper.writeValueAsString(payload);
         for (WebSocketSession session : sessions) {
-            if (session.isOpen()) {
+            if (session.isOpen() && chatService.canAccessRoom(
+                    (Long) session.getAttributes().get(USER_ID_ATTRIBUTE), roomId)) {
                 session.sendMessage(new TextMessage(json));
             }
         }
@@ -137,7 +139,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private void broadcastMessage(Long roomId, ChatMessageResponse response, Long senderId, Long receiverId) throws Exception {
         Set<WebSocketSession> sessions = roomSessions.getOrDefault(roomId, Set.of());
         for (WebSocketSession session : sessions) {
-            if (!session.isOpen()) {
+            if (!session.isOpen() || !chatService.canAccessRoom(
+                    (Long) session.getAttributes().get(USER_ID_ATTRIBUTE), roomId)) {
+                sessions.remove(session);
                 continue;
             }
 
@@ -150,7 +154,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private void sendNotificationToUser(Long userId, Long roomId, ChatMessageResponse response) throws Exception {
         Set<WebSocketSession> sessions = userSessions.getOrDefault(userId, Set.of());
         for (WebSocketSession session : sessions) {
-            if (!session.isOpen() || isSubscribedToRoom(session, roomId)) {
+            if (!session.isOpen() || !chatService.canAccessRoom(userId, roomId) || isSubscribedToRoom(session, roomId)) {
                 continue;
             }
 

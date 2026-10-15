@@ -49,7 +49,7 @@ export default function GroupBuyingBoard({
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
   const [groupItems, setGroupItems] = useState<GroupItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [location, setLocation] = useState('위치를 설정해주세요');
+  const [location, setLocation] = useState('위치 미정');
   const [sortType, setSortType] = useState<GroupSortType>('latest');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [radiusKm, setRadiusKm] = useState(5);
@@ -81,11 +81,15 @@ export default function GroupBuyingBoard({
     loadPosts();
   }, [radiusKm]);
 
+  useEffect(() => {
+    const changed = () => { loadLocation(); void loadPosts(); };
+    window.addEventListener('location-updated', changed);
+    return () => window.removeEventListener('location-updated', changed);
+  }, [radiusKm, sortType]);
+
   const loadLocation = () => {
     const savedLocation = localStorage.getItem('userLocation');
-    if (savedLocation) {
-      setLocation(savedLocation);
-    }
+    setLocation(savedLocation || '위치 미정');
   };
 
   const getNotificationItems = (response: any): any[] => {
@@ -585,6 +589,7 @@ export default function GroupBuyingBoard({
           onClose={() => {
             setShowLocationSettings(false);
             loadLocation();
+            loadPosts();
           }}
         />
       )}

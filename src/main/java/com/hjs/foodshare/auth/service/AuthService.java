@@ -76,6 +76,7 @@ public class AuthService {
                 request.location()
         );
 
+        user.updateLocation(request.location(), request.latitude(), request.longitude());
         User savedUser = userRepository.save(user);
         return createAuthResponse(savedUser);
     }
@@ -107,6 +108,12 @@ public class AuthService {
     @Transactional
     public void logout(Long userId) {
         refreshTokenRepository.deleteAllByUserId(userId);
+    }
+
+    @Transactional
+    public void logoutDevice(Long userId, String token) {
+        if (token == null || token.isBlank()) return;
+        refreshTokenRepository.findByToken(token).filter(t -> t.getUser().getId().equals(userId)).ifPresent(RefreshToken::revoke);
     }
 
     public FindEmailResponse findEmail(FindEmailRequest request) {

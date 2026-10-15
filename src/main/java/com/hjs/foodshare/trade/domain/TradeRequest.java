@@ -42,6 +42,10 @@ public class TradeRequest {
 
     private LocalDateTime completedAt;
 
+    @Column(length=300) private String exchangeDescription;
+    public String getExchangeDescription(){return exchangeDescription;}
+    public static TradeRequest exchange(Post post,User requester,String description){var r=new TradeRequest(post,requester);r.exchangeDescription=description;return r;}
+
     protected TradeRequest() {
     }
 

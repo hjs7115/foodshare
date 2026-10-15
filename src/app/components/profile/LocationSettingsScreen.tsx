@@ -22,7 +22,7 @@ declare global {
  */
 
 export default function LocationSettingsScreen({ onClose }: { onClose: () => void }) {
-  const [location, setLocation] = useState('서울 강남구 테헤란로 123');
+  const [location, setLocation] = useState('위치 미정');
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [customLocation, setCustomLocation] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -78,6 +78,7 @@ export default function LocationSettingsScreen({ onClose }: { onClose: () => voi
         localStorage.removeItem('userLocationCoords');
       }
 
+      window.dispatchEvent(new Event('location-updated'));
       return true;
     } catch (error: any) {
       showToast(error.message || '위치 저장에 실패했습니다.');

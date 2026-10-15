@@ -1,3 +1,4 @@
+import { resetDeviceSession } from '../../auth/deviceSession';
 import { useEffect, useState } from 'react';
 import { Ban, Bell, ChevronRight, FileText, Heart, History, Leaf, LogOut, MessageCircle, Plus, Settings, ShoppingCart, Snowflake, Star, Trophy, User } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, getNotifications, resolveImageUrl } from '../../api/config';
@@ -188,14 +189,9 @@ export default function ProfileScreen({
   const logout = async () => {
     if (!(await showConfirm('로그아웃 하시겠습니까?', '로그아웃', '로그아웃'))) return;
 
-    try {
-      await apiRequest(API_ENDPOINTS.logout, { method: 'POST' });
-    } catch (error) {
-      console.warn('서버 로그아웃 요청에 실패했습니다. 로컬 정보만 제거합니다.', error);
-    } finally {
-      clearAuthSession();
-      window.location.reload();
-    }
+    const complete = await resetDeviceSession();
+    if (!complete) showToast('로그아웃했지만 일부 서버 연결 해제는 확인하지 못했습니다.');
+    window.location.reload();
   };
 
   return (

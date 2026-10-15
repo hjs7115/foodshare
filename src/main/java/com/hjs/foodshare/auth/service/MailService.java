@@ -3,6 +3,9 @@ package com.hjs.foodshare.auth.service;
 import com.hjs.foodshare.global.exception.BusinessException;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.InternetAddress;
+import java.io.UnsupportedEncodingException;
+import java.util.Date;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -39,18 +42,20 @@ public class MailService {
         }
     }
 
-    public void sendHtmlEmail(String from, String to, String subject, String html) {
+    public void sendHtmlEmail(String from, String to, String subject, String text, String html) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
-            helper.setFrom(from);
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(new InternetAddress(from, "반띵", "UTF-8"));
             helper.setReplyTo(from);
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setText(html, true);
+            helper.setSentDate(new Date());
+            helper.setText(text, html);
+            message.setHeader("Auto-Submitted", "auto-generated");
             mailSender.send(message);
             log.info("Email sent to {}", to);
-        } catch (MessagingException | MailException exception) {
+        } catch (MessagingException | MailException | UnsupportedEncodingException exception) {
             log.error("Failed to send email to {}", to, exception);
             throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to send email.");
         }

@@ -99,6 +99,7 @@ public class PostService {
     public List<PostResponse> getPosts(Long currentUserId) {
         return postRepository.findAllByDeletedFalseAndStatusOrderByCreatedAtDesc(PostStatus.OPEN)
                 .stream()
+                .filter(Post::isOpen)
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .map(post -> toResponse(post, currentUserId))
                 .toList();
@@ -124,6 +125,7 @@ public class PostService {
         return postRepository.searchPosts(PostStatus.OPEN, postType, normalizedKeyword)
                 .stream()
                 .filter(this::keepVisibleOrCloseExpired)
+                .filter(Post::isOpen)
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .filter(post -> !Boolean.TRUE.equals(expiringSoon) || isExpiringSoon(post))
                 .map(post -> toResponse(post, currentUserId).withDistance(resolveDistanceKm(post, latitude, longitude)))
@@ -144,6 +146,7 @@ public class PostService {
     public PostResponse updatePost(Long postId, Long userId, PostUpdateRequest request) {
         Post post = getActivePost(postId);
         validateWriter(post, userId);
+        if (post.isOpenFridgePost()) throw new BusinessException(HttpStatus.BAD_REQUEST, "열린 냉장고에서 재료를 수정하고 다시 공개해주세요.");
         String previousImageUrl = post.getImageUrl();
         validatePostRequest(
                 request.postType(),

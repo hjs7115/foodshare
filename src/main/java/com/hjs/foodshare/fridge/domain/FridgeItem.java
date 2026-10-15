@@ -52,6 +52,22 @@ public class FridgeItem {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    @jakarta.persistence.OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "shared_post_id", unique = true)
+    private com.hjs.foodshare.post.domain.Post sharedPost;
+    private LocalDateTime shareConfirmedAt;
+
+    public com.hjs.foodshare.post.domain.Post getSharedPost() { return sharedPost; }
+    public LocalDateTime getShareConfirmedAt() { return shareConfirmedAt; }
+    public void share(com.hjs.foodshare.post.domain.Post post) {
+        sharedPost = post;
+        shareConfirmedAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+    }
+    public void hideShare() {
+        if (sharedPost != null) sharedPost.close();
+        shareConfirmedAt = null;
+    }
+
     protected FridgeItem() {
     }
 

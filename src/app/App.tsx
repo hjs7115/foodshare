@@ -1,3 +1,4 @@
+import FirstRunSetup from './components/common/FirstRunSetup';
 import { useState, useEffect, useRef } from 'react';
 import {
   LandingScreen,
@@ -13,7 +14,7 @@ import { FridgeScreen } from './components/fridge';
 import { ChatScreen } from './components/chat';
 import { getAuthToken, hasAuthSession } from './auth/session';
 import { API_ENDPOINTS, WS_BASE_URL, apiRequest, getNotificationUnreadCount, getNotifications } from './api/config';
-import { listenForegroundMessages, registerFirebaseMessaging } from './firebase';
+import { listenForegroundMessages } from './firebase';
 
 type Screen = 'landing' | 'login' | 'signup' | 'findId' | 'findPassword' | 'category' | 'main';
 type MainView = 'board' | 'chat' | 'fridge' | 'profile';
@@ -59,6 +60,13 @@ interface ChatToast {
 }
 
 export default function App() {
+  const [authVersion, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const renewed = () => setAuthVersion((value) => value + 1);
+    window.addEventListener('auth-token-refreshed', renewed);
+    window.addEventListener('push-connected', renewed);
+    return () => {window.removeEventListener('auth-token-refreshed', renewed);window.removeEventListener('push-connected', renewed);};
+  }, []);
   const [initialRoute] = useState(getInitialRoute);
   const [currentScreen, setCurrentScreen] = useState<Screen>(initialRoute.screen);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(initialRoute.selectedCategory);
@@ -273,7 +281,6 @@ export default function App() {
   useEffect(() => {
     if (currentScreen !== 'main') return;
 
-    void registerFirebaseMessaging().catch((error) => console.warn('FCM 토큰 갱신에 실패했습니다.', error));
     refreshChatUnreadCount();
     refreshNotificationUnreadCount(false);
     const timer = window.setInterval(() => {
@@ -296,6 +303,7 @@ export default function App() {
     if (currentScreen !== 'main') return;
     let unsubscribe: (() => void) | undefined;
     let toastTimer: number | undefined;
+    let active = true;
     listenForegroundMessages((payload) => {
       const data = payload.data || {};
       setChatToast({
@@ -305,12 +313,13 @@ export default function App() {
       });
       window.clearTimeout(toastTimer);
       toastTimer = window.setTimeout(() => setChatToast(null), 4500);
-    }).then((stop) => { unsubscribe = stop; }).catch((error) => console.warn('포그라운드 FCM 수신을 시작하지 못했습니다.', error));
+    }).then((stop) => { if (active) unsubscribe = stop; else stop(); }).catch((error) => console.warn('포그라운드 FCM 수신을 시작하지 못했습니다.', error));
     return () => {
       window.clearTimeout(toastTimer);
+      active = false;
       unsubscribe?.();
     };
-  }, [currentScreen]);
+  }, [currentScreen, authVersion]);
 
   useEffect(() => {
     if (currentScreen !== 'main') return;
@@ -336,7 +345,7 @@ export default function App() {
       window.clearTimeout(toastTimer);
       navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
     };
-  }, [currentScreen]);
+  }, [currentScreen, authVersion]);
 
   useEffect(() => {
     if (currentScreen !== 'main') return;
@@ -383,11 +392,12 @@ export default function App() {
       window.clearTimeout(toastTimer);
       socket.close();
     };
-  }, [currentScreen, mainView]);
+  }, [currentScreen, mainView, authVersion]);
 
   const renderWithChatToast = (content: JSX.Element) => (
     <>
       {content}
+      <FirstRunSetup />
       {chatToast && (
         <button
           type="button"
@@ -463,7 +473,7 @@ export default function App() {
   }
 
   if (currentScreen === 'category') {
-    return (
+    return renderWithChatToast(
       <CategorySelectScreen
         onSelectCategory={(category) => {
           setSelectedCategory(category);

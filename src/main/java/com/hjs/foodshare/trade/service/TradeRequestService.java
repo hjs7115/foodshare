@@ -24,6 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class TradeRequestService {
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     private final TradeRequestRepository tradeRequestRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
@@ -45,6 +48,8 @@ public class TradeRequestService {
     @Transactional
     public TradeRequestResponse createRequest(Long postId, Long requesterId) {
         Post post = getActivePost(postId);
+        entityManager.flush();
+        entityManager.refresh(post, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         validateRequestablePost(post);
         if (post.getWriter().getId().equals(requesterId)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "You cannot request your own post.");
@@ -104,6 +109,8 @@ public class TradeRequestService {
         if (tradeRequest.getStatus() != TradeRequestStatus.PENDING) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Only pending requests can be accepted.");
         }
+        entityManager.flush();
+        entityManager.refresh(tradeRequest.getPost(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         validateRequestablePost(tradeRequest.getPost());
         tradeRequest.accept();
         ChatRoom chatRoom = applyAcceptedTradePolicy(tradeRequest);

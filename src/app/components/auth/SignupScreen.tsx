@@ -414,6 +414,7 @@ export default function SignupScreen({
               >
                 인증코드 다시 받기
               </button>
+              <p className="text-center text-sm leading-relaxed text-[#718096]">메일이 보이지 않으면 스팸함도 확인해주세요.<br />반띵 메일을 ‘스팸 아님’으로 표시하면 다음 메일을 받는 데 도움이 돼요.</p>
             </div>
           </section>
         )}

@@ -10,7 +10,7 @@ import KakaoMapModal from '../KakaoMapModal';
 import { useNestedBack } from '../../utils/useNestedBack';
 
 type ChatFilter = 'ALL' | 'SHARING' | 'GROUP_BUY' | 'UNREAD';
-const PROFILE_PLACEHOLDER = '/assets/profile-placeholder.svg';
+
 
 interface ChatRoom {
   chatRoomId: number;
@@ -64,6 +64,8 @@ export default function ChatScreen({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeFilter, setActiveFilter] = useState<ChatFilter>('ALL');
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
+  const [profileTarget, setProfileTarget] = useState<number | null>(null);
+  useNestedBack(profileTarget !== null, () => setProfileTarget(null));
   const [messageText, setMessageText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
@@ -127,7 +129,12 @@ export default function ChatScreen({
     }
 
     connectSocket(selectedRoom);
-    return () => closeSocket();
+    const renewed = () => connectSocket(selectedRoom);
+    window.addEventListener('auth-token-refreshed', renewed);
+    return () => {
+      window.removeEventListener('auth-token-refreshed', renewed);
+      closeSocket();
+    };
   }, [selectedRoom?.chatRoomId]);
 
   useEffect(() => {
@@ -154,8 +161,6 @@ export default function ChatScreen({
   }, [isSearchingMessages]);
 
   useEffect(() => {
-    if (selectedRoom) return;
-
     const timer = window.setInterval(() => {
       loadRooms(activeFilter);
     }, 10000);
@@ -331,6 +336,7 @@ export default function ChatScreen({
         ? raw.map(normalizeRoom).filter((room) => room.chatRoomId).sort(sortRoomsForDisplay)
         : [];
       setRooms(normalizedRooms);
+      setSelectedRoom(current => current ? normalizedRooms.find(room => room.chatRoomId === current.chatRoomId) || current : null);
       onChatUnreadChange?.(normalizedRooms.reduce((sum, room) => sum + room.unreadCount, 0));
     } catch (error) {
       console.warn('채팅방 목록 조회 실패', error);
@@ -730,16 +736,16 @@ export default function ChatScreen({
       }
     }
     if (action === 'leave') {
-      if (await showConfirm('채팅방을 삭제할까요?\n삭제하면 이 채팅방의 메시지도 함께 삭제됩니다.', '채팅방 삭제', '삭제')) {
+      if (await showConfirm('채팅방에서 나갈까요?\n내 목록에서 사라지고 메시지를 더 이상 받지 않습니다. 다른 참여자의 대화 기록은 유지됩니다.', '채팅방 나가기', '나가기')) {
         try {
           await apiRequest(API_ENDPOINTS.leaveChatRoom(room.chatRoomId), { method: 'DELETE' });
           setRooms((prev) => prev.filter((item) => item.chatRoomId !== room.chatRoomId));
           if (selectedRoom?.chatRoomId === room.chatRoomId) {
             setMessages([]);
           }
-          showToast('채팅방을 삭제했습니다.', 'success');
+          showToast('채팅방에서 나갔습니다.', 'success');
         } catch (error: any) {
-          showToast(error?.message || '채팅방 삭제에 실패했습니다.', 'error');
+          showToast(error?.message || '채팅방 나가기에 실패했습니다.', 'error');
           return;
         }
         closeSelectedRoom();
@@ -817,11 +823,13 @@ export default function ChatScreen({
             >
               <ArrowLeft size={22} className="text-[#1a202c]" />
             </button>
+            <button type="button" aria-label="상대 프로필 보기" onClick={() => setProfileTarget(selectedRoom.partnerId ?? null)}>
             <ChatProfileAvatar
               src={selectedRoom.partnerProfileImage}
               alt={selectedRoom.partnerNickname}
               className="w-10 h-10 shadow-sm border border-[#e2e8f0]"
             />
+            </button>
             <div className="min-w-0">
               <h1 className="text-lg text-[#1a202c] truncate" style={{ fontWeight: 900 }}>
                 {selectedRoom.roomName || selectedRoom.partnerNickname}
@@ -890,17 +898,19 @@ export default function ChatScreen({
                 className={`flex gap-2 ${message.mine ? 'justify-end' : 'justify-start'}`}
               >
                 {!message.mine && (
+                  <button type="button" className="self-start shrink-0" aria-label={`${message.senderNickname || "상대방"} 프로필 보기`} onClick={() => setProfileTarget(message.senderId ?? null)}>
                   <ChatProfileAvatar
                     src={message.senderProfileImage}
                     alt={message.senderNickname || '상대방'}
                     className="h-9 w-9"
                   />
+                  </button>
                 )}
                 {message.mine && (
                   <MessageMeta message={message} align="right" />
                 )}
                 <div className="max-w-[72%]">
-                  {selectedRoom.groupRoom && !message.mine && message.senderNickname && (
+                  {!message.mine && message.senderNickname && (
                     <p className="mb-1 ml-2 text-[11px] text-[#64748b]" style={{ fontWeight: 800 }}>
                       {message.senderNickname}
                     </p>
@@ -979,6 +989,7 @@ export default function ChatScreen({
           />
         )}
 
+        {profileTarget !== null && <ChatParticipantProfile roomId={selectedRoom.chatRoomId} userId={profileTarget} onClose={() => setProfileTarget(null)} />}
         {showRoomMenu && (
           <div className="fixed inset-0 z-[70] bg-black/35 flex items-end" onClick={() => setShowRoomMenu(false)}>
             <div
@@ -1385,6 +1396,8 @@ function areMessageListsEqual(left: ChatMessage[], right: ChatMessage[]) {
     return Boolean(other) &&
       message.messageId === other.messageId &&
       message.senderId === other.senderId &&
+      message.senderNickname === other.senderNickname &&
+      message.senderProfileImage === other.senderProfileImage &&
       message.content === other.content &&
       message.mine === other.mine &&
       message.systemMessage === other.systemMessage &&
@@ -1598,11 +1611,9 @@ function ChatProfileAvatar({ src, alt, className }: { src?: string | null; alt: 
 
   if (!hasImage || failed) {
     return (
-      <img
-        src={PROFILE_PLACEHOLDER}
-        alt={alt}
-        className={`${className} rounded-full object-cover flex-shrink-0`}
-      />
+      <div role="img" aria-label={alt} className={`${className} rounded-full bg-[#e2e8f0] flex items-center justify-center flex-shrink-0`}>
+        <User className="h-1/2 w-1/2 text-[#718096]" />
+      </div>
     );
   }
 
@@ -1664,4 +1675,31 @@ function AttachmentMenuButton({
       <span className="text-sm" style={{ fontWeight: 800 }}>{label}</span>
     </button>
   );
+}
+
+function ChatParticipantProfile({roomId,userId,onClose}:{roomId:number;userId:number;onClose:()=>void}) {
+ const [profile,setProfile]=useState<any>(null);
+ const [error,setError]=useState(false);
+ useEffect(()=>{
+  let active=true;setProfile(null);setError(false);
+  apiRequest(`${API_ENDPOINTS.chatRooms}/${roomId}/participants/${userId}/profile`,{method:'GET'})
+   .then(response=>{if(active)setProfile(response.data ?? response)})
+   .catch(()=>{if(active)setError(true)});
+  return ()=>{active=false};
+ },[roomId,userId]);
+ useEffect(()=>{const handle=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose()};window.addEventListener('keydown',handle);return ()=>window.removeEventListener('keydown',handle)},[onClose]);
+ return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 px-4" onClick={onClose}>
+  <div role="dialog" aria-modal="true" aria-label="프로필 보기" className="w-full max-w-sm rounded-3xl border border-[#e2e8f0] bg-white p-5 shadow-2xl" onClick={event=>event.stopPropagation()}>
+   <div className="mb-4 flex items-start justify-between gap-3">
+    {profile ? <div className="flex min-w-0 items-center gap-4">
+     <ChatProfileAvatar src={profile.profileImage} alt={profile.nickname} className="w-16 h-16" />
+     <div className="min-w-0"><h2 className="truncate text-lg font-semibold text-[#2d3748]">{profile.nickname}</h2><p className="mt-1 text-xs text-[#16a34a]">신선도 {Math.round(profile.freshness)}% · {profile.freshnessLabel}</p></div>
+    </div> : <p role="status">{error?'프로필을 불러오지 못했어요. 다시 눌러주세요.':'프로필을 불러오는 중…'}</p>}
+    <button type="button" autoFocus onClick={onClose} aria-label="프로필 닫기" className="shrink-0 text-[#718096]"><X size={20}/></button>
+   </div>
+   {profile && <div className="rounded-2xl border border-[#ccfbf1] bg-[#f0fdfa] p-4"><h3 className="mb-3 text-xs font-semibold text-[#0f766e]">활동 통계</h3><div className="grid grid-cols-3 gap-3">
+    {[[profile.shareCount,'나눔 완료'],[profile.saleCount,'판매 완료'],[profile.groupBuyCount,'공구 참여']].map(([value,label])=><div key={label} className="text-center"><p className="mb-1 text-2xl font-bold text-[#2d3748]">{value}</p><p className="text-xs text-[#718096]">{label}</p></div>)}
+   </div></div>}
+  </div>
+ </div>;
 }

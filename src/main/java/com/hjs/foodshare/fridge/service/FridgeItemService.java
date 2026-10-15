@@ -18,10 +18,13 @@ public class FridgeItemService {
 
     private final FridgeItemRepository fridgeItemRepository;
     private final UserRepository userRepository;
+    private final com.hjs.foodshare.trade.repository.TradeRequestRepository tradeRequests;
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
 
-    public FridgeItemService(FridgeItemRepository fridgeItemRepository, UserRepository userRepository) {
+    public FridgeItemService(FridgeItemRepository fridgeItemRepository, UserRepository userRepository, com.hjs.foodshare.trade.repository.TradeRequestRepository tradeRequests) {
         this.fridgeItemRepository = fridgeItemRepository;
         this.userRepository = userRepository;
+        this.tradeRequests = tradeRequests;
     }
 
     public List<FridgeItemResponse> getItems(Long userId) {
@@ -49,6 +52,7 @@ public class FridgeItemService {
     @Transactional
     public FridgeItemResponse updateItem(Long userId, Long itemId, FridgeItemRequest request) {
         FridgeItem item = getOwnedItem(userId, itemId);
+        closeShared(item);
         item.update(
                 request.nameValue(),
                 request.amountValue(),
@@ -61,12 +65,23 @@ public class FridgeItemService {
 
     @Transactional
     public void deleteItem(Long userId, Long itemId) {
-        fridgeItemRepository.delete(getOwnedItem(userId, itemId));
+        FridgeItem item = getOwnedItem(userId, itemId);
+        closeShared(item);
+        fridgeItemRepository.delete(item);
+    }
+
+    private void closeShared(FridgeItem item) {
+        if(item.getSharedPost()!=null){
+            entityManager.flush();
+            entityManager.refresh(item.getSharedPost(),jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            tradeRequests.findAllByPostIdAndStatus(item.getSharedPost().getId(),com.hjs.foodshare.trade.domain.TradeRequestStatus.PENDING).forEach(r->r.reject());
+        }
+        item.hideShare();
     }
 
     private FridgeItem getOwnedItem(Long userId, Long itemId) {
         getUser(userId);
-        return fridgeItemRepository.findByIdAndUserId(itemId, userId)
+        return fridgeItemRepository.lockOwned(itemId, userId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Fridge item not found."));
     }
 

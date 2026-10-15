@@ -26,6 +26,11 @@ public record SignupRequest(
         String phoneNumber,
 
         @JsonAlias("address")
-        String location
+        String location,
+        Double latitude,
+        Double longitude
 ) {
+    public SignupRequest(String name, String nickname, String email, String password, String phoneNumber, String location) {
+        this(name, nickname, email, password, phoneNumber, location, null, null);
+    }
 }

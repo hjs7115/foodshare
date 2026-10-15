@@ -15,7 +15,9 @@ public record UserResponse(
         double freshness,
         String freshnessLevel,
         String freshnessIcon,
-        String freshnessLabel
+        String freshnessLabel,
+        Double latitude,
+        Double longitude
 ) {
 
     public static UserResponse from(User user) {
@@ -33,7 +35,9 @@ public record UserResponse(
                 freshness,
                 freshnessGrade.name(),
                 freshnessGrade.getIcon(),
-                freshnessGrade.getLabel()
+                freshnessGrade.getLabel(),
+                user.getLatitude(),
+                user.getLongitude()
         );
     }
 }

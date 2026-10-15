@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 
 export default function NotificationSettingsScreen({ onClose }: { onClose: () => void }) {
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
+  const [connected, setConnected] = useState(Boolean(localStorage.getItem('pushToken')));
   const [isSavingKey, setIsSavingKey] = useState<keyof NotificationSettings | null>(null);
   const [isRegisteringPush, setIsRegisteringPush] = useState(false);
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission>(
@@ -80,23 +81,24 @@ export default function NotificationSettingsScreen({ onClose }: { onClose: () =>
 
   const handleEnablePush = async () => {
     if (!('Notification' in window)) {
-      showToast('이 브라우저는 알림을 지원하지 않습니다.', 'error');
+      showToast('아이폰은 홈 화면에 추가한 반띵 아이콘으로 실행해주세요.', 'error');
       return;
     }
     setIsRegisteringPush(true);
     try {
       const registered = await registerFirebaseMessaging({ requestPermission: true });
       setBrowserPermission(Notification.permission);
+      setConnected(registered);
       if (registered) {
         const response = await apiRequest(API_ENDPOINTS.testPush, {
           method: 'POST',
           body: JSON.stringify({}),
         });
-        showToast(response?.data ? '이 기기에 테스트 알림을 보냈습니다.' : 'FCM 토큰을 등록했습니다.', 'success');
+        showToast(response?.data === true ? '테스트 알림 전송을 요청했습니다. 기기에서 수신되는지 확인해주세요.' : '알림 연결은 완료됐지만 테스트 전송에 실패했습니다. 잠시 후 다시 시도해주세요.', response?.data === true ? 'success' : 'error');
       } else if (Notification.permission === 'denied') {
         showToast('브라우저 사이트 설정에서 알림 권한을 허용해주세요.', 'error');
       } else {
-        showToast('FCM 등록에 실패했습니다. Firebase 설정과 브라우저 지원 여부를 확인해주세요.', 'error');
+        showToast('알림 권한을 허용한 뒤 다시 연결해주세요. 아이폰은 홈 화면의 반띵으로 실행해야 합니다.', 'error');
       }
     } catch (error: any) {
       showToast(error?.message || '이 기기 알림 등록에 실패했습니다.', 'error');
@@ -129,7 +131,7 @@ export default function NotificationSettingsScreen({ onClose }: { onClose: () =>
             <div>
               <h2 className="text-sm text-[#1a202c]" style={{ fontWeight: 800 }}>이 기기 푸시 알림</h2>
               <p className="mt-1 text-xs text-[#718096]">
-                {browserPermission === 'granted' ? '이 기기에서 알림을 받을 수 있습니다.' : '기기마다 한 번씩 알림 연결이 필요합니다.'}
+                {browserPermission === 'granted' && connected ? '이 기기의 알림 연결이 완료되었습니다.' : '알림 연결 버튼을 눌러 이 기기를 연결해주세요.'}
               </p>
             </div>
             <button

@@ -158,7 +158,9 @@ public class EmailVerificationService {
                 </div>
                 """.formatted(title, description, code, codeTtl.toMinutes());
 
-        mailService.sendHtmlEmail(fromAddress, email, subject, html);
+        String text = "반띵 이메일 인증\n\n%s\n%s\n\n인증코드: %s\n유효시간: %d분\n\n본인이 요청하지 않았다면 이 메일을 무시해주세요. 인증코드를 다른 사람에게 알려주지 마세요."
+                .formatted(title, description, code, codeTtl.toMinutes());
+        mailService.sendHtmlEmail(fromAddress, email, subject, text, html);
     }
 
     private void checkDuplicatedEmail(String email) {

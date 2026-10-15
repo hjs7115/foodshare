@@ -1,3 +1,4 @@
+import { authenticatedFetch } from '../auth/authenticatedFetch';
 import { API_BASE_URL } from './config';
 import { getAuthToken, isLocalTestSession } from '../auth/session';
 
@@ -54,7 +55,7 @@ export async function analyzeIngredient(
     formData.append('originalPrice', String(input.originalPrice));
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/ai/ingredient-analysis`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/api/ai/ingredient-analysis`, {
     method: 'POST',
     headers: {
       'ngrok-skip-browser-warning': 'true',
@@ -62,7 +63,7 @@ export async function analyzeIngredient(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: formData,
-  });
+  }, API_BASE_URL);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(payload.message || 'AI 분석에 실패했습니다. 잠시 후 다시 시도해주세요.');

@@ -48,6 +48,13 @@ public class ChatController {
                 chatService.getRoomByTradeRequest(authUser.userId(), tradeRequestId)));
     }
 
+    @GetMapping("/rooms/{roomId}/participants/{targetId}/profile")
+    public ResponseEntity<ApiResponse<ChatService.ParticipantProfile>> getParticipantProfile(
+            @AuthenticationPrincipal AuthUser authUser, @PathVariable Long roomId, @PathVariable Long targetId) {
+        return ResponseEntity.ok(ApiResponse.ok("Participant profile found.",
+                chatService.getParticipantProfile(authUser.userId(), roomId, targetId)));
+    }
+
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
             @AuthenticationPrincipal AuthUser authUser,

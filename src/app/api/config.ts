@@ -2,6 +2,7 @@
 // .env에 VITE_API_BASE_URL을 설정하면 그 주소를 우선 사용합니다.
 // 예) VITE_API_BASE_URL=http://localhost:8080
 // 예) VITE_API_BASE_URL=https://your-ngrok-url.ngrok-free.app
+import { authenticatedFetch } from '../auth/authenticatedFetch';
 import { clearAuthSession, getAuthToken, isLocalTestSession } from '../auth/session';
 
 const DEFAULT_API_BASE_URL = "https://enticing-feel-fresh.ngrok-free.dev";
@@ -270,12 +271,15 @@ export async function apiRequest(
   console.log(`📡 API 요청: ${options.method || 'GET'} ${url}`);
 
   try {
-    const response = await fetch(url, {
+    const requestOptions: RequestInit = {
       ...options,
       cache: options.cache ?? 'no-store',
       headers,
       mode: 'cors',
-    });
+    };
+    const response = await (isPublicAuthEndpoint(url)
+      ? fetch(url, requestOptions)
+      : authenticatedFetch(url, requestOptions, API_BASE_URL));
 
     console.log(`📥 응답 상태: ${response.status}`);
 
@@ -315,7 +319,7 @@ export async function apiRequest(
     }
 
     const data = await readJsonSafely(response);
-    console.log(`✅ 응답 데이터:`, data);
+
 
     if (!response.ok) {
       const errorMessage = data.message || data.error || `요청 실패 (${response.status})`;
@@ -398,13 +402,13 @@ export async function uploadImage(file: File): Promise<string> {
   }
 
   try {
-    const response = await fetch(API_ENDPOINTS.uploadImage, {
+    const response = await authenticatedFetch(API_ENDPOINTS.uploadImage, {
       method: 'POST',
       headers,
       body: formData,
       mode: 'cors',
       credentials: 'omit',
-    });
+    }, API_BASE_URL);
 
     const data = await readJsonSafely(response);
 

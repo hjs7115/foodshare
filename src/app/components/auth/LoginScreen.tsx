@@ -1,3 +1,4 @@
+import { saveLocationFromUser } from '../../utils/location';
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest } from '../../api/config';
@@ -54,8 +55,9 @@ export default function LoginScreen({ onLogin, onBack, onFindId, onFindPassword,
       const token = response.token || response.accessToken || response.data?.token || response.data?.accessToken;
       const user = response.user || response.data?.user || response.data;
 
-      saveAuthSession(token || null, user, autoLogin);
+      saveAuthSession(token || null, user, autoLogin, response.refreshToken || response.data?.refreshToken);
 
+      saveLocationFromUser(user);
       onLogin();
     } catch (error: any) {
       showToast(error.message || '이메일 또는 비밀번호가 일치하지 않습니다.');

@@ -9,16 +9,17 @@ import IngredientAiAnalysisPanel from './IngredientAiAnalysisPanel';
 interface CreatePostScreenProps {
   onClose: () => void;
   currentBoard: string;
+  initialIngredient?: { name:string; amount:string; expiryDate:string };
   onCreatePost: (item: any) => void;
 }
 
-export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }: CreatePostScreenProps) {
-  const [title, setTitle] = useState('');
+export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, initialIngredient }: CreatePostScreenProps) {
+  const [title, setTitle] = useState(initialIngredient ? initialIngredient.name+' 나눔해요' : '');
   const [content, setContent] = useState('');
   const [price, setPrice] = useState('');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('');
-  const [expiry, setExpiry] = useState('');
+  const [amount, setAmount] = useState(initialIngredient?.amount || '');
+  const [category, setCategory] = useState(initialIngredient ? '나눔' : '');
+  const [expiry, setExpiry] = useState(initialIngredient?.expiryDate || '');
   const [targetCount, setTargetCount] = useState('');
   const [deadline, setDeadline] = useState('');
   const [images, setImages] = useState<string[]>([]);
@@ -188,7 +189,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost }
 
       const postData = {
         title,
-        ingredientName: aiAnalysis?.ingredient.name || title,
+        ingredientName: aiAnalysis?.ingredient.name || initialIngredient?.name || title,
         content,
         amount,
         price: isShare ? '무료나눔' : price || (isBuy ? '희망가 협의' : '가격미정'),

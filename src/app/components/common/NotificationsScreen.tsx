@@ -30,6 +30,7 @@ interface NotificationItem {
   isRead: boolean;
   createdAt?: string;
   postId?: number;
+  targetId?: number;
   requesterNickname?: string;
   requesterProfileImage?: string;
   requesterFreshness?: number;
@@ -84,6 +85,7 @@ function normalizeNotification(raw: any): NotificationItem {
     isRead: Boolean(raw.isRead || raw.read || raw.readAt || raw.status === 'READ'),
     createdAt: raw.createdAt || raw.createdDate || raw.sentAt || raw.regDate,
     postId,
+    targetId: getNumberValue(raw.targetId),
     requesterNickname:
       raw.requesterNickname ||
       raw.requester?.nickname ||
@@ -295,6 +297,8 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
       }
     }
 
+    if (notification.type === "SHOPPING_REMINDER") { const day=Number(notification.targetId); const week=Number.isFinite(day)&&day>0&&day<100000?new Date(day*86400000).toISOString().slice(0,10):''; window.location.assign('/app?screen=fridge&shopping=1'+(week?'&shoppingWeek='+week:'')); return; }
+    if (notification.type === "FRIDGE_EXCHANGE") { window.location.assign("/app?screen=fridge&exchange=1"); return; }
     if (!isTradeNotification(notification) && notification.postId && onOpenPost) {
       onOpenPost(notification.postId);
       onClose();

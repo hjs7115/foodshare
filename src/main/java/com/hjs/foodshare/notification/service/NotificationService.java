@@ -185,6 +185,8 @@ public class NotificationService {
     }
 
     private String clickAction(String type, String targetType, Long targetId) {
+        if ("SHOPPING".equals(targetType)) return "/app?screen=fridge&shopping=1"+(targetId==null?"":"&shoppingWeek="+java.time.LocalDate.ofEpochDay(targetId));
+        if ("FRIDGE_EXCHANGE".equals(targetType)) return "/app?screen=fridge&exchange=1";
         if ("CHAT_ROOM".equals(targetType) && targetId != null) {
             return "/?screen=chat&roomId=" + targetId;
         }

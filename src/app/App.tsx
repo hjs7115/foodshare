@@ -24,7 +24,7 @@ const APP_ROUTE_STATE_KEY = '__foodshareRoute';
 const APP_ROUTE_INDEX_KEY = '__foodshareRouteIndex';
 const ROOT_GUARD = '__foodshareRootGuard';
 function prepareRootHistory(route: AppRoute, force = false) {
-  if (!force && window.history.state?.[ROOT_GUARD] === true) return;
+  if (window.history.state?.[ROOT_GUARD] === true && (!force || window.history.state?.[APP_ROUTE_STATE_KEY]?.screen === 'main')) return;
   const base = { ...window.history.state, [APP_ROUTE_STATE_KEY]: route, [APP_ROUTE_INDEX_KEY]: 0, __foodshareNestedDepth: 0, [ROOT_GUARD]: false };
   window.history.replaceState(base, '', window.location.href);
   window.history.pushState({ ...base, [ROOT_GUARD]: true }, '', window.location.href);
@@ -73,10 +73,9 @@ export default function App() {
     return () => {window.removeEventListener('auth-token-refreshed', renewed);window.removeEventListener('push-connected', renewed);};
   }, []);
   const [initialRoute] = useState(getInitialRoute);
-  const [exitPrompt, setExitPrompt] = useState(false);
-  const exitPromptRef = useRef(false); exitPromptRef.current = exitPrompt;
-  const [exitConfirmed, setExitConfirmed] = useState(false);
-  const exitConfirmedRef = useRef(false); exitConfirmedRef.current = exitConfirmed;
+  const [exitHint, setExitHint] = useState(false);
+  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (exitTimerRef.current) clearTimeout(exitTimerRef.current); }, []);
   const [currentScreen, setCurrentScreen] = useState<Screen>(initialRoute.screen);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(initialRoute.selectedCategory);
   const [mainView, setMainView] = useState<MainView>(initialRoute.mainView);
@@ -107,6 +106,7 @@ export default function App() {
 
     if (route.screen === 'main') {
       prepareRootHistory(route, Boolean(appHistoryRef.current.route && appHistoryRef.current.route.screen !== 'main'));
+      setExitHint(false);
       // Bottom tabs replace the current root; they are not a navigation stack.
       window.history.replaceState({ ...window.history.state, [APP_ROUTE_STATE_KEY]: route, [APP_ROUTE_INDEX_KEY]: 0 }, '', window.location.href);
       appHistoryRef.current = { route, index: 0, suppressRoutePush: false };
@@ -146,12 +146,19 @@ export default function App() {
   useEffect(() => {
     const handleBackNavigation = (event: PopStateEvent) => {
       const state = event.state && typeof event.state === 'object' ? event.state : {};
-      if (exitConfirmedRef.current) { window.close(); return; }
       if (appHistoryRef.current.route?.screen === 'main' && state[ROOT_GUARD] === false) {
         const route = appHistoryRef.current.route;
         window.history.replaceState({ ...state, [APP_ROUTE_STATE_KEY]: route }, '', window.location.href);
-        window.history.pushState({ ...state, [APP_ROUTE_STATE_KEY]: route, [ROOT_GUARD]: true, __foodshareNestedDepth: 0 }, '', window.location.href);
-        setExitPrompt(!exitPromptRef.current);
+        // Leave the guard consumed: the next physical Back belongs to the browser/OS.
+        // Do not call window.close(), push another entry, or render a fake exit page.
+        setExitHint(true);
+        if (exitTimerRef.current) clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = setTimeout(() => {
+          setExitHint(false);
+          if (window.history.state?.[ROOT_GUARD] === false && Number(window.history.state?.__foodshareNestedDepth ?? 0) === 0) {
+            prepareRootHistory(appHistoryRef.current.route || route);
+          }
+        }, 2500);
         return;
       }
       if (appHistoryRef.current.route?.screen === 'main') return;
@@ -424,7 +431,7 @@ export default function App() {
     <>
       {content}
       <FirstRunSetup />
-      {exitPrompt && <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/45 p-5"><section role="dialog" aria-modal="true" aria-labelledby="exit-title" className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl"><h2 id="exit-title" className="text-lg font-bold">반띵을 종료할까요?</h2><p className="mt-3 text-sm leading-6 text-[#64748b]">자동 로그인 설정과 저장한 내용은 유지돼요.</p><div className="mt-5 grid grid-cols-2 gap-2"><button onClick={()=>setExitPrompt(false)} className="rounded-xl bg-[#f1f5f9] py-3 font-semibold">계속 이용</button><button onClick={()=>{setExitPrompt(false);exitConfirmedRef.current=true;setExitConfirmed(true);window.history.back();}} className="rounded-xl bg-[#0d9488] py-3 font-semibold text-white">종료</button></div></section></div>}
+      {exitHint && <div role="status" className="pointer-events-none fixed bottom-24 left-1/2 z-[150] w-max max-w-[90vw] -translate-x-1/2 rounded-full bg-black/80 px-5 py-3 text-center text-sm text-white shadow-lg">한 번 더 뒤로가기를 누르면 종료됩니다</div>}
 
       {chatToast && (
         <button
@@ -453,7 +460,7 @@ export default function App() {
     </>
   );
 
-  if (exitConfirmed) return <main className="flex min-h-dvh items-center justify-center bg-[#f7fafc] p-6"><section className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-sm"><h1 className="text-xl font-bold">반띵 이용을 마쳤어요</h1><p className="mt-3 text-sm leading-6 text-[#64748b]">창이 자동으로 닫히지 않는 기기에서는 홈 버튼이나 앱 전환 화면으로 나가주세요.</p><button className="mt-5 rounded-xl bg-[#0d9488] px-5 py-3 font-semibold text-white" onClick={()=>{exitConfirmedRef.current=false;setExitConfirmed(false);prepareRootHistory(appHistoryRef.current.route||initialRoute)}}>다시 이용하기</button></section></main>;
+
   if (currentScreen === 'landing') {
     return (
       <LandingScreen

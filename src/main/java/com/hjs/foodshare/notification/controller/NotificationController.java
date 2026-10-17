@@ -86,6 +86,12 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.ok("Notification read.", null));
     }
 
+    @DeleteMapping("/api/notifications")
+    public ResponseEntity<ApiResponse<Void>> deleteAllNotifications(@AuthenticationPrincipal AuthUser authUser) {
+        notificationService.deleteAllNotifications(authUser.userId());
+        return ResponseEntity.ok(ApiResponse.ok("All notifications deleted.", null));
+    }
+
     @DeleteMapping("/api/notifications/read")
     public ResponseEntity<ApiResponse<Void>> deleteReadNotifications(
             @AuthenticationPrincipal AuthUser authUser

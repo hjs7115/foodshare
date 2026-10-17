@@ -1,5 +1,12 @@
+x-bounded-logs: &bounded-logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   mysql:
+    logging: *bounded-logs
     image: mysql:8.4
     container_name: foodshare-mysql
     ports:
@@ -27,6 +34,7 @@ services:
       - foodshare-network
 
   backend:
+    logging: *bounded-logs
     build:
       context: .
       dockerfile: Dockerfile.backend
@@ -52,6 +60,7 @@ services:
       - foodshare-network
 
   frontend:
+    logging: *bounded-logs
     build:
       context: .
       dockerfile: Dockerfile.frontend
@@ -74,6 +83,7 @@ services:
       - foodshare-network
 
   nginx:
+    logging: *bounded-logs
     image: nginx:1.27-alpine
     container_name: foodshare-nginx
     restart: unless-stopped

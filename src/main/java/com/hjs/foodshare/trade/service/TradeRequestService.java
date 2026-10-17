@@ -149,8 +149,9 @@ public class TradeRequestService {
 
     @Transactional
     public TradeRequestResponse complete(Long requestId, Long userId) {
-        TradeRequest tradeRequest = tradeRequestRepository.findById(requestId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Trade request not found."));
+        TradeRequest tradeRequest = entityManager.find(TradeRequest.class, requestId, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (tradeRequest == null) throw new BusinessException(HttpStatus.NOT_FOUND, "Trade request not found.");
+        if (entityManager.createQuery("select count(e) from FridgeExchange e where e.trade.id=:id and e.cancelRequestedBy is not null", Long.class).setParameter("id",requestId).getSingleResult()>0) throw new BusinessException(HttpStatus.CONFLICT,"취소 요청을 먼저 처리해주세요.");
         boolean isWriter = tradeRequest.getPost().getWriter().getId().equals(userId);
         boolean isRequester = tradeRequest.getRequester().getId().equals(userId);
         if (!isWriter && !isRequester) {

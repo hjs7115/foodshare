@@ -1,3 +1,4 @@
+import { useNestedBack } from '../../utils/useNestedBack';
 import { resetDeviceSession } from '../../auth/deviceSession';
 import { useState } from 'react';
 import {
@@ -24,6 +25,7 @@ type SettingsView = 'main' | 'password' | 'notifications' | 'location' | 'chat' 
 
 export default function SettingsScreen({ onClose }: { onClose: () => void }) {
   const [currentView, setCurrentView] = useState<SettingsView>('main');
+  useNestedBack(currentView !== 'main', () => setCurrentView('main'));
   const storedEmail = getStoredUserInfo<{ email?: string }>()?.email || '';
 
   const handleClearDeviceData = async () => {

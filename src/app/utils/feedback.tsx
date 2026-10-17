@@ -1,3 +1,4 @@
+import {useNestedBack} from './useNestedBack';
 import { ReactNode, useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 
@@ -56,6 +57,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [inputValue, setInputValue] = useState('');
+  useNestedBack(Boolean(dialog), () => { dialog?.resolve(dialog.type === 'prompt' ? null : false); setDialog(null); setInputValue(''); });
 
   useEffect(() => {
     toastHandler = (message, tone = 'info') => {

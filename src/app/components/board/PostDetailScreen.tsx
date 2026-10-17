@@ -84,7 +84,7 @@ interface Comment {
   createdAt: string;
 }
 
-type TradeRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED';
+type TradeRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED';
 
 interface TradeRequestSummary {
   requestId: number;
@@ -590,7 +590,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
     try {
       const response = await apiRequest(API_ENDPOINTS.mypageTradeRequests, { method: 'GET' });
       const existingRequest = extractTradeRequests(response)
-        .filter((request) => request.postId === postId && request.status !== 'REJECTED')
+        .filter((request) => request.postId === postId && !['REJECTED','CANCELLED'].includes(request.status))
         .sort((a, b) => b.requestId - a.requestId)[0];
 
       setTradeRequestStatus(existingRequest?.status || null);

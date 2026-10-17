@@ -537,3 +537,7 @@ export async function deleteReadNotifications(): Promise<any> {
     method: 'DELETE',
   });
 }
+
+export async function deleteAllNotifications(): Promise<any> {
+  return apiRequest(`${API_BASE_URL}/api/notifications`, {method: 'DELETE'});
+}

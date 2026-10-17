@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class NotificationService {
 
+    @org.springframework.beans.factory.annotation.Autowired private PushRetryService retries;
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final UserFcmTokenRepository userFcmTokenRepository;
@@ -110,6 +111,12 @@ public class NotificationService {
     }
 
     @Transactional
+    public void deleteAllNotifications(Long userId) {
+        getUser(userId);
+        notificationRepository.deleteAllOwned(userId);
+    }
+
+    @Transactional
     public void registerFcmToken(Long userId, FcmTokenRequest request) {
         User user = getUser(userId);
         userFcmTokenRepository.findByToken(request.token())
@@ -166,6 +173,8 @@ public class NotificationService {
                 delivered = true;
             } else if (result == FcmPushService.SendResult.INVALID_TOKEN) {
                 userFcmTokenRepository.delete(token);
+            } else if (result == FcmPushService.SendResult.FAILED) {
+                retries.enqueue(userId, token.getId(), type, title, body, targetType, targetId);
             }
         }
         return delivered;
@@ -175,7 +184,7 @@ public class NotificationService {
         return value == null ? current : value;
     }
 
-    private Map<String, String> pushData(String type, String targetType, Long targetId) {
+    static Map<String, String> pushData(String type, String targetType, Long targetId) {
         Map<String, String> data = new HashMap<>();
         data.put("type", type == null ? "" : type);
         data.put("targetType", targetType == null ? "" : targetType);
@@ -184,7 +193,7 @@ public class NotificationService {
         return data;
     }
 
-    private String clickAction(String type, String targetType, Long targetId) {
+    private static String clickAction(String type, String targetType, Long targetId) {
         if ("SHOPPING".equals(targetType)) return "/app?screen=fridge&shopping=1"+(targetId==null?"":"&shoppingWeek="+java.time.LocalDate.ofEpochDay(targetId));
         if ("FRIDGE_EXCHANGE".equals(targetType)) return "/app?screen=fridge&exchange=1";
         if ("CHAT_ROOM".equals(targetType) && targetId != null) {

@@ -80,7 +80,11 @@ export default function ChatScreen({
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [showChatMapModal, setShowChatMapModal] = useState(false);
   const openedInitialRoomIdRef = useRef<number | null>(null);
-  useNestedBack(Boolean(selectedRoom), () => setSelectedRoom(null));
+  useNestedBack(Boolean(selectedRoom), () => closeSelectedRoom());
+  useNestedBack(showRoomMenu,()=>setShowRoomMenu(false));
+  useNestedBack(showAttachmentMenu,()=>setShowAttachmentMenu(false));
+  useNestedBack(showChatMapModal,()=>setShowChatMapModal(false));
+  useNestedBack(isSearchingMessages,()=>cancelMessageSearch());
   const socketRef = useRef<WebSocket | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);

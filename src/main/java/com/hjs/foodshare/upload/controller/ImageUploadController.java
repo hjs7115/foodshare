@@ -22,10 +22,11 @@ public class ImageUploadController {
 
     @PostMapping("/images")
     public ResponseEntity<ApiResponse<ImageUploadResponse>> uploadImage(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal com.hjs.foodshare.global.security.AuthUser user,
             @RequestParam(value = "file", required = false) MultipartFile file,
             @RequestParam(value = "image", required = false) MultipartFile image
     ) {
         MultipartFile uploadFile = file != null ? file : image;
-        return ResponseEntity.ok(ApiResponse.ok("Image uploaded.", imageUploadService.upload(uploadFile)));
+        return ResponseEntity.ok(ApiResponse.ok("Image uploaded.", imageUploadService.upload(uploadFile, user.userId())));
     }
 }

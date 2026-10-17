@@ -4,5 +4,6 @@ public enum TradeRequestStatus {
     PENDING,
     ACCEPTED,
     REJECTED,
+    CANCELLED,
     COMPLETED
 }

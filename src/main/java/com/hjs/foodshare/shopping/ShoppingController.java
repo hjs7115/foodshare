@@ -11,6 +11,8 @@ import java.util.List;
 public class ShoppingController {
     private final ShoppingService service;
     public ShoppingController(ShoppingService service) {this.service=service;}
+    public record Carry(LocalDate week, List<Long> ids) {}
+    @PostMapping("/carry") public Object carry(@AuthenticationPrincipal AuthUser u,@RequestBody Carry body){return ApiResponse.ok("Carried",service.carry(u.userId(),body.week(),body.ids()));}
     public record Add(LocalDate week, String source, List<ShoppingService.Entry> items) {}
     public record Update(String state, String amount) {}
     public record Reminder(boolean enabled, String time, LocalDate week) {}

@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class EmailVerificationService {
 
+    @org.springframework.beans.factory.annotation.Autowired private AuthThrottle throttle;
     private static final int AUTH_CODE_LENGTH = 6;
 
     private final EmailVerificationRepository emailVerificationRepository;
@@ -78,6 +79,8 @@ public class EmailVerificationService {
     }
 
     private EmailVerification createAndSendCode(String email, String title, String description, String subject) {
+        throttle.check("mail-minute", email, 1, 60);
+        throttle.check("mail-hour", email, 5, 3600);
         String code = createCode();
         EmailVerification verification = EmailVerification.create(
                 email,
@@ -102,6 +105,7 @@ public class EmailVerificationService {
         if (verification.isUsed() || verification.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is expired.");
         }
+        throttle.check("email-code", email + ":" + verification.getExpiresAt(), 5, (int) codeTtl.toSeconds());
         if (!verification.getCode().equals(code)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is invalid.");
         }
@@ -134,6 +138,7 @@ public class EmailVerificationService {
         if (verification.isUsed() || verification.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is expired.");
         }
+        throttle.check("email-code", normalizedEmail + ":" + verification.getExpiresAt(), 5, (int) codeTtl.toSeconds());
         if (!verification.getCode().equals(normalizedCode)) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is invalid.");
         }

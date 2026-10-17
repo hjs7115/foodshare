@@ -11,7 +11,7 @@ interface TransactionHistoryScreenProps {
 }
 
 type TransactionTab = 'received' | 'sent' | 'completed';
-type TradeStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED';
+type TradeStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED' | 'COMPLETED';
 
 interface TradeRequest {
   requestId: number;
@@ -414,6 +414,8 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         return '수락됨';
       case 'REJECTED':
         return '거절됨';
+      case 'CANCELLED':
+        return '취소됨';
       case 'COMPLETED':
         return '완료됨';
     }
@@ -425,6 +427,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         return 'bg-[#fef3c7] text-[#92400e]';
       case 'ACCEPTED':
         return 'bg-[#dbeafe] text-[#1e40af]';
+      case 'CANCELLED':
       case 'REJECTED':
         return 'bg-[#fee2e2] text-[#991b1b]';
       case 'COMPLETED':

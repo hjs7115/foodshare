@@ -70,6 +70,8 @@ public class TradeRequest {
         this.respondedAt = LocalDateTime.now();
     }
 
+    public void cancel() { this.status=TradeRequestStatus.CANCELLED; this.respondedAt=LocalDateTime.now(); }
+
     public void complete() {
         this.status = TradeRequestStatus.COMPLETED;
         this.completedAt = LocalDateTime.now();

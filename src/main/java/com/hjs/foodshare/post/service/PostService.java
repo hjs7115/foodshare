@@ -57,6 +57,7 @@ public class PostService {
 
     @Transactional
     public PostResponse createPost(Long userId, PostCreateRequest request) {
+        imageUploadService.requireOwned(request.imageUrlValue(), userId, null);
         User writer = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
         validatePostRequest(
@@ -148,6 +149,7 @@ public class PostService {
         validateWriter(post, userId);
         if (post.isOpenFridgePost()) throw new BusinessException(HttpStatus.BAD_REQUEST, "열린 냉장고에서 재료를 수정하고 다시 공개해주세요.");
         String previousImageUrl = post.getImageUrl();
+        imageUploadService.requireOwned(request.imageUrlValue(), userId, previousImageUrl);
         validatePostRequest(
                 request.postType(),
                 request.currentParticipantCount(),

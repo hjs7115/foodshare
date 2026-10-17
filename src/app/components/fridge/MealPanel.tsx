@@ -1,3 +1,5 @@
+import MealLibrary,{keepMeal} from './MealLibrary';
+import {showToast} from '../../utils/feedback';
 import {lazy,Suspense} from 'react';
 import type {ShoppingMeal} from './ShoppingScreen';
 const ShoppingMealDialog=lazy(()=>import('./ShoppingScreen').then(m=>({default:m.ShoppingMealDialog})));
@@ -12,6 +14,7 @@ type Ingredient = { name:string; amount:string };
 type Meal = { recipe:{id:string;title:string;minutes:number;servings:number;ingredients:Ingredient[];basics:Ingredient[];steps:string[]}; available:string[];missing:string[];priority:string[];fridgeItemIds:number[] };
 type Result = { meals:Meal[];mode:string;excludedExpired:string[] };
 export default function MealPanel({items,loading,onEdit,onConsumed,onShare}:{items:Item[];loading:boolean;onEdit:(id:number)=>void;onConsumed:(id:number)=>Promise<void>;onShare:(id:number)=>void}) {
+ const [savingMeal,setSavingMeal]=useState<string|null>(null);
  const [shoppingMeal,setShoppingMeal]=useState<ShoppingMeal|null>(null);
  const eligible=items.filter(i=>getDaysLeft(i.expiryDate)>=0);
  const priority=eligible.filter(i=>getDaysLeft(i.expiryDate)<=3).sort((a,b)=>a.expiryDate.localeCompare(b.expiryDate)).slice(0,3);
@@ -86,6 +89,7 @@ export default function MealPanel({items,loading,onEdit,onConsumed,onShare}:{ite
    <button disabled={busy||loading} onClick={recommend} className="mt-4 w-full rounded-xl bg-[#0284c7] px-4 py-3 font-semibold text-white disabled:opacity-60">{busy?'AI가 레시피를 만들고 있어요…':'AI로 메뉴 골라보기'}</button>
    {error&&<p className="mt-3 text-sm text-[#b91c1c]" role="alert">{error}</p>}
   </div>
+  <MealLibrary onShopping={setShoppingMeal}/>
   {result&&<div ref={resultRef} aria-live="polite" className="scroll-mt-4 space-y-3">
    <div><h3 className="font-bold text-[#0f172a]">{result.mode==='AI'?'취향을 반영한 한 끼':'재료로 고른 한 끼'}</h3><p className="mt-1 text-xs leading-5 text-[#64748b]">{result.mode==='FALLBACK'?'지금은 AI 추천 대신 기본 메뉴를 보여드려요. 잠시 후 다시 시도할 수 있어요.':'AI가 제안한 레시피예요. 보유량·양념·알레르기 재료를 조리 전에 확인해주세요.'}</p></div>
    {result.excludedExpired.length>0&&<p className="text-xs text-[#b45309]">기한이 지나 제외한 재료: {result.excludedExpired.join(', ')}</p>}
@@ -96,6 +100,7 @@ export default function MealPanel({items,loading,onEdit,onConsumed,onShare}:{ite
     <p className="mt-3 text-sm text-[#166534]">있는 재료: {meal.available.join(', ')||'선택한 재료 없음'}</p>
     <p className="mt-1 text-sm text-[#64748b]">{meal.missing.length?'더 필요한 재료: '+meal.missing.join(', '):'주재료는 모두 있어요'}</p>
     {meal.missing.length>0&&<div className="mt-2 flex flex-wrap gap-2">{meal.missing.map(n=><button key={n} onClick={()=>findNearby(n)} className="rounded-lg border border-[#e2e8f0] px-2 py-2 text-xs text-[#0369a1]"><MapPin size={12} className="mr-1 inline"/>{n} 근처에서 찾기</button>)}</div>}
+    <div className="mt-3 flex gap-4 text-sm">{[[false,'메뉴 저장'],[true,'요리했어요']].map(([cooked,label])=><button key={String(cooked)} disabled={savingMeal!==null} className="text-[#0369a1] disabled:opacity-40" onClick={async()=>{setSavingMeal(meal.recipe.id);try{await keepMeal(meal.recipe,Boolean(cooked))}catch(e:any){showToast(e.message||'메뉴를 저장하지 못했어요.')}finally{setSavingMeal(null)}}}>{label}</button>)}</div>
     <button onClick={()=>setShoppingMeal({...meal.recipe,missing:meal.missing})} className="mt-3 w-full rounded-xl border border-[#bae6fd] px-3 py-3 text-sm font-semibold text-[#075985]">장보기 목록에 담기</button>
     <button onClick={()=>{setExpanded(expanded===meal.recipe.id?null:meal.recipe.id);setNearby(null);nearbySequence.current++}} aria-expanded={expanded===meal.recipe.id} className="mt-3 flex w-full items-center justify-between rounded-xl bg-[#f0f9ff] px-3 py-2 text-sm font-semibold text-[#075985]">{expanded===meal.recipe.id?'레시피 접기':'레시피 보기'}<ChevronDown size={16}/></button>
     {expanded===meal.recipe.id&&<div className="mt-4 space-y-4 text-sm">

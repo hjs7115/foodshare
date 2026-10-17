@@ -37,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AuthService {
 
+    @org.springframework.beans.factory.annotation.Autowired private AuthThrottle throttle;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -83,6 +84,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
+        throttle.check("login", request.email(), 10, 900);
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Email or password is invalid."));
 

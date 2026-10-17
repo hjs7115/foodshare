@@ -1,3 +1,4 @@
+import {useNestedBack} from '../../utils/useNestedBack';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 import {
   deleteNotification,
-  deleteReadNotifications,
+  deleteAllNotifications,
   getNotifications,
   readNotification,
   resolveImageUrl,
@@ -248,6 +249,7 @@ function formatDate(value?: string): string {
 }
 
 export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHistory }: NotificationsScreenProps) {
+  useNestedBack(true, onClose);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<NotificationItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -257,10 +259,7 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
     () => notifications.filter((notification) => !notification.isRead).length,
     [notifications]
   );
-  const readCount = useMemo(
-    () => notifications.filter((notification) => notification.isRead).length,
-    [notifications]
-  );
+  const [deletingAll, setDeletingAll] = useState(false);
 
   useEffect(() => {
     loadNotifications();
@@ -305,19 +304,18 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
     }
   };
 
-  const handleDeleteReadNotifications = async () => {
-    if (readCount === 0) return;
-    if (!(await showConfirm('읽은 알림을 삭제할까요?', '알림 삭제', '삭제'))) return;
-
-    const previousNotifications = notifications;
-    setNotifications((prev) => prev.filter((notification) => !notification.isRead));
-
+  const handleDeleteAllNotifications = async () => {
+    if (!notifications.length || deletingAll) return;
+    if (!(await showConfirm('읽지 않은 알림을 포함해 모든 알림을 삭제할까요?', '알림 전체 삭제', '전체 삭제'))) return;
+    setDeletingAll(true);
     try {
-      await deleteReadNotifications();
+      await deleteAllNotifications();
+      setNotifications([]);
+      window.dispatchEvent(new Event('notifications-changed'));
+      showToast('모든 알림을 삭제했어요.');
     } catch (error: any) {
-      setNotifications(previousNotifications);
-      showToast(error?.message || '읽은 알림 삭제에 실패했습니다.', 'error');
-    }
+      showToast(error?.message || '알림 전체 삭제에 실패했습니다.', 'error');
+    } finally { setDeletingAll(false); }
   };
 
   const handleDeleteNotification = async (notificationId: number) => {
@@ -348,11 +346,11 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
         </div>
           <div className="flex items-center gap-1">
             <button
-              onClick={handleDeleteReadNotifications}
-              disabled={readCount === 0}
+              onClick={handleDeleteAllNotifications}
+              disabled={notifications.length === 0 || deletingAll || isLoading}
               className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#f7fafc] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              aria-label="읽은 알림 삭제"
-              title="읽은 알림 삭제"
+              aria-label="알림 전체 삭제"
+              title="알림 전체 삭제"
             >
               <Trash2 size={17} className="text-[#718096]" />
             </button>

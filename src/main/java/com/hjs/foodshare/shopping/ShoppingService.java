@@ -59,6 +59,21 @@ public class ShoppingService {
         }
         em.flush();return get(userId,monday);
     }
+    @Transactional public ListView carry(Long userId, LocalDate from, List<Long> ids) {
+        LocalDate source=week(from),target=week(source.plusWeeks(1));
+        if(ids==null||ids.isEmpty()||ids.size()>200)throw error("이월할 품목을 선택해주세요.");
+        lock(userId);var selected=rows(userId,source).stream().filter(i->ids.contains(i.id)&&"NEED".equals(i.state)).toList();
+        if(selected.size()!=new HashSet<>(ids).size())throw error("살 품목만 이월할 수 있어요. 목록을 새로고침해주세요.");
+        var existing=new ArrayList<>(rows(userId,target));
+        for(var item:selected){
+            boolean duplicate=existing.stream().anyMatch(i->key(i.name).equals(key(item.name))&&i.amount.equals(item.amount)&&i.source.equals(item.source));
+            if(duplicate)continue;
+            if(existing.size()>=200)throw error("다음 주 목록은 최대 200개까지 담을 수 있어요.");
+            var next=new ShoppingItem(userId,target,item.name,item.amount,item.source);em.persist(next);existing.add(next);
+        }
+        em.flush();return get(userId,target);
+    }
+
     @Transactional public ListView update(Long userId, Long id, String state, String amount) {
         lock(userId);var item=em.find(ShoppingItem.class,id);
         if(item==null||!item.userId.equals(userId))throw new BusinessException(HttpStatus.NOT_FOUND,"장보기 품목을 찾지 못했어요.");

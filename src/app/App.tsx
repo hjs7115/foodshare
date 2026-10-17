@@ -22,6 +22,13 @@ type AppRoute = { screen: Screen; selectedCategory: string | null; mainView: Mai
 
 const APP_ROUTE_STATE_KEY = '__foodshareRoute';
 const APP_ROUTE_INDEX_KEY = '__foodshareRouteIndex';
+const ROOT_GUARD = '__foodshareRootGuard';
+function prepareRootHistory(route: AppRoute, force = false) {
+  if (!force && window.history.state?.[ROOT_GUARD] === true) return;
+  const base = { ...window.history.state, [APP_ROUTE_STATE_KEY]: route, [APP_ROUTE_INDEX_KEY]: 0, __foodshareNestedDepth: 0, [ROOT_GUARD]: false };
+  window.history.replaceState(base, '', window.location.href);
+  window.history.pushState({ ...base, [ROOT_GUARD]: true }, '', window.location.href);
+}
 
 function isAppRoute(value: unknown): value is AppRoute {
   if (!value || typeof value !== 'object') return false;
@@ -45,11 +52,9 @@ function getInitialRoute(): AppRoute {
         ? 'profile'
         : 'board';
 
-  return {
-    screen: requestedScreen ? 'main' : 'category',
-    selectedCategory: requestedScreen === 'groupBuy' ? '공동구매' : '시장',
-    mainView,
-  };
+  const route: AppRoute = {screen: requestedScreen ? 'main' : 'category', selectedCategory: requestedScreen === 'groupBuy' ? '공동구매' : '시장', mainView};
+  if (route.screen === 'main') prepareRootHistory(route, true);
+  return route;
 }
 
 interface ChatToast {
@@ -68,6 +73,10 @@ export default function App() {
     return () => {window.removeEventListener('auth-token-refreshed', renewed);window.removeEventListener('push-connected', renewed);};
   }, []);
   const [initialRoute] = useState(getInitialRoute);
+  const [exitPrompt, setExitPrompt] = useState(false);
+  const exitPromptRef = useRef(false); exitPromptRef.current = exitPrompt;
+  const [exitConfirmed, setExitConfirmed] = useState(false);
+  const exitConfirmedRef = useRef(false); exitConfirmedRef.current = exitConfirmed;
   const [currentScreen, setCurrentScreen] = useState<Screen>(initialRoute.screen);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(initialRoute.selectedCategory);
   const [mainView, setMainView] = useState<MainView>(initialRoute.mainView);
@@ -95,6 +104,14 @@ export default function App() {
     const historyState = window.history.state && typeof window.history.state === 'object'
       ? window.history.state
       : {};
+
+    if (route.screen === 'main') {
+      prepareRootHistory(route, Boolean(appHistoryRef.current.route && appHistoryRef.current.route.screen !== 'main'));
+      // Bottom tabs replace the current root; they are not a navigation stack.
+      window.history.replaceState({ ...window.history.state, [APP_ROUTE_STATE_KEY]: route, [APP_ROUTE_INDEX_KEY]: 0 }, '', window.location.href);
+      appHistoryRef.current = { route, index: 0, suppressRoutePush: false };
+      return;
+    }
 
     if (!appHistoryRef.current.route) {
       const rootState = {
@@ -129,6 +146,15 @@ export default function App() {
   useEffect(() => {
     const handleBackNavigation = (event: PopStateEvent) => {
       const state = event.state && typeof event.state === 'object' ? event.state : {};
+      if (exitConfirmedRef.current) { window.close(); return; }
+      if (appHistoryRef.current.route?.screen === 'main' && state[ROOT_GUARD] === false) {
+        const route = appHistoryRef.current.route;
+        window.history.replaceState({ ...state, [APP_ROUTE_STATE_KEY]: route }, '', window.location.href);
+        window.history.pushState({ ...state, [APP_ROUTE_STATE_KEY]: route, [ROOT_GUARD]: true, __foodshareNestedDepth: 0 }, '', window.location.href);
+        setExitPrompt(!exitPromptRef.current);
+        return;
+      }
+      if (appHistoryRef.current.route?.screen === 'main') return;
       const route = isAppRoute(state[APP_ROUTE_STATE_KEY])
         ? state[APP_ROUTE_STATE_KEY] as AppRoute
         : appHistoryRef.current.route || initialRoute;
@@ -398,6 +424,8 @@ export default function App() {
     <>
       {content}
       <FirstRunSetup />
+      {exitPrompt && <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/45 p-5"><section role="dialog" aria-modal="true" aria-labelledby="exit-title" className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl"><h2 id="exit-title" className="text-lg font-bold">반띵을 종료할까요?</h2><p className="mt-3 text-sm leading-6 text-[#64748b]">자동 로그인 설정과 저장한 내용은 유지돼요.</p><div className="mt-5 grid grid-cols-2 gap-2"><button onClick={()=>setExitPrompt(false)} className="rounded-xl bg-[#f1f5f9] py-3 font-semibold">계속 이용</button><button onClick={()=>{setExitPrompt(false);exitConfirmedRef.current=true;setExitConfirmed(true);window.history.back();}} className="rounded-xl bg-[#0d9488] py-3 font-semibold text-white">종료</button></div></section></div>}
+
       {chatToast && (
         <button
           type="button"
@@ -425,6 +453,7 @@ export default function App() {
     </>
   );
 
+  if (exitConfirmed) return <main className="flex min-h-dvh items-center justify-center bg-[#f7fafc] p-6"><section className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-sm"><h1 className="text-xl font-bold">반띵 이용을 마쳤어요</h1><p className="mt-3 text-sm leading-6 text-[#64748b]">창이 자동으로 닫히지 않는 기기에서는 홈 버튼이나 앱 전환 화면으로 나가주세요.</p><button className="mt-5 rounded-xl bg-[#0d9488] px-5 py-3 font-semibold text-white" onClick={()=>{exitConfirmedRef.current=false;setExitConfirmed(false);prepareRootHistory(appHistoryRef.current.route||initialRoute)}}>다시 이용하기</button></section></main>;
   if (currentScreen === 'landing') {
     return (
       <LandingScreen

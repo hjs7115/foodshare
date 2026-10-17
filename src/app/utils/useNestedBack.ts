@@ -6,7 +6,6 @@ const DEPTH_KEY = '__foodshareNestedDepth';
 export function useNestedBack(active: boolean, onBack: () => void) {
   const onBackRef = useRef(onBack);
   const depthRef = useRef<number | null>(null);
-  const ignoreNextPopRef = useRef(false);
   onBackRef.current = onBack;
 
   useEffect(() => {
@@ -19,10 +18,6 @@ export function useNestedBack(active: boolean, onBack: () => void) {
     window.history.pushState({ ...state, [DEPTH_KEY]: depth }, '', window.location.href);
 
     const handlePop = (event: PopStateEvent) => {
-      if (ignoreNextPopRef.current) {
-        ignoreNextPopRef.current = false;
-        return;
-      }
       const destinationDepth = Number(event.state?.[DEPTH_KEY] ?? 0);
       if (depthRef.current !== null && destinationDepth < depthRef.current) {
         depthRef.current = null;
@@ -38,7 +33,6 @@ export function useNestedBack(active: boolean, onBack: () => void) {
         : {};
       if (depthRef.current !== null && Number(currentState[DEPTH_KEY]) === depthRef.current) {
         depthRef.current = null;
-        ignoreNextPopRef.current = true;
         window.history.back();
       }
     };

@@ -1,3 +1,4 @@
+import {useNestedBack} from '../../utils/useNestedBack';
 import {lazy,Suspense} from 'react';
 const ShoppingScreen=lazy(()=>import('./ShoppingScreen'));
 const OpenFridgeScreen=lazy(()=>import('./OpenFridgeScreen'));
@@ -79,6 +80,8 @@ export default function FridgeScreen({
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [editingItem, setEditingItem] = useState<FridgeItem | null>(null);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
+  useNestedBack(showItemForm,()=>{setShowItemForm(false);setEditingItem(null)});
+  useNestedBack(showCreatePost,()=>setShowCreatePost(false));
 
   useEffect(() => {
     loadFridgeItems();

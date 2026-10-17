@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class MyPageService {
 
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.upload.service.ImageUploadService images;
     private final UserRepository userRepository;
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
@@ -131,6 +132,7 @@ public class MyPageService {
     @Transactional
     public UserResponse updateProfile(Long userId, ProfileUpdateRequest request) {
         User user = getUser(userId);
+        images.requireOwned(request.profileImage(), userId, user.getProfileImage());
         user.updateProfile(request.nickname(), request.location(), request.profileImage());
         return UserResponse.from(user);
     }

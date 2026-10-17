@@ -12,6 +12,21 @@ public class FridgeExchange {
  @Column(nullable=false) private LocalDateTime createdAt=LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
  @OneToOne(fetch=FetchType.LAZY) private TradeRequest trade;
  private Long chatRoomId;
+ private Long cancelRequestedBy;
+ private LocalDateTime meetingAt;
+ @Column(length=100) private String meetingPlace;
+ private Long meetingProposedBy;
+ private Boolean meetingConfirmed;
+ public Long getCancelRequestedBy(){return cancelRequestedBy;}
+ public void requestCancellation(Long id){cancelRequestedBy=id;}
+ public void clearCancellation(){cancelRequestedBy=null;}
+ public LocalDateTime getMeetingAt(){return meetingAt;}
+ public String getMeetingPlace(){return meetingPlace;}
+ public Long getMeetingProposedBy(){return meetingProposedBy;}
+ public boolean isMeetingConfirmed(){return Boolean.TRUE.equals(meetingConfirmed);}
+ public void proposeMeeting(Long user,LocalDateTime at,String place){meetingProposedBy=user;meetingAt=at;meetingPlace=place;meetingConfirmed=false;}
+ public void confirmMeeting(){meetingConfirmed=true;}
+
  protected FridgeExchange(){}
  public FridgeExchange(Post offered,Post wanted){this.offered=offered;this.wanted=wanted;}
  public Long getId(){return id;} public Post getOffered(){return offered;} public Post getWanted(){return wanted;}

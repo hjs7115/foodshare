@@ -39,8 +39,16 @@ function isAppRoute(value: unknown): value is AppRoute {
 }
 
 function getInitialRoute(): AppRoute {
+  // History state belongs to this tab/entry and survives a refresh. Read it
+  // before URL defaults, which may still describe the original entry screen.
+  const savedRoute = window.history.state?.[APP_ROUTE_STATE_KEY];
   if (!hasAuthSession()) {
+    if (isAppRoute(savedRoute) && ['landing', 'login', 'signup', 'findId', 'findPassword'].includes(savedRoute.screen)) return savedRoute;
     return { screen: 'landing', selectedCategory: null, mainView: 'board' };
+  }
+  if (isAppRoute(savedRoute) && ['main', 'category'].includes(savedRoute.screen)) {
+    if (savedRoute.screen === 'main') prepareRootHistory(savedRoute);
+    return savedRoute;
   }
 
   const requestedScreen = new URLSearchParams(window.location.search).get('screen');
@@ -81,11 +89,11 @@ export default function App() {
   const [mainView, setMainView] = useState<MainView>(initialRoute.mainView);
   const [chatRoomTargetId, setChatRoomTargetId] = useState<number | null>(() => {
     const roomId = Number(new URLSearchParams(window.location.search).get('roomId'));
-    return new URLSearchParams(window.location.search).get('screen') === 'chat' && Number.isFinite(roomId) && roomId > 0 ? roomId : null;
+    return initialRoute.mainView === 'chat' && new URLSearchParams(window.location.search).get('screen') === 'chat' && Number.isFinite(roomId) && roomId > 0 ? roomId : null;
   });
   const [postTargetId, setPostTargetId] = useState<number | null>(() => {
     const postId = Number(new URLSearchParams(window.location.search).get('postId'));
-    return new URLSearchParams(window.location.search).get('screen') === 'post' && Number.isFinite(postId) && postId > 0 ? postId : null;
+    return initialRoute.mainView === 'board' && initialRoute.selectedCategory === '시장' && new URLSearchParams(window.location.search).get('screen') === 'post' && Number.isFinite(postId) && postId > 0 ? postId : null;
   });
   const [profileTradeHistorySignal, setProfileTradeHistorySignal] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);

@@ -39,6 +39,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             select p
             from Post p
             where p.deleted = false
+              and p.openFridgeValidUntil is null
               and p.status = :status
               and (:postType is null or p.postType = :postType)
               and (:keyword is null

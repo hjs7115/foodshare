@@ -134,4 +134,40 @@ class StabilizationTests {
   assertEquals(saved.id(),cooked.id());assertTrue(cooked.favorite());assertNotNull(cooked.cookedAt());assertEquals(1,library.list(a.getId()).size());assertTrue(library.list(b.getId()).isEmpty());
   assertThrows(BusinessException.class,()->library.delete(b.getId(),saved.id()));library.delete(a.getId(),saved.id());assertTrue(library.list(a.getId()).isEmpty());
  }
+
+ @Autowired com.hjs.foodshare.post.service.PostService market;
+ @Autowired com.hjs.foodshare.post.repository.PostRepository postRepo;
+ @Autowired com.hjs.foodshare.mypage.service.MyPageService mypage;
+ @Test void privatePhotoStaysPrivateAndPublishedFoodDoesNotBecomeMarketListing() throws Exception {
+  var owner=user("photoOwner");var neighbor=user("photoNeighbor");
+  var photo=images.upload(new MockMultipartFile("image","food.png","image/png",png()),owner.getId()).imageUrl();
+  var f=fridge.createItem(owner.getId(),new FridgeItemRequest("당근","3개",today().plusDays(3),"냉장","개인 메모",photo));
+  assertEquals(photo,fridge.getItems(owner.getId()).getFirst().imageUrl());
+  assertTrue(open.nearby(neighbor.getId(),"당근").neighbors().isEmpty());
+  var shared=open.publish(owner.getId(),f.id(),"1개");
+  assertEquals(photo,shared.imageUrl());
+  var publicItem=open.nearby(neighbor.getId(),"당근").neighbors().getFirst().items().getFirst();
+  assertEquals("1개",publicItem.amount());assertEquals(photo,publicItem.imageUrl());
+  assertTrue(market.getPosts(neighbor.getId()).stream().noneMatch(p->p.postId().equals(shared.postId())));
+  assertTrue(postRepo.searchPosts(com.hjs.foodshare.post.domain.PostStatus.OPEN,null,null).stream().noneMatch(p->p.getId().equals(shared.postId())));
+  assertTrue(mypage.getMyPosts(owner.getId()).stream().noneMatch(p->p.postId().equals(shared.postId())));
+  var request=open.request(neighbor.getId(),f.id());
+  trades.accept(request.requestId(),owner.getId());
+  assertTrue(open.nearby(neighbor.getId(),"당근").neighbors().isEmpty());
+  assertFalse(trades.getMyRequests(neighbor.getId()).isEmpty());
+ }
+ @Test void photoUpdatesRequireItemAndUploadOwnershipAndDoNotPublish() throws Exception {
+  var a=user("photoA");var b=user("photoB");
+  var f=fridge.createItem(a.getId(),new FridgeItemRequest("두부","1모",today().plusDays(3),"냉장",""));
+  var theirs=images.upload(new MockMultipartFile("image","food.png","image/png",png()),b.getId()).imageUrl();
+  assertThrows(BusinessException.class,()->open.photo(a.getId(),f.id(),theirs));
+  assertThrows(BusinessException.class,()->open.photo(b.getId(),f.id(),""));
+  var own=images.upload(new MockMultipartFile("image","food.png","image/png",png()),a.getId()).imageUrl();
+  assertEquals("PRIVATE",open.photo(a.getId(),f.id(),own).state());
+  assertTrue(open.nearby(b.getId(),"두부").neighbors().isEmpty());
+  var published=open.publish(a.getId(),f.id(),"반 모");
+  assertEquals(own,postRepo.findById(published.postId()).orElseThrow().getImageUrl());
+  assertEquals("",open.photo(a.getId(),f.id(),"").imageUrl());
+  assertEquals("PUBLIC",open.mine(a.getId()).getFirst().state());
+ }
 }

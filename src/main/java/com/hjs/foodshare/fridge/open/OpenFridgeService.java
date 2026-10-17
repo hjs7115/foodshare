@@ -18,19 +18,20 @@ import java.time.*;
 import java.util.*;
 @Service @Transactional(readOnly=true)
 public class OpenFridgeService {
+ @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.upload.service.ImageUploadService images;
  @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.fridge.exchange.FridgeExchangeRepository exchanges;
  private final FridgeItemRepository items; private final UserRepository users; private final PostRepository posts;
  private final TradeRequestRepository requests; private final TradeRequestService trades; private final UserBlockRepository blocks;
  @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
  public OpenFridgeService(FridgeItemRepository items,UserRepository users,PostRepository posts,TradeRequestRepository requests,TradeRequestService trades,UserBlockRepository blocks){this.items=items;this.users=users;this.posts=posts;this.requests=requests;this.trades=trades;this.blocks=blocks;}
- public record SharedItem(Long itemId,Long postId,String name,String amount,LocalDate expiryDate,LocalDateTime confirmedAt,String state,boolean requested){}
+ public record SharedItem(Long itemId,Long postId,String name,String amount,LocalDate expiryDate,LocalDateTime confirmedAt,String state,boolean requested,String imageUrl){}
  public record Neighbor(Long userId,String nickname,String profileImage,String neighborhood,double distanceKm,List<SharedItem> items){}
  public record Nearby(boolean locationRequired,List<Neighbor> neighbors){}
  private LocalDateTime now(){return LocalDateTime.now(ZoneId.of("Asia/Seoul"));}
  private User user(Long id){return users.findById(id).orElseThrow(()->new BusinessException(HttpStatus.NOT_FOUND,"사용자를 찾지 못했어요."));}
  private boolean located(User u){return u.getLatitude()!=null&&u.getLongitude()!=null&&Math.abs(u.getLatitude())<=90&&Math.abs(u.getLongitude())<=180;}
  public List<SharedItem> mine(Long id){return items.findAllByUserIdOrderByExpiryDateAscCreatedAtAsc(id).stream().map(this::view).toList();}
- private SharedItem view(FridgeItem f){Post p=f.getSharedPost();String state=p==null?"PRIVATE":f.getShareConfirmedAt()==null?"PRIVATE":p.isDeleted()?"ENDED":p.getStatus()==PostStatus.CLOSED?"ENDED":!available(f)?"STALE":"PUBLIC";return new SharedItem(f.getId(),p==null?null:p.getId(),f.getName(),p==null?f.getAmount():p.getQuantity(),f.getExpiryDate(),f.getShareConfirmedAt(),state,false);}
+ private SharedItem view(FridgeItem f){Post p=f.getSharedPost();String state=p==null?"PRIVATE":f.getShareConfirmedAt()==null?"PRIVATE":p.isDeleted()?"ENDED":p.getStatus()==PostStatus.CLOSED?"ENDED":!available(f)?"STALE":"PUBLIC";return new SharedItem(f.getId(),p==null?null:p.getId(),f.getName(),p==null?f.getAmount():p.getQuantity(),f.getExpiryDate(),f.getShareConfirmedAt(),state,false,f.getImageUrl());}
  private boolean available(FridgeItem f){return f.getSharedPost()!=null&&f.getSharedPost().isOpen()&&f.getShareConfirmedAt()!=null&&!f.getShareConfirmedAt().isBefore(now().minusDays(7))&&!f.getExpiryDate().isBefore(now().toLocalDate());}
  private boolean blocked(Long a,Long b){return blocks.existsByBlockerIdAndBlockedUserId(a,b)||blocks.existsByBlockerIdAndBlockedUserId(b,a);}
  private String area(User u){String v=u.getLocation();if(v==null||v.isBlank())return "동네 미정";return String.join(" ",Arrays.stream(v.trim().split("\\s+")).limit(2).toList());}
@@ -44,7 +45,7 @@ public class OpenFridgeService {
   Map<Long,List<FridgeItem>> grouped=new LinkedHashMap<>();
   found.forEach(f->grouped.computeIfAbsent(f.getUser().getId(),k->new ArrayList<>()).add(f));
   Set<Long> requested=found.isEmpty()?Set.of():new HashSet<>(em.createQuery("select distinct t.post.id from TradeRequest t where t.requester.id=:id and t.post.id in :posts",Long.class).setParameter("id",id).setParameter("posts",found.stream().map(f->f.getSharedPost().getId()).toList()).getResultList());
-  List<Neighbor> result=new ArrayList<>();for(var entry:grouped.entrySet()){User owner=entry.getValue().getFirst().getUser();double d=distance(me,owner);result.add(new Neighbor(owner.getId(),owner.getNickname(),owner.getProfileImage(),area(owner),Math.round(d*10)/10.0,entry.getValue().stream().map(f->{var v=view(f);return new SharedItem(v.itemId(),v.postId(),v.name(),v.amount(),v.expiryDate(),v.confirmedAt(),v.state(),requested.contains(v.postId()));}).toList()));}
+  List<Neighbor> result=new ArrayList<>();for(var entry:grouped.entrySet()){User owner=entry.getValue().getFirst().getUser();double d=distance(me,owner);result.add(new Neighbor(owner.getId(),owner.getNickname(),owner.getProfileImage(),area(owner),Math.round(d*10)/10.0,entry.getValue().stream().map(f->{var v=view(f);return new SharedItem(v.itemId(),v.postId(),v.name(),v.amount(),v.expiryDate(),v.confirmedAt(),v.state(),requested.contains(v.postId()),v.imageUrl());}).toList()));}
   return new Nearby(false,result.stream().sorted(Comparator.comparingDouble(Neighbor::distanceKm)).limit(50).toList());
  }
  @Transactional public SharedItem publish(Long id,Long itemId,String amount){
@@ -58,8 +59,14 @@ public class OpenFridgeService {
    p.close();requests.findAllByPostIdAndStatus(p.getId(),TradeRequestStatus.PENDING).forEach(r->r.reject());
   }
   String title=f.getName().substring(0,Math.min(90,f.getName().length()))+" 나눔해요";
-  p=posts.save(Post.create(me,PostType.SHARE,title,f.getName(),amount,0,area(me),0.0,f.getExpiryDate(),Math.round(me.getLatitude()*100)/100.0,Math.round(me.getLongitude()*100)/100.0,null,"열린 냉장고에서 나누는 재료예요. 나눌 수량: "+amount+". 보관 상태와 만날 장소는 수락 후 채팅으로 확인해주세요.",null,null,null));
+  p=posts.save(Post.create(me,PostType.SHARE,title,f.getName(),amount,0,area(me),0.0,f.getExpiryDate(),Math.round(me.getLatitude()*100)/100.0,Math.round(me.getLongitude()*100)/100.0,f.getImageUrl(),"열린 냉장고에서 나누는 재료예요. 나눌 수량: "+amount+". 보관 상태와 만날 장소는 수락 후 채팅으로 확인해주세요.",null,null,null));
   p.setOpenFridgeValidUntil(until(f));f.share(p);return view(f);
+ }
+ @Transactional public SharedItem photo(Long id,Long itemId,String imageUrl){
+  var f=items.lockOwned(itemId,id).orElseThrow(()->new BusinessException(HttpStatus.NOT_FOUND,"내 재료를 찾지 못했어요."));
+  images.requireOwned(imageUrl,id,f.getImageUrl());f.setImageUrl(imageUrl);
+  if(f.getSharedPost()!=null){em.flush();em.refresh(f.getSharedPost(),jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);f.getSharedPost().updateOpenFridgeImage(imageUrl);}
+  return view(f);
  }
  private LocalDateTime until(FridgeItem f){LocalDateTime a=now().plusDays(7),b=f.getExpiryDate().plusDays(1).atStartOfDay();return a.isBefore(b)?a:b;}
  @Transactional public void hide(Long id,Long itemId){var f=items.lockOwned(itemId,id).orElseThrow(()->new BusinessException(HttpStatus.NOT_FOUND,"재료를 찾지 못했어요."));if(f.getSharedPost()!=null){em.flush();em.refresh(f.getSharedPost(),jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);requests.findAllByPostIdAndStatus(f.getSharedPost().getId(),TradeRequestStatus.PENDING).forEach(r->r.reject());}f.hideShare();}

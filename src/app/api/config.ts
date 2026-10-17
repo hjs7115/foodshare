@@ -480,6 +480,7 @@ export async function getNotificationUnreadCount(): Promise<number> {
 }
 
 export interface FridgeItemPayload {
+  imageUrl?: string;
   name: string;
   amount?: string;
   expiryDate: string;

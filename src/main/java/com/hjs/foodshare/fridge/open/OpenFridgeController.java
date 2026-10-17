@@ -9,6 +9,8 @@ import jakarta.validation.constraints.*;
 public class OpenFridgeController {
  private final OpenFridgeService service;
  public OpenFridgeController(OpenFridgeService service){this.service=service;}
+ public record Photo(@Size(max=500) String imageUrl){}
+ @PutMapping("/{id}/photo") public Object photo(@AuthenticationPrincipal AuthUser user,@PathVariable Long id,@Valid @RequestBody Photo request){return ApiResponse.ok("Photo updated",service.photo(user.userId(),id,request.imageUrl()));}
  public record Publish(@NotBlank @Size(max=50) String amount){}
  @GetMapping public Object nearby(@AuthenticationPrincipal AuthUser user,@RequestParam(defaultValue="") String keyword){return ApiResponse.ok("Nearby fridges",service.nearby(user.userId(),keyword));}
  @GetMapping("/mine") public Object mine(@AuthenticationPrincipal AuthUser user){return ApiResponse.ok("My sharing settings",service.mine(user.userId()));}

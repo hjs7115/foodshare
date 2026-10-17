@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class FridgeItemService {
 
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.upload.service.ImageUploadService images;
     private final FridgeItemRepository fridgeItemRepository;
     private final UserRepository userRepository;
     private final com.hjs.foodshare.trade.repository.TradeRequestRepository tradeRequests;
@@ -46,12 +47,18 @@ public class FridgeItemService {
                 request.storagePlaceValue(),
                 request.memoValue()
         );
+        images.requireOwned(request.imageUrl(), userId, null);
+        item.setImageUrl(request.imageUrl());
         return FridgeItemResponse.from(fridgeItemRepository.save(item));
     }
 
     @Transactional
     public FridgeItemResponse updateItem(Long userId, Long itemId, FridgeItemRequest request) {
         FridgeItem item = getOwnedItem(userId, itemId);
+        if (request.imageUrl() != null) {
+            images.requireOwned(request.imageUrl(), userId, item.getImageUrl());
+            item.setImageUrl(request.imageUrl());
+        }
         closeShared(item);
         item.update(
                 request.nameValue(),

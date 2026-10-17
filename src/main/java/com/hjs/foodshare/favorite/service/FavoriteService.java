@@ -59,7 +59,7 @@ public class FavoriteService {
     public List<PostResponse> getMyFavorites(Long userId) {
         return favoriteRepository.findAllByUserIdOrderByCreatedAtDesc(userId)
                 .stream()
-                .filter(favorite -> !favorite.getPost().isDeleted())
+                .filter(favorite -> !favorite.getPost().isDeleted() && !favorite.getPost().isOpenFridgePost())
                 .map(favorite -> PostResponse.from(
                         favorite.getPost(),
                         userId,

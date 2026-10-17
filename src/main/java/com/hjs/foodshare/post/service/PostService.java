@@ -101,6 +101,7 @@ public class PostService {
         return postRepository.findAllByDeletedFalseAndStatusOrderByCreatedAtDesc(PostStatus.OPEN)
                 .stream()
                 .filter(Post::isOpen)
+                .filter(post -> !post.isOpenFridgePost())
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .map(post -> toResponse(post, currentUserId))
                 .toList();
@@ -127,6 +128,7 @@ public class PostService {
                 .stream()
                 .filter(this::keepVisibleOrCloseExpired)
                 .filter(Post::isOpen)
+                .filter(post -> !post.isOpenFridgePost())
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .filter(post -> !Boolean.TRUE.equals(expiringSoon) || isExpiringSoon(post))
                 .map(post -> toResponse(post, currentUserId).withDistance(resolveDistanceKm(post, latitude, longitude)))

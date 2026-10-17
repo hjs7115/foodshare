@@ -97,6 +97,7 @@ public class MyPageService {
     public List<PostResponse> getMyPosts(Long userId) {
         return postRepository.findAllByWriterIdAndDeletedFalseOrderByCreatedAtDesc(userId)
                 .stream()
+                .filter(post -> !post.isOpenFridgePost())
                 .map(post -> PostResponse.from(
                         post,
                         userId,

@@ -1,3 +1,4 @@
+import FridgePhoto from './FridgePhoto';
 import {useNestedBack} from '../../utils/useNestedBack';
 import {lazy,Suspense} from 'react';
 const ShoppingScreen=lazy(()=>import('./ShoppingScreen'));
@@ -25,6 +26,7 @@ import CreatePostScreen from '../board/CreatePostScreen';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
 import {
+  resolveImageUrl,
   createFridgeItem,
   deleteFridgeItem,
   getFridgeItems,
@@ -41,6 +43,7 @@ interface FridgeItem {
   expiryDate: string;
   storagePlace: string;
   memo: string;
+  imageUrl?: string;
   createdAt: string;
 }
 
@@ -50,6 +53,7 @@ interface FridgeItemForm {
   expiryDate: string;
   storagePlace: string;
   memo: string;
+  imageUrl?: string;
 }
 
 const emptyForm: FridgeItemForm = {
@@ -58,6 +62,7 @@ const emptyForm: FridgeItemForm = {
   expiryDate: '',
   storagePlace: '냉장',
   memo: '',
+  imageUrl: '',
 };
 
 export default function FridgeScreen({
@@ -188,6 +193,7 @@ export default function FridgeScreen({
       expiryDate: form.expiryDate,
       storagePlace: form.storagePlace,
       memo: form.memo.trim(),
+      imageUrl: form.imageUrl || '',
     };
 
     try {
@@ -475,6 +481,7 @@ function FridgeItemFormScreen({
           expiryDate: item.expiryDate,
           storagePlace: item.storagePlace,
           memo: item.memo,
+          imageUrl: item.imageUrl || '',
         }
       : {
           ...emptyForm,
@@ -482,13 +489,14 @@ function FridgeItemFormScreen({
         }
   ));
 
+  const [photoBusy, setPhotoBusy] = useState(false);
   const updateForm = (key: keyof FridgeItemForm, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    onSave(form);
+    if (!photoBusy) onSave(form);
   };
 
   return (
@@ -507,6 +515,7 @@ function FridgeItemFormScreen({
         <button
           type="submit"
           form="fridge-item-form"
+          disabled={photoBusy}
           className="text-sm text-[#0284c7]"
           style={{ fontWeight: 800 }}
         >
@@ -516,7 +525,8 @@ function FridgeItemFormScreen({
 
       <form id="fridge-item-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-5 pb-28">
         <div className="space-y-5">
-          {item&&<p className="rounded-xl bg-[#e0f2fe] p-3 text-xs leading-5 text-[#075985]">공개 중인 재료를 수정하면 연결된 나눔글과 대기 요청은 종료돼요. 수정 후 열린 냉장고에서 다시 공개해주세요.</p>}
+          <FridgePhoto url={form.imageUrl} name={form.name || '재료'} onBusy={setPhotoBusy} onChange={value=>updateForm('imageUrl',value)}/>
+          {item&&<p className="rounded-xl bg-[#e0f2fe] p-3 text-xs leading-5 text-[#075985]">공개 중인 재료 정보를 수정하면 열린 냉장고 공개와 대기 요청은 종료돼요. 수정 후 열린 냉장고에서 다시 공개해주세요.</p>}
           <div>
             <label htmlFor="fridge-name" className="block text-sm text-[#2d3748] mb-2" style={{ fontWeight: 700 }}>
               식재료 이름
@@ -633,7 +643,7 @@ function FridgeItemRow({ item, onClick, compact = false }: { item: FridgeItem; o
     >
       <div className="flex items-center gap-3">
         <div className="h-14 w-14 flex-shrink-0 rounded-xl bg-[#e0f2fe] flex items-center justify-center">
-          <Package size={24} className="text-[#0284c7]" />
+          {item.imageUrl?<img src={resolveImageUrl(item.imageUrl)} alt={`${item.name} 사진`} loading="lazy" className="h-14 w-14 rounded-xl object-cover"/>:<Package size={24} className="text-[#0284c7]" />}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
@@ -696,6 +706,7 @@ function normalizeFridgeItem(raw: any): FridgeItem | null {
     expiryDate,
     storagePlace: raw.storagePlace || raw.storage || '냉장',
     memo: raw.memo || '',
+    imageUrl: raw.imageUrl || '',
     createdAt: raw.createdAt || new Date().toISOString(),
   };
 }

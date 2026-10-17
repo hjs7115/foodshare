@@ -57,6 +57,11 @@ public class FridgeItem {
     private com.hjs.foodshare.post.domain.Post sharedPost;
     private LocalDateTime shareConfirmedAt;
 
+    @Column(length = 500)
+    private String imageUrl;
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
     public com.hjs.foodshare.post.domain.Post getSharedPost() { return sharedPost; }
     public LocalDateTime getShareConfirmedAt() { return shareConfirmedAt; }
     public void share(com.hjs.foodshare.post.domain.Post post) {

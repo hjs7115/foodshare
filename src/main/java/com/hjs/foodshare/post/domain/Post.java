@@ -96,6 +96,7 @@ public class Post {
     private LocalDateTime openFridgeValidUntil;
 
     public void setOpenFridgeValidUntil(LocalDateTime until) { openFridgeValidUntil = until; }
+    public void updateOpenFridgeImage(String url) { if (isOpenFridgePost() && isOpen()) imageUrl = url; }
     public boolean isOpenFridgePost() { return openFridgeValidUntil != null; }
 
     protected Post() {

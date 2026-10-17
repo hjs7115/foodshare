@@ -19,8 +19,11 @@ public record FridgeItemRequest(
         @Size(max = 30, message = "storagePlace must be 30 characters or less.")
         String storagePlace,
 
-        String memo
+        String memo,
+        @Size(max = 500) String imageUrl
 ) {
+    public FridgeItemRequest(String name, String amount, LocalDate expiryDate, String storagePlace, String memo) { this(name, amount, expiryDate, storagePlace, memo, null); }
+
     public String amountValue() {
         return amount == null || amount.isBlank() ? "수량 미정" : amount.trim();
     }

@@ -16,7 +16,8 @@ public record FridgeItemResponse(
         boolean expired,
         boolean expiringSoon,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String imageUrl
 ) {
     public static FridgeItemResponse from(FridgeItem item) {
         long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), item.getExpiryDate());
@@ -31,7 +32,8 @@ public record FridgeItemResponse(
                 daysLeft < 0,
                 daysLeft >= 0 && daysLeft <= 3,
                 item.getCreatedAt(),
-                item.getUpdatedAt()
+                item.getUpdatedAt(),
+                item.getImageUrl()
         );
     }
 }

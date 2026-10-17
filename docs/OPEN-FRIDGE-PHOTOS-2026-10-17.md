@@ -1,0 +1,7 @@
+# Open fridge separation and ingredient photos
+
+Open-fridge publications no longer appear in market browsing/search, my market posts or saved market favorites. Existing open-fridge publications are recognized by their existing openFridgeValidUntil marker, including records no longer linked to a fridge item. Manually written market posts remain visible. Existing internal transaction records are retained so pending/accepted requests, chat and exchanges remain compatible; this is a separation of publication surfaces, not a destructive migration of trade history.
+
+Ingredients have one optional photo, uploaded through the existing validated, resized image pipeline. Owners can add/remove it in the ingredient form or open-fridge management. Neighbors receive photo URLs only with visible shared items. Photo-only updates do not publish a private ingredient, change quantities, or cancel requests. For an open publication the transaction image is updated; accepted trade records retain their previous image. General ingredient edits retain the existing explicit re-publication policy. Neither source photos nor private credentials are committed.
+
+Validation: 86 backend tests passed, including private/public visibility, market exclusion, retained request acceptance, image ownership and photo removal. Mobile-width browser checks cover upload, owner and neighbor thumbnails, enlargement/back, optional removal, publication confirmation and absent market links. Frontend production build passed.

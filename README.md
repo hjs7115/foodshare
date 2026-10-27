@@ -6,8 +6,6 @@
 <p align="center">
   <strong>위치 기반 식재료 공유 플랫폼</strong><br/>
   냉장고 관리부터 한 끼 추천·장보기·이웃 나눔과 맞교환까지 연결하는 위치 기반 식재료 공유 서비스
-  <p align="center">
-  https://bantting.store/
 </p>
 
 <p align="center">
@@ -26,9 +24,7 @@
 
 ## 최근 서버 기능 반영
 
-운영 서비스: [bantting.store](https://bantting.store) · 문서 확인: 2026-10-27
-
-현재 운영 서버의 소스와 DB 구조를 기준으로 냉장고 사진·선택 공개, 맞교환 약속·합의 취소, AI 추천·저장 메뉴, 주간 장보기·이월·선택 알림, 인증 제한과 푸시 재시도를 반영했습니다. 실행 환경변수와 배포 안내는 아래 **시작하기** 및 [서버 변경 통합 문서](docs/SERVER-SYNC.md)를 참고하세요.
+운영 서비스: [bantting.store](https://bantting.store)
 
 ## 📖 소개
 

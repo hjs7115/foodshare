@@ -6,7 +6,7 @@
 <p align="center">
   <strong>위치 기반 식재료 공유 플랫폼</strong><br/>
   냉장고 관리부터 한 끼 추천·장보기·이웃 나눔과 맞교환까지 연결하는 위치 기반 식재료 공유 서비스
-  
+  <p align="center">
   https://bantting.store/
 </p>
 

@@ -1,240 +1,334 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="2200" height="1900" viewBox="0 0 2200 1900">
-  <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-      <path d="M2,2 L10,6 L2,10 Z" fill="#667085"/>
-    </marker>
-    <filter id="shadow" x="-8%" y="-8%" width="116%" height="125%">
-      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.12"/>
-    </filter>
-    <style>
-      .bg { fill: #fbfcfe; }
-      .line { stroke: #667085; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
-      .dash { stroke: #98a2b3; stroke-width: 2.2; fill: none; stroke-dasharray: 8 7; marker-end: url(#arrow); }
-      .labelBg { fill: #fbfcfe; stroke: #e4e7ec; stroke-width: 1; rx: 6; }
-      .label { font: 800 16px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
-      .entity { fill: #ffffff; stroke: #98a2b3; stroke-width: 2; rx: 12; filter: url(#shadow); }
-      .headBox { fill: #eaf1ff; stroke: #98a2b3; stroke-width: 2; rx: 12; }
-      .headText { font: 800 23px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #101828; }
-      .field { font: 500 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
-      .pk { font: 800 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #101828; }
-      .note { fill: #fff8db; stroke: #eaaa08; stroke-width: 1.6; rx: 12; }
-      .noteText { font: 600 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #7a4d00; }
-      .legend { font: 500 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #475467; }
-    </style>
-  </defs>
-
-  <rect class="bg" width="2200" height="1900"/>
-
-  <!-- relationships: every line starts and ends at a table edge -->
-  <path d="M500 190 H760" class="dash"/>
-  <rect x="590" y="158" width="92" height="28" class="labelBg"/><text x="602" y="178" class="label">email 검증</text>
-
-  <path d="M1080 190 H1430" class="line"/>
-  <rect x="1210" y="158" width="86" height="28" class="labelBg"/><text x="1222" y="178" class="label">1:N 토큰</text>
-
-  <path d="M920 340 V430" class="line"/>
-  <rect x="940" y="374" width="84" height="28" class="labelBg"/><text x="952" y="394" class="label">1:N 작성</text>
-
-  <path d="M1080 260 H1240 V510 H1430" class="line"/>
-  <rect x="1248" y="478" width="84" height="28" class="labelBg"/><text x="1260" y="498" class="label">1:N 알림</text>
-
-  <path d="M760 260 H620 V535 H500" class="line"/>
-  <rect x="612" y="498" width="126" height="28" class="labelBg"/><text x="624" y="518" class="label">신고자/대상</text>
-
-  <path d="M760 300 H650 V850 H500" class="line"/>
-  <rect x="642" y="812" width="126" height="28" class="labelBg"/><text x="654" y="832" class="label">차단자/대상</text>
-
-  <path d="M920 790 V875" class="line"/>
-  <rect x="940" y="820" width="84" height="28" class="labelBg"/><text x="952" y="840" class="label">1:N 거래</text>
-
-  <path d="M1130 610 H1285 V868 H1430" class="line"/>
-  <rect x="1295" y="836" width="84" height="28" class="labelBg"/><text x="1307" y="856" class="label">1:N 댓글</text>
-
-  <path d="M1130 720 H1230 V1228 H1430" class="line"/>
-  <rect x="1240" y="1196" width="84" height="28" class="labelBg"/><text x="1252" y="1216" class="label">1:N 관심</text>
-
-  <path d="M920 1110 V1330 H540" class="line"/>
-  <rect x="754" y="1298" width="92" height="28" class="labelBg"/><text x="766" y="1318" class="label">후기 대상</text>
-
-  <path d="M830 340 H720 V1330 H540" class="dash"/>
-  <rect x="542" y="1298" width="166" height="28" class="labelBg"/><text x="554" y="1318" class="label">후기 작성/평가 대상</text>
-
-  <path d="M1130 1010 H1245 V1390 H1430" class="line"/>
-  <rect x="1255" y="1358" width="96" height="28" class="labelBg"/><text x="1267" y="1378" class="label">채팅방 생성</text>
-
-  <path d="M760 1010 H650 V1560 H760" class="line"/>
-  <rect x="662" y="1528" width="112" height="28" class="labelBg"/><text x="674" y="1548" class="label">채팅 참여자</text>
-
-  <path d="M1740 1505 V1625 H1430" class="line"/>
-  <rect x="1544" y="1593" width="112" height="28" class="labelBg"/><text x="1556" y="1613" class="label">1:N 메시지</text>
-
-  <path d="M760 300 H610 V1125 H500" class="line"/>
-  <rect x="612" y="1093" width="112" height="28" class="labelBg"/><text x="624" y="1113" class="label">1:N 냉장고</text>
-
-  <!-- email_verifications -->
-  <rect x="70" y="80" width="430" height="250" class="entity"/>
-  <path d="M70 92 Q70 80 82 80 H488 Q500 80 500 92 V132 H70 Z" class="headBox"/>
-  <text x="95" y="113" class="headText">email_verifications</text>
-  <text x="95" y="160" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="95" y="188" class="field">email : VARCHAR(100)</text>
-  <text x="95" y="216" class="field">code : VARCHAR(6)</text>
-  <text x="95" y="244" class="field">expires_at : DATETIME</text>
-  <text x="95" y="272" class="field">verified / used : BIT</text>
-  <text x="95" y="300" class="field">created_at : DATETIME</text>
-
-  <!-- users -->
-  <rect x="760" y="70" width="320" height="270" class="entity"/>
-  <path d="M760 82 Q760 70 772 70 H1068 Q1080 70 1080 82 V122 H760 Z" class="headBox"/>
-  <text x="785" y="103" class="headText">users</text>
-  <text x="785" y="150" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="785" y="178" class="field">name, nickname &lt;UQ&gt;</text>
-  <text x="785" y="206" class="field">email &lt;UQ&gt;, password</text>
-  <text x="785" y="234" class="field">phone_number &lt;UQ&gt;</text>
-  <text x="785" y="262" class="field">location, latitude, longitude</text>
-  <text x="785" y="290" class="field">profile_image, fcm_token</text>
-  <text x="785" y="318" class="field">notification flags, created_at</text>
-
-  <!-- refresh tokens -->
-  <rect x="1430" y="80" width="440" height="215" class="entity"/>
-  <path d="M1430 92 Q1430 80 1442 80 H1858 Q1870 80 1870 92 V132 H1430 Z" class="headBox"/>
-  <text x="1455" y="113" class="headText">refresh_tokens</text>
-  <text x="1455" y="160" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="1455" y="188" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="1455" y="216" class="field">token : VARCHAR(255) &lt;UQ&gt;</text>
-  <text x="1455" y="244" class="field">expires_at, revoked, created_at</text>
-
-  <!-- reports -->
-  <rect x="70" y="460" width="430" height="245" class="entity"/>
-  <path d="M70 472 Q70 460 82 460 H488 Q500 460 500 472 V512 H70 Z" class="headBox"/>
-  <text x="95" y="493" class="headText">reports</text>
-  <text x="95" y="540" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="95" y="568" class="field">reporter_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="596" class="field">target_user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="624" class="field">target_type / target_id</text>
-  <text x="95" y="652" class="field">reason, description, status</text>
-  <text x="95" y="680" class="field">created_at, reviewed_at</text>
-
-  <!-- posts -->
-  <rect x="760" y="430" width="370" height="360" class="entity"/>
-  <path d="M760 442 Q760 430 772 430 H1118 Q1130 430 1130 442 V482 H760 Z" class="headBox"/>
-  <text x="785" y="463" class="headText">posts</text>
-  <text x="785" y="510" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="785" y="536" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="785" y="562" class="field">title, content, post_type, status</text>
-  <text x="785" y="588" class="field">ingredient_name, quantity, price</text>
-  <text x="785" y="614" class="field">trade_location, latitude, longitude</text>
-  <text x="785" y="640" class="field">distance_km, expiration_date</text>
-  <text x="785" y="666" class="field">image_url, deleted</text>
-  <text x="785" y="692" class="field">current_participant_count</text>
-  <text x="785" y="718" class="field">target_participant_count</text>
-  <text x="785" y="744" class="field">deadline_date, created_at</text>
-
-  <!-- notifications -->
-  <rect x="1430" y="420" width="470" height="265" class="entity"/>
-  <path d="M1430 432 Q1430 420 1442 420 H1888 Q1900 420 1900 432 V472 H1430 Z" class="headBox"/>
-  <text x="1455" y="453" class="headText">notifications</text>
-  <text x="1455" y="500" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="1455" y="528" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="1455" y="556" class="field">type : ENUM, title : VARCHAR(100)</text>
-  <text x="1455" y="584" class="field">message : TEXT</text>
-  <text x="1455" y="612" class="field">target_type : VARCHAR(50)</text>
-  <text x="1455" y="640" class="field">target_id : BIGINT, is_read : BIT</text>
-  <text x="1455" y="668" class="field">created_at : DATETIME</text>
-
-  <!-- user blocks -->
-  <rect x="70" y="820" width="430" height="215" class="entity"/>
-  <path d="M70 832 Q70 820 82 820 H488 Q500 820 500 832 V872 H70 Z" class="headBox"/>
-  <text x="95" y="853" class="headText">user_blocks</text>
-  <text x="95" y="900" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="95" y="928" class="field">blocker_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="956" class="field">blocked_user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="984" class="field">created_at : DATETIME</text>
-
-  <!-- fridge items -->
-  <rect x="70" y="1080" width="430" height="215" class="entity"/>
-  <path d="M70 1092 Q70 1080 82 1080 H488 Q500 1080 500 1092 V1132 H70 Z" class="headBox"/>
-  <text x="95" y="1113" class="headText">fridge_items</text>
-  <text x="95" y="1160" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="95" y="1188" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="1216" class="field">name, quantity, memo</text>
-  <text x="95" y="1244" class="field">expiration_date : DATE</text>
-  <text x="95" y="1272" class="field">created_at, updated_at</text>
-
-  <!-- trade requests -->
-  <rect x="760" y="875" width="370" height="245" class="entity"/>
-  <path d="M760 887 Q760 875 772 875 H1118 Q1130 875 1130 887 V927 H760 Z" class="headBox"/>
-  <text x="785" y="908" class="headText">trade_requests</text>
-  <text x="785" y="955" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="785" y="983" class="field">post_id : BIGINT &lt;FK posts.id&gt;</text>
-  <text x="785" y="1011" class="field">requester_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="785" y="1039" class="field">status : ENUM</text>
-  <text x="785" y="1067" class="field">created_at, responded_at</text>
-  <text x="785" y="1095" class="field">completed_at : DATETIME</text>
-
-  <!-- comments -->
-  <rect x="1430" y="760" width="430" height="215" class="entity"/>
-  <path d="M1430 772 Q1430 760 1442 760 H1848 Q1860 760 1860 772 V812 H1430 Z" class="headBox"/>
-  <text x="1455" y="793" class="headText">comments</text>
-  <text x="1455" y="840" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="1455" y="868" class="field">post_id : BIGINT &lt;FK posts.id&gt;</text>
-  <text x="1455" y="896" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="1455" y="924" class="field">content : TEXT</text>
-  <text x="1455" y="952" class="field">created_at : DATETIME</text>
-
-  <!-- favorites -->
-  <rect x="1430" y="1120" width="430" height="215" class="entity"/>
-  <path d="M1430 1132 Q1430 1120 1442 1120 H1848 Q1860 1120 1860 1132 V1172 H1430 Z" class="headBox"/>
-  <text x="1455" y="1153" class="headText">favorites</text>
-  <text x="1455" y="1200" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="1455" y="1228" class="field">post_id : BIGINT &lt;FK posts.id&gt;</text>
-  <text x="1455" y="1256" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="1455" y="1284" class="field">created_at : DATETIME</text>
-
-  <!-- reviews -->
-  <rect x="70" y="1330" width="470" height="250" class="entity"/>
-  <path d="M70 1342 Q70 1330 82 1330 H528 Q540 1330 540 1342 V1382 H70 Z" class="headBox"/>
-  <text x="95" y="1363" class="headText">reviews</text>
-  <text x="95" y="1410" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="95" y="1438" class="field">trade_request_id : BIGINT &lt;FK trade_requests.id&gt;</text>
-  <text x="95" y="1466" class="field">reviewer_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="1494" class="field">target_user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="95" y="1522" class="field">rating : INT, content : TEXT</text>
-  <text x="95" y="1550" class="field">created_at : DATETIME</text>
-
-  <!-- chat room members -->
-  <rect x="760" y="1500" width="430" height="245" class="entity"/>
-  <path d="M760 1512 Q760 1500 772 1500 H1178 Q1190 1500 1190 1512 V1552 H760 Z" class="headBox"/>
-  <text x="785" y="1533" class="headText">chat_room_members</text>
-  <text x="785" y="1580" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="785" y="1608" class="field">chat_room_id : BIGINT &lt;FK chat_rooms.id&gt;</text>
-  <text x="785" y="1636" class="field">user_id : BIGINT &lt;FK users.id&gt;</text>
-  <text x="785" y="1664" class="field">last_read_message_id : BIGINT</text>
-  <text x="785" y="1692" class="field">pinned, muted : BIT</text>
-  <text x="785" y="1720" class="field">created_at : DATETIME</text>
-
-  <!-- chat rooms -->
-  <rect x="1430" y="1390" width="430" height="245" class="entity"/>
-  <path d="M1430 1402 Q1430 1390 1442 1390 H1848 Q1860 1390 1860 1402 V1442 H1430 Z" class="headBox"/>
-  <text x="1455" y="1423" class="headText">chat_rooms</text>
-  <text x="1455" y="1470" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="1455" y="1498" class="field">trade_request_id : BIGINT &lt;FK&gt;</text>
-  <text x="1455" y="1526" class="field">post_id : BIGINT &lt;FK posts.id&gt;</text>
-  <text x="1455" y="1554" class="field">owner_id / partner_id : BIGINT</text>
-  <text x="1455" y="1582" class="field">last_message, created_at</text>
-  <text x="1455" y="1610" class="field">group_buy 대표 채팅방 포함</text>
-
-  <!-- chat messages -->
-  <rect x="1430" y="1690" width="430" height="165" class="entity"/>
-  <path d="M1430 1702 Q1430 1690 1442 1690 H1848 Q1860 1690 1860 1702 V1742 H1430 Z" class="headBox"/>
-  <text x="1455" y="1723" class="headText">chat_messages</text>
-  <text x="1455" y="1770" class="pk">* id : BIGINT &lt;PK&gt;</text>
-  <text x="1455" y="1798" class="field">chat_room_id : BIGINT &lt;FK chat_rooms.id&gt;</text>
-  <text x="1455" y="1826" class="field">sender_id : BIGINT &lt;FK users.id&gt;, content, created_at</text>
-
-  <!-- badge note -->
-  <rect x="70" y="1780" width="680" height="70" class="note"/>
-  <text x="95" y="1818" class="noteText">badges / achievements: 별도 테이블 없이 활동 데이터 기반 계산</text>
-
-  <rect x="70" y="1600" width="650" height="54" class="note"/>
-  <text x="95" y="1635" class="noteText">범례: 실선 = FK 기반 관계 / 점선 = email 또는 활동 집계 기반 논리 관계</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="3100" viewBox="0 0 2400 3100" role="img"><title>반띵 운영 DB ERD — 주요 컬럼과 관계</title><defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1,1 L9,5 L1,9" fill="#54657e"/></marker><filter id="shadow" x="-10%" y="-10%" width="125%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity=".1"/></filter></defs><style>text{font-family:"Malgun Gothic","Segoe UI",sans-serif;fill:#172b49} .body{font-size:18px} .small{font-size:15px} .heading{font-size:26px;font-weight:700}</style>
+<rect width="2400" height="3100" fill="#fbfcfe"/>
+<text x="60" y="55" font-size="34" font-weight="700" text-anchor="start">반띵 · 운영 DB ERD</text>
+<text x="60" y="91" font-size="19" font-weight="400" text-anchor="start">2026-10-27 · MySQL 실제 25개 테이블 · 주요 컬럼 표시 (전체 컬럼: DATABASE-SCHEMA.md)</text>
+<text x="60" y="124" font-size="18" font-weight="400" text-anchor="start">PK 기본키  ·  FK 실제 외래키 → 참조 테이블  ·  REF 논리 참조  ·  선은 대표 관계만 표시</text>
+<rect x="40" y="160" width="1140" height="925" rx="12" fill="#f4f7fc" stroke="#d3deed" stroke-width="1.5"/>
+<text x="65" y="198" font-size="25" font-weight="700" text-anchor="start">회원 · 인증 · 보안</text>
+<rect x="70" y="225" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="70" y="225" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="85" y="251" font-size="21" font-weight="700" text-anchor="start">users</text>
+<text x="84" y="282" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="84" y="299" font-size="16" font-weight="400" text-anchor="start">email  varchar(100)</text>
+<text x="84" y="316" font-size="16" font-weight="400" text-anchor="start">nickname  varchar(50)</text>
+<text x="84" y="333" font-size="16" font-weight="400" text-anchor="start">phone_number  varchar(20)</text>
+<text x="84" y="350" font-size="16" font-weight="400" text-anchor="start">latitude  double</text>
+<text x="84" y="367" font-size="16" font-weight="400" text-anchor="start">longitude  double</text>
+<text x="84" y="384" font-size="16" font-weight="400" text-anchor="start">freshness_score  double</text>
+<text x="84" y="401" font-size="16" font-weight="400" text-anchor="start">profile_image  text</text>
+<text x="84" y="418" font-size="16" font-weight="400" text-anchor="start">chat_push_enabled  bit(1)</text>
+<text x="84" y="457" font-size="13" font-weight="400" text-anchor="start" style="fill:#5b6d87">+ 12개 컬럼: 전체 스키마 참고</text>
+<rect x="625" y="225" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="625" y="225" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="640" y="251" font-size="21" font-weight="700" text-anchor="start">refresh_tokens</text>
+<text x="639" y="282" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="639" y="299" font-size="16" font-weight="400" text-anchor="start">created_at  datetime(6)</text>
+<text x="639" y="316" font-size="16" font-weight="400" text-anchor="start">expires_at  datetime(6)</text>
+<text x="639" y="333" font-size="16" font-weight="400" text-anchor="start">revoked  bit(1)</text>
+<text x="639" y="350" font-size="16" font-weight="400" text-anchor="start">token  varchar(120)</text>
+<text x="639" y="367" font-size="16" font-weight="400" text-anchor="start">user_id  FK → users</text>
+<rect x="70" y="505" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="70" y="505" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="85" y="531" font-size="21" font-weight="700" text-anchor="start">email_verifications</text>
+<text x="84" y="562" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="84" y="579" font-size="16" font-weight="400" text-anchor="start">code  varchar(6)</text>
+<text x="84" y="596" font-size="16" font-weight="400" text-anchor="start">created_at  datetime(6)</text>
+<text x="84" y="613" font-size="16" font-weight="400" text-anchor="start">email  varchar(100)</text>
+<text x="84" y="630" font-size="16" font-weight="400" text-anchor="start">expires_at  datetime(6)</text>
+<text x="84" y="647" font-size="16" font-weight="400" text-anchor="start">used  bit(1)</text>
+<text x="84" y="664" font-size="16" font-weight="400" text-anchor="start">verified  bit(1)</text>
+<rect x="625" y="505" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="625" y="505" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="640" y="531" font-size="21" font-weight="700" text-anchor="start">auth_attempts</text>
+<text x="639" y="562" font-size="16" font-weight="400" text-anchor="start">PK id  varchar(64)</text>
+<text x="639" y="579" font-size="16" font-weight="400" text-anchor="start">attempts  int</text>
+<text x="639" y="596" font-size="16" font-weight="400" text-anchor="start">expires_at  datetime(6)</text>
+<text x="65" y="1010" font-size="16" font-weight="400" text-anchor="start">users 1:N refresh_tokens (FK)</text>
+<text x="65" y="1034" font-size="16" font-weight="400" text-anchor="start">email_verifications.email ↔ users.email: 이메일 기반 논리 연결</text>
+<text x="65" y="1058" font-size="16" font-weight="400" text-anchor="start">auth_attempts.id: action + identity 해시 키</text>
+<path d="M595,325 L625,325" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<path d="M332.5,470 L332.5,505" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)" stroke-dasharray="7 5"/>
+<rect x="75" y="850" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="220.0" y="889" font-size="18" font-weight="700" text-anchor="middle">users</text>
+<rect x="430" y="850" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="575.0" y="889" font-size="18" font-weight="700" text-anchor="middle">refresh_tokens</text>
+<path d="M365,882 L430,882" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<rect x="1220" y="160" width="1140" height="925" rx="12" fill="#f4f7fc" stroke="#d3deed" stroke-width="1.5"/>
+<text x="1245" y="198" font-size="25" font-weight="700" text-anchor="start">게시글 · AI · 소통</text>
+<rect x="1250" y="225" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1250" y="225" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1265" y="251" font-size="21" font-weight="700" text-anchor="start">posts</text>
+<text x="1264" y="282" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1264" y="299" font-size="16" font-weight="400" text-anchor="start">user_id  FK → users</text>
+<text x="1264" y="316" font-size="16" font-weight="400" text-anchor="start">post_type  ENUM</text>
+<text x="1264" y="333" font-size="16" font-weight="400" text-anchor="start">status  ENUM</text>
+<text x="1264" y="350" font-size="16" font-weight="400" text-anchor="start">ingredient_analysis_id  FK → ingredient_analyses</text>
+<text x="1264" y="367" font-size="16" font-weight="400" text-anchor="start">open_fridge_valid_until  datetime(6)</text>
+<text x="1264" y="384" font-size="16" font-weight="400" text-anchor="start">expiration_date  date</text>
+<text x="1264" y="401" font-size="16" font-weight="400" text-anchor="start">deadline_date  datetime(6)</text>
+<text x="1264" y="418" font-size="16" font-weight="400" text-anchor="start">latitude  double</text>
+<text x="1264" y="435" font-size="16" font-weight="400" text-anchor="start">longitude  double</text>
+<text x="1264" y="457" font-size="13" font-weight="400" text-anchor="start" style="fill:#5b6d87">+ 12개 컬럼: 전체 스키마 참고</text>
+<rect x="1805" y="225" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1805" y="225" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1820" y="251" font-size="21" font-weight="700" text-anchor="start">ingredient_analyses</text>
+<text x="1819" y="282" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1819" y="299" font-size="16" font-weight="400" text-anchor="start">user_id  FK → users</text>
+<text x="1819" y="316" font-size="16" font-weight="400" text-anchor="start">ingredient_name  varchar(100)</text>
+<text x="1819" y="333" font-size="16" font-weight="400" text-anchor="start">quality_grade  ENUM</text>
+<text x="1819" y="350" font-size="16" font-weight="400" text-anchor="start">confidence_level  ENUM</text>
+<text x="1819" y="367" font-size="16" font-weight="400" text-anchor="start">recommended_price  int</text>
+<text x="1819" y="384" font-size="16" font-weight="400" text-anchor="start">analysis_mode  varchar(20)</text>
+<text x="1819" y="401" font-size="16" font-weight="400" text-anchor="start">model_version  varchar(50)</text>
+<text x="1819" y="418" font-size="16" font-weight="400" text-anchor="start">consumed  bit(1)</text>
+<text x="1819" y="435" font-size="16" font-weight="400" text-anchor="start">analyzed_at  datetime(6)</text>
+<text x="1819" y="457" font-size="13" font-weight="400" text-anchor="start" style="fill:#5b6d87">+ 10개 컬럼: 전체 스키마 참고</text>
+<rect x="1250" y="505" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1250" y="505" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1265" y="531" font-size="21" font-weight="700" text-anchor="start">comments</text>
+<text x="1264" y="562" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1264" y="579" font-size="16" font-weight="400" text-anchor="start">content  text</text>
+<text x="1264" y="596" font-size="16" font-weight="400" text-anchor="start">created_at  datetime(6)</text>
+<text x="1264" y="613" font-size="16" font-weight="400" text-anchor="start">post_id  FK → posts</text>
+<text x="1264" y="630" font-size="16" font-weight="400" text-anchor="start">user_id  FK → users</text>
+<rect x="1805" y="505" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1805" y="505" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1820" y="531" font-size="21" font-weight="700" text-anchor="start">favorites</text>
+<text x="1819" y="562" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1819" y="579" font-size="16" font-weight="400" text-anchor="start">created_at  datetime(6)</text>
+<text x="1819" y="596" font-size="16" font-weight="400" text-anchor="start">post_id  FK → posts</text>
+<text x="1819" y="613" font-size="16" font-weight="400" text-anchor="start">user_id  FK → users</text>
+<text x="1245" y="1010" font-size="16" font-weight="400" text-anchor="start">users 1:N posts / ingredient_analyses / comments / favorites</text>
+<text x="1245" y="1034" font-size="16" font-weight="400" text-anchor="start">posts 0..1:1 ingredient_analyses (FK + UNIQUE)</text>
+<text x="1245" y="1058" font-size="16" font-weight="400" text-anchor="start">posts 1:N comments / favorites (FK)</text>
+<path d="M1512.5,470 L1512.5,505" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<text x="1552.5" y="494" font-size="15" font-weight="400" text-anchor="middle">1:N</text>
+<path d="M1805,325 L1775,325" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<path d="M1643.75,470 L1643.75,486 L2198.75,486 L2198.75,505" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<rect x="1255" y="850" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="1400.0" y="889" font-size="18" font-weight="700" text-anchor="middle">users</text>
+<rect x="1610" y="850" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="1755.0" y="889" font-size="18" font-weight="700" text-anchor="middle">posts</text>
+<path d="M1545,882 L1610,882" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<rect x="1965" y="850" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="2110.0" y="889" font-size="18" font-weight="700" text-anchor="middle">comments / favorites</text>
+<path d="M1900,882 L1965,882" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<rect x="40" y="1125" width="1140" height="925" rx="12" fill="#f4f7fc" stroke="#d3deed" stroke-width="1.5"/>
+<text x="65" y="1163" font-size="25" font-weight="700" text-anchor="start">거래 · 채팅</text>
+<rect x="70" y="1190" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="70" y="1190" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="85" y="1216" font-size="21" font-weight="700" text-anchor="start">trade_requests</text>
+<text x="84" y="1247" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="84" y="1264" font-size="16" font-weight="400" text-anchor="start">completed_at  datetime(6)</text>
+<text x="84" y="1281" font-size="16" font-weight="400" text-anchor="start">created_at  datetime(6)</text>
+<text x="84" y="1298" font-size="16" font-weight="400" text-anchor="start">responded_at  datetime(6)</text>
+<text x="84" y="1315" font-size="16" font-weight="400" text-anchor="start">status  ENUM</text>
+<text x="84" y="1332" font-size="16" font-weight="400" text-anchor="start">post_id  FK → posts</text>
+<text x="84" y="1349" font-size="16" font-weight="400" text-anchor="start">requester_id  FK → users</text>
+<text x="84" y="1366" font-size="16" font-weight="400" text-anchor="start">exchange_description  varchar(300)</text>
+<rect x="625" y="1190" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="625" y="1190" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="640" y="1216" font-size="21" font-weight="700" text-anchor="start">chat_rooms</text>
+<text x="639" y="1247" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="639" y="1264" font-size="16" font-weight="400" text-anchor="start">trade_request_id  FK → trade_requests</text>
+<text x="639" y="1281" font-size="16" font-weight="400" text-anchor="start">writer_id  FK → users</text>
+<text x="639" y="1298" font-size="16" font-weight="400" text-anchor="start">requester_id  FK → users</text>
+<text x="639" y="1315" font-size="16" font-weight="400" text-anchor="start">group_room  bit(1)</text>
+<text x="639" y="1332" font-size="16" font-weight="400" text-anchor="start">custom_name  varchar(100)</text>
+<text x="639" y="1349" font-size="16" font-weight="400" text-anchor="start">created_at  datetime(6)</text>
+<text x="639" y="1422" font-size="13" font-weight="400" text-anchor="start" style="fill:#5b6d87">+ 7개 컬럼: 전체 스키마 참고</text>
+<rect x="70" y="1470" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="70" y="1470" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="85" y="1496" font-size="21" font-weight="700" text-anchor="start">chat_room_members</text>
+<text x="84" y="1527" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="84" y="1544" font-size="16" font-weight="400" text-anchor="start">joined_at  datetime(6)</text>
+<text x="84" y="1561" font-size="16" font-weight="400" text-anchor="start">muted  bit(1)</text>
+<text x="84" y="1578" font-size="16" font-weight="400" text-anchor="start">pinned  bit(1)</text>
+<text x="84" y="1595" font-size="16" font-weight="400" text-anchor="start">unread_count  int</text>
+<text x="84" y="1612" font-size="16" font-weight="400" text-anchor="start">chat_room_id  FK → chat_rooms</text>
+<text x="84" y="1629" font-size="16" font-weight="400" text-anchor="start">user_id  FK → users</text>
+<text x="84" y="1646" font-size="16" font-weight="400" text-anchor="start">left_at  datetime(6)</text>
+<rect x="625" y="1470" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="625" y="1470" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="640" y="1496" font-size="21" font-weight="700" text-anchor="start">chat_messages</text>
+<text x="639" y="1527" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="639" y="1544" font-size="16" font-weight="400" text-anchor="start">content  text</text>
+<text x="639" y="1561" font-size="16" font-weight="400" text-anchor="start">created_at  datetime(6)</text>
+<text x="639" y="1578" font-size="16" font-weight="400" text-anchor="start">system_message  bit(1)</text>
+<text x="639" y="1595" font-size="16" font-weight="400" text-anchor="start">chat_room_id  FK → chat_rooms</text>
+<text x="639" y="1612" font-size="16" font-weight="400" text-anchor="start">sender_id  FK → users</text>
+<text x="65" y="1975" font-size="16" font-weight="400" text-anchor="start">posts 1:N trade_requests · users: 요청자 (FK)</text>
+<text x="65" y="1999" font-size="16" font-weight="400" text-anchor="start">trade_requests 1:0..1 chat_rooms (FK + UNIQUE)</text>
+<text x="65" y="2023" font-size="16" font-weight="400" text-anchor="start">chat_rooms 1:N chat_room_members / chat_messages (FK)</text>
+<path d="M887.5,1435 L887.5,1470" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<text x="927.5" y="1459" font-size="15" font-weight="400" text-anchor="middle">1:N</text>
+<path d="M595,1290 L625,1290" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<path d="M1018.75,1435 L1018.75,1451 L463.75,1451 L463.75,1470" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<rect x="75" y="1815" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="220.0" y="1854" font-size="18" font-weight="700" text-anchor="middle">posts</text>
+<rect x="430" y="1815" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="575.0" y="1854" font-size="18" font-weight="700" text-anchor="middle">trade_requests</text>
+<path d="M365,1847 L430,1847" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<rect x="785" y="1815" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="930.0" y="1854" font-size="18" font-weight="700" text-anchor="middle">chat_rooms</text>
+<path d="M720,1847 L785,1847" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<rect x="1220" y="1125" width="1140" height="925" rx="12" fill="#f4f7fc" stroke="#d3deed" stroke-width="1.5"/>
+<text x="1245" y="1163" font-size="25" font-weight="700" text-anchor="start">냉장고 · 맞교환 · 장보기</text>
+<rect x="1250" y="1190" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1250" y="1190" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1265" y="1216" font-size="21" font-weight="700" text-anchor="start">fridge_items</text>
+<text x="1264" y="1247" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1264" y="1264" font-size="16" font-weight="400" text-anchor="start">user_id  FK → users</text>
+<text x="1264" y="1281" font-size="16" font-weight="400" text-anchor="start">name  varchar(100)</text>
+<text x="1264" y="1298" font-size="16" font-weight="400" text-anchor="start">amount  varchar(50)</text>
+<text x="1264" y="1315" font-size="16" font-weight="400" text-anchor="start">expiry_date  date</text>
+<text x="1264" y="1332" font-size="16" font-weight="400" text-anchor="start">storage_place  varchar(30)</text>
+<text x="1264" y="1349" font-size="16" font-weight="400" text-anchor="start">image_url  varchar(500)</text>
+<text x="1264" y="1366" font-size="16" font-weight="400" text-anchor="start">shared_post_id  FK → posts</text>
+<text x="1264" y="1383" font-size="16" font-weight="400" text-anchor="start">share_confirmed_at  datetime(6)</text>
+<text x="1264" y="1422" font-size="13" font-weight="400" text-anchor="start" style="fill:#5b6d87">+ 3개 컬럼: 전체 스키마 참고</text>
+<rect x="1805" y="1190" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1805" y="1190" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1820" y="1216" font-size="21" font-weight="700" text-anchor="start">fridge_exchanges</text>
+<text x="1819" y="1247" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1819" y="1264" font-size="16" font-weight="400" text-anchor="start">offered_post_id  FK → posts</text>
+<text x="1819" y="1281" font-size="16" font-weight="400" text-anchor="start">wanted_post_id  FK → posts</text>
+<text x="1819" y="1298" font-size="16" font-weight="400" text-anchor="start">trade_id  FK → trade_requests</text>
+<text x="1819" y="1315" font-size="16" font-weight="400" text-anchor="start">chat_room_id  REF → chat_rooms</text>
+<text x="1819" y="1332" font-size="16" font-weight="400" text-anchor="start">status  varchar(20)</text>
+<text x="1819" y="1349" font-size="16" font-weight="400" text-anchor="start">cancel_requested_by  REF → users</text>
+<text x="1819" y="1366" font-size="16" font-weight="400" text-anchor="start">meeting_at  datetime(6)</text>
+<text x="1819" y="1383" font-size="16" font-weight="400" text-anchor="start">meeting_place  varchar(100)</text>
+<text x="1819" y="1400" font-size="16" font-weight="400" text-anchor="start">meeting_confirmed  bit(1)</text>
+<text x="1819" y="1422" font-size="13" font-weight="400" text-anchor="start" style="fill:#5b6d87">+ 2개 컬럼: 전체 스키마 참고</text>
+<rect x="1250" y="1470" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1250" y="1470" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1265" y="1496" font-size="21" font-weight="700" text-anchor="start">shopping_items</text>
+<text x="1264" y="1527" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1264" y="1544" font-size="16" font-weight="400" text-anchor="start">amount  varchar(100)</text>
+<text x="1264" y="1561" font-size="16" font-weight="400" text-anchor="start">name  varchar(100)</text>
+<text x="1264" y="1578" font-size="16" font-weight="400" text-anchor="start">source  varchar(120)</text>
+<text x="1264" y="1595" font-size="16" font-weight="400" text-anchor="start">state  varchar(12)</text>
+<text x="1264" y="1612" font-size="16" font-weight="400" text-anchor="start">user_id  REF → users</text>
+<text x="1264" y="1629" font-size="16" font-weight="400" text-anchor="start">week_start  date</text>
+<text x="1264" y="1646" font-size="16" font-weight="400" text-anchor="start">fridge_item_id  REF → fridge_items</text>
+<rect x="1805" y="1470" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1805" y="1470" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1820" y="1496" font-size="21" font-weight="700" text-anchor="start">shopping_preferences</text>
+<text x="1819" y="1527" font-size="16" font-weight="400" text-anchor="start">PK user_id  REF → users</text>
+<text x="1819" y="1544" font-size="16" font-weight="400" text-anchor="start">shopping_day  int</text>
+<text x="1819" y="1561" font-size="16" font-weight="400" text-anchor="start">last_reminder_week  date</text>
+<text x="1819" y="1578" font-size="16" font-weight="400" text-anchor="start">reminder_enabled  bit(1)</text>
+<text x="1819" y="1595" font-size="16" font-weight="400" text-anchor="start">reminder_minute  int</text>
+<text x="1245" y="1975" font-size="16" font-weight="400" text-anchor="start">users 1:N fridge_items · shared_post_id → posts (FK + UNIQUE)</text>
+<text x="1245" y="1999" font-size="16" font-weight="400" text-anchor="start">fridge_exchanges → posts (제공/요청) · trade_requests (FK)</text>
+<text x="1245" y="2023" font-size="16" font-weight="400" text-anchor="start">shopping_* → users / fridge_items: ID 기반 논리 참조</text>
+<path d="M1512.5,1435 L1512.5,1470" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)" stroke-dasharray="7 5"/>
+<rect x="1255" y="1815" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="1400.0" y="1854" font-size="18" font-weight="700" text-anchor="middle">users</text>
+<rect x="1610" y="1815" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="1755.0" y="1854" font-size="18" font-weight="700" text-anchor="middle">fridge_items</text>
+<path d="M1545,1847 L1610,1847" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<rect x="1965" y="1815" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="2110.0" y="1854" font-size="18" font-weight="700" text-anchor="middle">posts</text>
+<path d="M1900,1847 L1965,1847" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<rect x="40" y="2090" width="1140" height="925" rx="12" fill="#f4f7fc" stroke="#d3deed" stroke-width="1.5"/>
+<text x="65" y="2128" font-size="25" font-weight="700" text-anchor="start">알림 · 기기 · 재시도</text>
+<rect x="70" y="2155" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="70" y="2155" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="85" y="2181" font-size="21" font-weight="700" text-anchor="start">notifications</text>
+<text x="84" y="2212" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="84" y="2229" font-size="16" font-weight="400" text-anchor="start">created_at  datetime(6)</text>
+<text x="84" y="2246" font-size="16" font-weight="400" text-anchor="start">message  text</text>
+<text x="84" y="2263" font-size="16" font-weight="400" text-anchor="start">is_read  bit(1)</text>
+<text x="84" y="2280" font-size="16" font-weight="400" text-anchor="start">target_id  bigint</text>
+<text x="84" y="2297" font-size="16" font-weight="400" text-anchor="start">target_type  varchar(50)</text>
+<text x="84" y="2314" font-size="16" font-weight="400" text-anchor="start">title  varchar(100)</text>
+<text x="84" y="2331" font-size="16" font-weight="400" text-anchor="start">type  varchar(50)</text>
+<text x="84" y="2348" font-size="16" font-weight="400" text-anchor="start">user_id  FK → users</text>
+<rect x="625" y="2155" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="625" y="2155" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="640" y="2181" font-size="21" font-weight="700" text-anchor="start">user_fcm_tokens</text>
+<text x="639" y="2212" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="639" y="2229" font-size="16" font-weight="400" text-anchor="start">token  varchar(500)</text>
+<text x="639" y="2246" font-size="16" font-weight="400" text-anchor="start">user_id  FK → users</text>
+<rect x="70" y="2435" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="70" y="2435" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="85" y="2461" font-size="21" font-weight="700" text-anchor="start">push_retries</text>
+<text x="84" y="2492" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="84" y="2509" font-size="16" font-weight="400" text-anchor="start">user_id  REF → users</text>
+<text x="84" y="2526" font-size="16" font-weight="400" text-anchor="start">token_id  REF → user_fcm_tokens</text>
+<text x="84" y="2543" font-size="16" font-weight="400" text-anchor="start">type  varchar(80)</text>
+<text x="84" y="2560" font-size="16" font-weight="400" text-anchor="start">attempts  int</text>
+<text x="84" y="2577" font-size="16" font-weight="400" text-anchor="start">due_at  datetime(6)</text>
+<text x="84" y="2594" font-size="16" font-weight="400" text-anchor="start">expires_at  datetime(6)</text>
+<text x="84" y="2667" font-size="13" font-weight="400" text-anchor="start" style="fill:#5b6d87">+ 4개 컬럼: 전체 스키마 참고</text>
+<rect x="625" y="2435" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="625" y="2435" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="640" y="2461" font-size="21" font-weight="700" text-anchor="start">push_subscriptions</text>
+<text x="639" y="2492" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="639" y="2509" font-size="16" font-weight="400" text-anchor="start">auth  varchar(128)</text>
+<text x="639" y="2526" font-size="16" font-weight="400" text-anchor="start">endpoint  varchar(512)</text>
+<text x="639" y="2543" font-size="16" font-weight="400" text-anchor="start">p256dh  varchar(256)</text>
+<text x="639" y="2560" font-size="16" font-weight="400" text-anchor="start">user_id  FK → users</text>
+<text x="65" y="2940" font-size="16" font-weight="400" text-anchor="start">users 1:N notifications / user_fcm_tokens (FK)</text>
+<text x="65" y="2964" font-size="16" font-weight="400" text-anchor="start">push_retries → user_fcm_tokens / users: 논리 참조</text>
+<text x="65" y="2988" font-size="16" font-weight="400" text-anchor="start">push_subscriptions: 이전 Web Push 잔존 테이블, 현재 미사용</text>
+<path d="M1018.75,2400 L1018.75,2416 L463.75,2416 L463.75,2435" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)" stroke-dasharray="7 5"/>
+<rect x="75" y="2780" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="220.0" y="2819" font-size="18" font-weight="700" text-anchor="middle">users</text>
+<rect x="430" y="2780" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="575.0" y="2819" font-size="18" font-weight="700" text-anchor="middle">user_fcm_tokens</text>
+<path d="M365,2812 L430,2812" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<rect x="785" y="2780" width="290" height="65" rx="8" fill="#edf3ff" stroke="#aabbd7" stroke-width="1.5"/>
+<text x="930.0" y="2819" font-size="18" font-weight="700" text-anchor="middle">push_retries</text>
+<path d="M720,2812 L785,2812" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)" stroke-dasharray="7 5"/>
+<rect x="1220" y="2090" width="1140" height="925" rx="12" fill="#f4f7fc" stroke="#d3deed" stroke-width="1.5"/>
+<text x="1245" y="2128" font-size="25" font-weight="700" text-anchor="start">신뢰 · 저장 · 업로드</text>
+<rect x="1250" y="2155" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1250" y="2155" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1265" y="2181" font-size="21" font-weight="700" text-anchor="start">reviews</text>
+<text x="1264" y="2212" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1264" y="2229" font-size="16" font-weight="400" text-anchor="start">trade_request_id  FK → trade_requests</text>
+<text x="1264" y="2246" font-size="16" font-weight="400" text-anchor="start">reviewer_id  FK → users</text>
+<text x="1264" y="2263" font-size="16" font-weight="400" text-anchor="start">target_user_id  FK → users</text>
+<text x="1264" y="2280" font-size="16" font-weight="400" text-anchor="start">rating  int</text>
+<text x="1264" y="2387" font-size="13" font-weight="400" text-anchor="start" style="fill:#5b6d87">+ 2개 컬럼: 전체 스키마 참고</text>
+<rect x="1805" y="2155" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1805" y="2155" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1820" y="2181" font-size="21" font-weight="700" text-anchor="start">reports</text>
+<text x="1819" y="2212" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1819" y="2229" font-size="16" font-weight="400" text-anchor="start">reporter_id  FK → users</text>
+<text x="1819" y="2246" font-size="16" font-weight="400" text-anchor="start">target_user_id  FK → users</text>
+<text x="1819" y="2263" font-size="16" font-weight="400" text-anchor="start">target_type  ENUM</text>
+<text x="1819" y="2280" font-size="16" font-weight="400" text-anchor="start">target_id  bigint</text>
+<text x="1819" y="2297" font-size="16" font-weight="400" text-anchor="start">status  ENUM</text>
+<text x="1819" y="2387" font-size="13" font-weight="400" text-anchor="start" style="fill:#5b6d87">+ 4개 컬럼: 전체 스키마 참고</text>
+<rect x="1250" y="2435" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1250" y="2435" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1265" y="2461" font-size="21" font-weight="700" text-anchor="start">user_blocks</text>
+<text x="1264" y="2492" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1264" y="2509" font-size="16" font-weight="400" text-anchor="start">created_at  datetime(6)</text>
+<text x="1264" y="2526" font-size="16" font-weight="400" text-anchor="start">blocked_user_id  FK → users</text>
+<text x="1264" y="2543" font-size="16" font-weight="400" text-anchor="start">blocker_id  FK → users</text>
+<rect x="1805" y="2435" width="525" height="245" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1805" y="2435" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1820" y="2461" font-size="21" font-weight="700" text-anchor="start">saved_meals</text>
+<text x="1819" y="2492" font-size="16" font-weight="400" text-anchor="start">PK id  bigint</text>
+<text x="1819" y="2509" font-size="16" font-weight="400" text-anchor="start">cooked_at  datetime(6)</text>
+<text x="1819" y="2526" font-size="16" font-weight="400" text-anchor="start">favorite  bit(1)</text>
+<text x="1819" y="2543" font-size="16" font-weight="400" text-anchor="start">recipe_json  text</text>
+<text x="1819" y="2560" font-size="16" font-weight="400" text-anchor="start">recipe_key  varchar(64)</text>
+<text x="1819" y="2577" font-size="16" font-weight="400" text-anchor="start">updated_at  datetime(6)</text>
+<text x="1819" y="2594" font-size="16" font-weight="400" text-anchor="start">user_id  REF → users</text>
+<rect x="1250" y="2715" width="525" height="165" rx="8" fill="#fff" stroke="#98a9c5" stroke-width="1.5"/>
+<rect x="1250" y="2715" width="525" height="37" rx="8" fill="#eaf0ff" stroke="#98a9c5" stroke-width="1.5"/>
+<text x="1265" y="2741" font-size="21" font-weight="700" text-anchor="start">uploaded_images</text>
+<text x="1264" y="2772" font-size="16" font-weight="400" text-anchor="start">PK filename  varchar(80)</text>
+<text x="1264" y="2789" font-size="16" font-weight="400" text-anchor="start">created_at  datetime(6)</text>
+<text x="1264" y="2806" font-size="16" font-weight="400" text-anchor="start">owner_id  REF → users</text>
+<text x="1245" y="2940" font-size="16" font-weight="400" text-anchor="start">reviews → trade_requests / users · reports / user_blocks → users</text>
+<text x="1245" y="2964" font-size="16" font-weight="400" text-anchor="start">saved_meals / uploaded_images → users: 논리 참조</text>
+<text x="1245" y="2988" font-size="16" font-weight="400" text-anchor="start">배지·업적은 별도 테이블 없이 활동 데이터에서 계산</text>
+<text x="60" y="3080" font-size="17" font-weight="400" text-anchor="start">주의: 운영 DB에는 하위 호환 컬럼·이전 테이블이 남아 있습니다. 현재 서비스의 사용 여부와 물리적 존재를 구분합니다.</text>
 </svg>

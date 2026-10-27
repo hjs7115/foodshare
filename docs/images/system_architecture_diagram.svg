@@ -1,109 +1,70 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="960" viewBox="0 0 1700 960">
-  <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
-      <path d="M2,2 L10,6 L2,10 Z" fill="#243447" />
-    </marker>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000" flood-opacity="0.12"/>
-    </filter>
-    <style>
-      .bg { fill: #fbfcfe; }
-      .box { stroke-width: 2.4; rx: 18; filter: url(#shadow); }
-      .client { fill: #e9f4ff; stroke: #5b9ee8; }
-      .server { fill: #e9f8ec; stroke: #65b678; }
-      .db { fill: #fff0c9; stroke: #e6a21f; }
-      .external { fill: #ffeaf2; stroke: #ee6f9d; }
-      .storage { fill: #f2f4f7; stroke: #98a2b3; }
-      .head { font: 800 27px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #101828; }
-      .section { font: 800 18px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #243447; }
-      .text { font: 500 17px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #243447; }
-      .small { font: 500 15px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #344054; }
-      .pill { fill: #ffffff; stroke: #d0d5dd; stroke-width: 1.2; rx: 10; }
-      .arrow { stroke: #243447; stroke-width: 3; fill: none; marker-end: url(#arrow); }
-      .label { font: 800 15px 'Segoe UI', 'Malgun Gothic', Arial, sans-serif; fill: #243447; }
-    </style>
-  </defs>
-
-  <rect class="bg" width="1700" height="960"/>
-
-  <rect x="70" y="70" width="390" height="455" class="box client"/>
-  <text x="105" y="120" class="head">Client / PWA</text>
-  <text x="105" y="154" class="section">React + Vite</text>
-  <text x="105" y="188" class="text">- 게시글, 거래, 댓글, 리뷰 화면</text>
-  <text x="105" y="218" class="text">- 채팅, 냉장고, 알림 화면</text>
-  <text x="105" y="248" class="text">- 마이페이지, 신고/차단, 배지 UI</text>
-  <text x="105" y="278" class="text">- JWT Access Token 저장/전송</text>
-  <text x="105" y="308" class="text">- Refresh Token 기반 재로그인</text>
-  <text x="105" y="338" class="text">- 기기별 FCM 토큰 등록</text>
-  <text x="105" y="368" class="text">- Geolocation 좌표 전송</text>
-  <text x="105" y="398" class="text">- Kakao Maps 지도/주소 표시</text>
-
-  <rect x="590" y="45" width="560" height="610" class="box server"/>
-  <text x="630" y="95" class="head">API Server / Spring Boot</text>
-
-  <rect x="630" y="130" width="480" height="92" class="pill"/>
-  <text x="655" y="158" class="section">Controller</text>
-  <text x="655" y="184" class="small">Auth, Post, Comment, Trade, Chat, Fridge</text>
-  <text x="655" y="207" class="small">Review, Notification, Moderation, Badge, Admin, Upload API</text>
-
-  <rect x="630" y="246" width="480" height="118" class="pill"/>
-  <text x="655" y="274" class="section">Service</text>
-  <text x="655" y="300" class="small">위치 반경 검색, 공동구매 모집마감 처리</text>
-  <text x="655" y="323" class="small">1대1/단체 채팅, 읽음/고정/알림끄기</text>
-  <text x="655" y="346" class="small">냉장고, 신고/차단, 배지/활동 통계 계산</text>
-
-  <rect x="630" y="388" width="480" height="92" class="pill"/>
-  <text x="655" y="416" class="section">Security</text>
-  <text x="655" y="442" class="small">Spring Security, JWT, RefreshToken, Email Code</text>
-  <text x="655" y="465" class="small">Admin API는 X-Admin-Token으로 보호</text>
-
-  <rect x="630" y="504" width="480" height="92" class="pill"/>
-  <text x="655" y="532" class="section">Repository / JPA</text>
-  <text x="655" y="558" class="small">Spring Data JPA, Pagination, Query Filtering</text>
-  <text x="655" y="581" class="small">요청자 좌표 기준 Haversine 거리 계산</text>
-
-  <rect x="1270" y="70" width="380" height="455" class="box db"/>
-  <text x="1305" y="120" class="head">Database / MySQL</text>
-  <text x="1305" y="162" class="text">- users, refresh_tokens</text>
-  <text x="1305" y="192" class="text">- email_verifications</text>
-  <text x="1305" y="222" class="text">- posts, comments, favorites</text>
-  <text x="1305" y="252" class="text">- trade_requests, reviews</text>
-  <text x="1305" y="282" class="text">- chat_rooms, chat_messages</text>
-  <text x="1305" y="312" class="text">- chat_room_members, fridge_items</text>
-  <text x="1305" y="342" class="text">- notifications, reports, user_blocks</text>
-  <text x="1305" y="372" class="text">- 게시글 위치/유통기한/마감일</text>
-  <text x="1305" y="402" class="text">- 배지는 활동 데이터로 계산</text>
-
-  <rect x="70" y="690" width="390" height="170" class="box external"/>
-  <text x="105" y="740" class="head">Browser / Map APIs</text>
-  <text x="105" y="782" class="text">- Geolocation API: 현재 좌표</text>
-  <text x="105" y="812" class="text">- Kakao Maps JavaScript API</text>
-  <text x="105" y="842" class="text">- 지도, 주소 검색, 위치 표시</text>
-
-  <rect x="590" y="720" width="560" height="140" class="box external"/>
-  <text x="630" y="770" class="head">External Services</text>
-  <text x="630" y="812" class="text">- SMTP Mail: 이메일 인증 / 비밀번호 재설정 코드</text>
-  <text x="630" y="842" class="text">- Firebase Cloud Messaging 발송</text>
-
-  <rect x="1270" y="690" width="380" height="170" class="box storage"/>
-  <text x="1305" y="740" class="head">File Storage</text>
-  <text x="1305" y="782" class="text">- uploads/ 이미지 파일 저장</text>
-  <text x="1305" y="812" class="text">- 게시글 이미지 URL 관리</text>
-  <text x="1305" y="842" class="text">- 미사용 이미지 정리 API</text>
-
-  <path d="M460 300 H590" class="arrow"/>
-  <text x="492" y="270" class="label">HTTP REST API</text>
-  <text x="505" y="292" class="label">fetch + JWT</text>
-
-  <path d="M1150 300 H1270" class="arrow"/>
-  <text x="1174" y="272" class="label">JPA Query / SQL</text>
-
-  <path d="M265 525 V690" class="arrow"/>
-  <text x="285" y="617" class="label">위치/지도</text>
-
-  <path d="M870 655 V720" class="arrow"/>
-  <text x="890" y="696" class="label">메일/푸시</text>
-
-  <path d="M1150 545 C1205 590 1230 640 1270 715" class="arrow"/>
-  <text x="1190" y="635" class="label">이미지 저장</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1160" viewBox="0 0 1800 1160" role="img"><title>반띵 운영 시스템 아키텍처</title><defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1,1 L9,5 L1,9" fill="#54657e"/></marker><filter id="shadow" x="-10%" y="-10%" width="125%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity=".1"/></filter></defs><style>text{font-family:"Malgun Gothic","Segoe UI",sans-serif;fill:#172b49} .body{font-size:18px} .small{font-size:15px} .heading{font-size:26px;font-weight:700}</style>
+<rect width="1800" height="1160" fill="#fbfcfe"/>
+<text x="50" y="55" font-size="32" font-weight="700" text-anchor="start">반띵 · 운영 시스템 아키텍처</text>
+<text x="50" y="85" font-size="17" font-weight="400" text-anchor="start">운영 소스·구성 확인 2026-10-27  |  AWS EC2 · Docker Compose · HTTPS</text>
+<rect x="50" y="145" width="370" height="430" rx="12" fill="#e9f4ff" stroke="#5b9ee8" stroke-width="1.5"/>
+<text x="72" y="182" font-size="25" font-weight="700" text-anchor="start">Client / PWA</text>
+<text x="72" y="220" font-size="18" font-weight="400" text-anchor="start">React 18 · TypeScript · Vite 6</text>
+<text x="72" y="250" font-size="18" font-weight="400" text-anchor="start">소개 페이지 / 설치형 앱</text>
+<text x="72" y="280" font-size="18" font-weight="400" text-anchor="start">게시판 · 거래 · 실시간 채팅</text>
+<text x="72" y="310" font-size="18" font-weight="400" text-anchor="start">내 냉장고 · 열린 냉장고 · 맞교환</text>
+<text x="72" y="340" font-size="18" font-weight="400" text-anchor="start">사진 분석 · 한 끼 추천 · 저장 메뉴</text>
+<text x="72" y="370" font-size="18" font-weight="400" text-anchor="start">주간 장보기 · 선택 알림</text>
+<text x="72" y="400" font-size="18" font-weight="400" text-anchor="start">JWT / Refresh Token 갱신</text>
+<text x="72" y="430" font-size="18" font-weight="400" text-anchor="start">기기별 FCM · 모바일 뒤로가기</text>
+<rect x="520" y="145" width="700" height="150" rx="12" fill="#f0ecff" stroke="#a58add" stroke-width="1.5"/>
+<text x="542" y="182" font-size="25" font-weight="700" text-anchor="start">Nginx / HTTPS Reverse Proxy</text>
+<text x="542" y="220" font-size="18" font-weight="400" text-anchor="start">TLS 종료 · HTTP → HTTPS · 인증/업로드 IP 요청 제한</text>
+<text x="542" y="250" font-size="18" font-weight="400" text-anchor="start">/ → Frontend Nginx   |   /api/ · /ws/ · /uploads/ → Backend</text>
+<path d="M420,230 L520,230" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<text x="470" y="210" font-size="15" font-weight="400" text-anchor="middle">HTTPS</text>
+<path d="M870,295 L870,345" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<text x="1005" y="325" font-size="15" font-weight="400" text-anchor="middle">REST / WebSocket</text>
+<rect x="520" y="345" width="700" height="510" rx="12" fill="#e9f8ec" stroke="#65b678" stroke-width="1.5"/>
+<text x="542" y="382" font-size="25" font-weight="700" text-anchor="start">API Server / Spring Boot 4.0.6</text>
+<text x="542" y="420" font-size="18" font-weight="400" text-anchor="start">Java 21 · Spring Security · JWT · JPA</text>
+<text x="542" y="450" font-size="18" font-weight="400" text-anchor="start">Controller / Service</text>
+<text x="542" y="480" font-size="18" font-weight="400" text-anchor="start">인증 · 게시글 · 거래 · 채팅 · 리뷰 · 신고/차단</text>
+<text x="542" y="510" font-size="18" font-weight="400" text-anchor="start">냉장고 · 선택 공개 · 맞교환 · 약속/취소</text>
+<text x="542" y="540" font-size="18" font-weight="400" text-anchor="start">AI 사진 분석 · 메뉴 추천/저장 · 주간 장보기</text>
+<text x="542" y="570" font-size="18" font-weight="400" text-anchor="start">Security / Validation</text>
+<text x="542" y="600" font-size="18" font-weight="400" text-anchor="start">이메일 검증 · 인증 시도 제한 · 참여자/소유권 확인</text>
+<text x="542" y="630" font-size="18" font-weight="400" text-anchor="start">이미지 디코딩 · 1,600px JPEG 재인코딩</text>
+<text x="542" y="660" font-size="18" font-weight="400" text-anchor="start">Scheduler / Repository</text>
+<text x="542" y="690" font-size="18" font-weight="400" text-anchor="start">기한 임박 · 주간 알림 · 제한적 푸시 재시도</text>
+<text x="542" y="720" font-size="18" font-weight="400" text-anchor="start">MySQL 영속화 · 위치/공개/상태 필터</text>
+<rect x="1330" y="345" width="420" height="320" rx="12" fill="#fff0c9" stroke="#e6a21f" stroke-width="1.5"/>
+<text x="1352" y="382" font-size="25" font-weight="700" text-anchor="start">Database / MySQL 8.4</text>
+<text x="1352" y="420" font-size="18" font-weight="400" text-anchor="start">같은 EC2의 Docker 컨테이너</text>
+<text x="1352" y="450" font-size="18" font-weight="400" text-anchor="start">회원 · 인증 · 게시글 · AI 분석</text>
+<text x="1352" y="480" font-size="18" font-weight="400" text-anchor="start">거래 · 채팅 · 리뷰 · 신고/차단</text>
+<text x="1352" y="510" font-size="18" font-weight="400" text-anchor="start">냉장고 · 맞교환 · 주간 장보기</text>
+<text x="1352" y="540" font-size="18" font-weight="400" text-anchor="start">저장 메뉴 · 알림 · FCM 토큰</text>
+<text x="1352" y="570" font-size="18" font-weight="400" text-anchor="start">푸시 재시도 · 업로드 소유권</text>
+<text x="1352" y="600" font-size="18" font-weight="400" text-anchor="start">mysql-data 영속 볼륨</text>
+<path d="M1220,500 L1330,500" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<text x="1275" y="480" font-size="15" font-weight="400" text-anchor="middle">JPA / SQL</text>
+<rect x="1330" y="735" width="420" height="195" rx="12" fill="#f2f4f7" stroke="#98a2b3" stroke-width="1.5"/>
+<text x="1352" y="772" font-size="25" font-weight="700" text-anchor="start">File Storage</text>
+<text x="1352" y="810" font-size="18" font-weight="400" text-anchor="start">uploads-data 영속 볼륨</text>
+<text x="1352" y="840" font-size="18" font-weight="400" text-anchor="start">검증한 사진 · 본인 소유권 확인</text>
+<text x="1352" y="870" font-size="18" font-weight="400" text-anchor="start">기존 공유 파일 자동 삭제 없음</text>
+<text x="1352" y="900" font-size="18" font-weight="400" text-anchor="start">DB와 별도로 파일 보존</text>
+<path d="M1220,790 L1330,790" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<text x="1275" y="770" font-size="15" font-weight="400" text-anchor="middle">이미지</text>
+<rect x="50" y="675" width="370" height="180" rx="12" fill="#ffeaf2" stroke="#ee6f9d" stroke-width="1.5"/>
+<text x="72" y="712" font-size="25" font-weight="700" text-anchor="start">Browser / Map APIs</text>
+<text x="72" y="750" font-size="18" font-weight="400" text-anchor="start">Geolocation · 사용자 위치</text>
+<text x="72" y="780" font-size="18" font-weight="400" text-anchor="start">Kakao Maps · 지도/주소</text>
+<text x="72" y="810" font-size="18" font-weight="400" text-anchor="start">공개 응답: 동네·거리 중심</text>
+<path d="M235,575 L235,675" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<text x="295" y="630" font-size="15" font-weight="400" text-anchor="middle">위치/지도</text>
+<rect x="520" y="945" width="700" height="165" rx="12" fill="#ffeaf2" stroke="#ee6f9d" stroke-width="1.5"/>
+<text x="542" y="982" font-size="25" font-weight="700" text-anchor="start">External Services</text>
+<text x="542" y="1020" font-size="18" font-weight="400" text-anchor="start">SMTP: 이메일 인증 · 비밀번호 재설정</text>
+<text x="542" y="1050" font-size="18" font-weight="400" text-anchor="start">Firebase FCM: 기기별 푸시 · 일시 실패 재시도</text>
+<text x="542" y="1080" font-size="18" font-weight="400" text-anchor="start">OpenAI: 식재료 사진 분석 · 한 끼 추천 (실패 시 기본 메뉴)</text>
+<path d="M870,855 L870,945" fill="none" stroke="#54657e" stroke-width="2" marker-end="url(#a)"/>
+<text x="995" y="902" font-size="15" font-weight="400" text-anchor="middle">메일 / 푸시 / AI</text>
+<text x="50" y="1120" font-size="17" font-weight="400" text-anchor="start">RDS는 대체 구성 예시 · 운영 DB는 MySQL 컨테이너 · 비밀키/인증서는 코드와 분리</text>
 </svg>

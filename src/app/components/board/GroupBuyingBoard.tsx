@@ -497,7 +497,7 @@ export default function GroupBuyingBoard({
                       <span>{item.deadline}</span>
                     </div>
                   </div>
-                  <div className="ml-4">
+                  {item.image && <div className="ml-4">
                     <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-[#fef3c7] to-[#fde68a] overflow-hidden border-2 border-[#fbbf24] shadow-sm">
                       <BackendImage
                         src={item.image}
@@ -505,7 +505,7 @@ export default function GroupBuyingBoard({
                         className="w-full h-full object-cover"
                       />
                     </div>
-                  </div>
+                  </div>}
                 </button>
               );
             })}

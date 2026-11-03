@@ -297,18 +297,6 @@ export default function SignupScreen({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const toggleAllTerms = (checked: boolean) => {
-    setAgreedTerms({
-      service: checked,
-      api: checked,
-      privacy: checked,
-    });
-  };
-
-  const toggleTerm = (key: TermKey) => {
-    setAgreedTerms((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
   const renderStepHeader = (title: string, description?: string) => (
     <div className="text-center mb-9">
       <p className="text-[#65a30d] text-base mb-4" style={{ fontWeight: 700 }}>{step} / 4</p>
@@ -550,22 +538,13 @@ export default function SignupScreen({
               </div>
 
               <div className="space-y-4 pt-2">
-                <label className="flex items-center gap-3 text-[#2d3748]" style={{ fontWeight: 700 }}>
-                  <input
-                    type="checkbox"
-                    checked={allTermsAgreed}
-                    onChange={(event) => toggleAllTerms(event.target.checked)}
-                    className="size-6 rounded border-[#cbd5e0] accent-[#bef264]"
-                  />
-                  모든 필수 이용약관에 동의합니다.
-                </label>
-
                 {(Object.keys(TERMS) as TermKey[]).map((key) => (
                   <div key={key} className="flex items-center gap-3 pl-5">
                     <input
                       type="checkbox"
                       checked={agreedTerms[key]}
-                      onChange={() => toggleTerm(key)}
+                      onChange={() => setActiveTerms(key)}
+                      aria-label={`${TERMS[key].title} 동의 내용 확인`}
                       className="size-5 rounded border-[#cbd5e0] accent-[#bef264]"
                     />
                     <button
@@ -578,12 +557,24 @@ export default function SignupScreen({
                     </button>
                   </div>
                 ))}
+
+                <label className="flex items-center gap-3 text-[#2d3748]" style={{ fontWeight: 700 }}>
+                  <input
+                    type="checkbox"
+                    checked={allTermsAgreed}
+                    readOnly
+                    disabled={!allTermsAgreed}
+                    className="size-6 rounded border-[#cbd5e0] accent-[#bef264]"
+                  />
+                  {allTermsAgreed ? '모든 필수 이용약관에 동의하셨습니다' : '위 세 가지 필수 약관을 열어 읽고 동의해주세요'}
+                </label>
               </div>
 
               <button
                 type="button"
                 onClick={handleGoNicknameStep}
-                className={primaryButtonClassName}
+                disabled={!allTermsAgreed}
+                className={`${primaryButtonClassName} disabled:opacity-40 disabled:cursor-not-allowed`}
                 style={{ fontWeight: 800 }}
               >
                 다음
@@ -653,7 +644,7 @@ export default function SignupScreen({
 
       {activeTerms && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-4 sm:items-center">
-          <div className="max-h-[82vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#e2e8f0] bg-white p-6 shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-label={TERMS[activeTerms].title} className="max-h-[82vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#e2e8f0] bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl text-[#2d3748]" style={{ fontWeight: 800 }}>{TERMS[activeTerms].title}</h2>
@@ -686,7 +677,7 @@ export default function SignupScreen({
               className={`${primaryButtonClassName} mt-6`}
               style={{ fontWeight: 800 }}
             >
-              읽고 동의하기
+              읽고 동의했습니다.
             </button>
           </div>
         </div>

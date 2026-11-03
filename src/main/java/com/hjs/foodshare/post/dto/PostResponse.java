@@ -184,12 +184,12 @@ public record PostResponse(
 
     private static String toDeadlineText(long days) {
         if (days < 0) {
-            return "Deadline passed";
+            return "모집 마감";
         }
         if (days == 0) {
-            return "Deadline today";
+            return "오늘 마감";
         }
-        return "Deadline in " + days + " days";
+        return "마감까지 " + days + "일";
     }
 
     private static String toNeighborhood(String tradeLocation) {

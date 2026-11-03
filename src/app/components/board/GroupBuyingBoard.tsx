@@ -167,7 +167,7 @@ export default function GroupBuyingBoard({
             distance: post.distance || `${distanceValue.toFixed(1)}km`,
             distanceValue,
             deadline: post.deadline || '마감일 미정',
-            image: resolveImageUrl(post.image || post.imageUrl),
+            image: resolveImageUrl(post.image || post.imageUrl, ''),
             createdAt: post.createdAt || new Date().toISOString(),
             rating: post.rating ?? 0,
             freshness: Number(post.freshness ?? 50),

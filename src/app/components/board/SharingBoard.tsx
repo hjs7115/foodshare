@@ -193,7 +193,7 @@ export default function SharingBoard({
             distanceValue,
             tradeLocation: getPostLocation(post),
             expiry: post.expiry || '유통기한 정보 없음',
-            image: resolveImageUrl(post.image || post.imageUrl),
+            image: resolveImageUrl(post.image || post.imageUrl, ''),
             createdAt: post.createdAt || new Date().toISOString(),
             priceValue: postType === 'SHARE' ? 0 : parseInt(String(post.price || '').replace(/[^0-9]/g, '') || '999999'),
             rating: post.rating ?? 0,
@@ -646,7 +646,7 @@ export default function SharingBoard({
                       </span>
                     </div>
                   </div>
-                  {!isBuying && <div className="ml-4">
+                  {!isBuying && item.image && <div className="ml-4">
                     <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-[#f0fdf4] to-[#dcfce7] overflow-hidden border-2 border-[#bef264] shadow-sm">
                       <BackendImage
                         src={item.image}

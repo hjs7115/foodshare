@@ -18,8 +18,9 @@ export const WS_BASE_URL =
       ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
       : '';
 
-export function resolveImageUrl(value?: string | null): string {
-  if (!value) return '/assets/food-placeholder.png';
+export function resolveImageUrl(value?: string | null, fallback = '/assets/food-placeholder.png'): string {
+  value = value?.trim();
+  if (!value) return fallback;
 
   if (value.startsWith('data:image/') || /^https?:\/\//i.test(value)) {
     return value;

@@ -148,7 +148,8 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
     image: resolveImageUrl(
       (serverPost as any).image ||
       (serverPost as any).imageUrl ||
-      (Array.isArray((serverPost as any).images) ? (serverPost as any).images[0] : '')
+      (Array.isArray((serverPost as any).images) ? (serverPost as any).images[0] : ''),
+      ''
     ),
   });
 
@@ -771,7 +772,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       {/* Content */}
       <div className="flex-1 overflow-y-auto bg-[#f7fafc]">
         {/* Purchase requests have no product photo, including legacy image URLs. */}
-        {post.postType !== 'BUY' && (post.postType !== 'GROUP_BUY' || post.image) && (
+        {post.postType !== 'BUY' && post.image && (
           <div className="bg-white">
             <BackendImage
               src={resolveImageUrl(post.image)}

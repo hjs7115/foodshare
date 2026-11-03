@@ -776,7 +776,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
             <BackendImage
               src={resolveImageUrl(post.image)}
               alt={post.title}
-              className="w-full h-80 object-cover"
+              className={post.postType === 'GROUP_BUY' ? 'w-full h-auto object-contain' : 'w-full h-80 object-cover'}
             />
           </div>
         )}

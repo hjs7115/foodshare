@@ -1,6 +1,7 @@
 import { useNestedBack } from '../../utils/useNestedBack';
 import { resetDeviceSession } from '../../auth/deviceSession';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { API_BASE_URL, apiRequest } from '../../api/config';
 import {
   AlertCircle,
   Bell,
@@ -24,6 +25,27 @@ import { showConfirm, showToast } from '../../utils/feedback';
 type SettingsView = 'main' | 'password' | 'notifications' | 'location' | 'chat' | 'privacy' | 'terms' | 'help' | 'notice';
 
 export default function SettingsScreen({ onClose }: { onClose: () => void }) {
+  const [demoMode, setDemoMode] = useState<{canManage: boolean; enabled: boolean} | null>(null);
+  const [changingDemo, setChangingDemo] = useState(false);
+  useEffect(() => { let active = true;
+    apiRequest(API_BASE_URL + '/api/demo-mode').then(r => {if(active) setDemoMode(r.data);}).catch(() => {});
+    return () => {active = false;};
+  }, []);
+  const toggleDemoMode = async () => {
+    if (!demoMode?.canManage || changingDemo) return;
+    setChangingDemo(true);
+    try {
+      const current = (await apiRequest(API_BASE_URL + '/api/demo-mode')).data;
+      if (!current?.canManage) {setDemoMode(current); return;}
+      const enabled = !current.enabled;
+      if (!(await showConfirm(enabled ? '시연 글 22개를 모든 사용자에게 공개할까요?' : '시연 글 22개를 모든 사용자에게 숨길까요?', '시연 모드', enabled ? '공개하기' : '숨기기'))) return;
+      const result = await apiRequest(API_BASE_URL + '/api/demo-mode', {method: 'PUT', body: JSON.stringify({enabled})});
+      setDemoMode(result.data);
+      window.dispatchEvent(new Event('demo-mode-changed'));
+      showToast(enabled ? '시연 글을 전체 공개했습니다.' : '시연 글을 숨겼습니다.');
+    } catch(error: any) {showToast(error?.message || '시연 모드를 변경하지 못했습니다.');}
+    finally {setChangingDemo(false);}
+  };
   const [currentView, setCurrentView] = useState<SettingsView>('main');
   useNestedBack(currentView !== 'main', () => setCurrentView('main'));
   const storedEmail = getStoredUserInfo<{ email?: string }>()?.email || '';
@@ -146,7 +168,9 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
           </p>
         </div>
 
-        <div className="mt-5 text-center text-xs text-[#94a3b8]">반띵 1.0.0</div>
+        <div className="mt-5 text-center text-xs text-[#94a3b8]">
+          {demoMode?.canManage ? <button type="button" onClick={toggleDemoMode} disabled={changingDemo} className="px-4 py-2 disabled:opacity-50">반띵 1.0.0</button> : '반띵 1.0.0'}
+        </div>
       </div>
     </div>
   );

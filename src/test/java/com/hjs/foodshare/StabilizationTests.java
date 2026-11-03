@@ -76,6 +76,31 @@ class StabilizationTests {
   trades.hideHistory(List.of(id),owner.getId());em.flush();em.clear();
   assertTrue(mypage.getReceivedTradeRequests(owner.getId()).isEmpty());
  }
+ @Autowired com.hjs.foodshare.demo.DemoVisibility demo;
+ @Test void demoVisibilityDefaultsOffAndTogglesForEveryoneWithoutDeleting() throws Exception {
+  var admin=user("demoManager");var owner=user("demoOwner");var viewer=user("demoViewer");
+  em.persist(new com.hjs.foodshare.demo.DemoManager(admin.getId()));em.persist(new com.hjs.foodshare.demo.DemoState());
+  var demoPost=postRepo.save(com.hjs.foodshare.post.domain.Post.create(owner,com.hjs.foodshare.post.domain.PostType.SHARE,"demo-food","food","1개",0,"서울",0.0,today().plusDays(20),37.5,127.0,null,"demo",null,null,null));
+  var realPost=postRepo.save(com.hjs.foodshare.post.domain.Post.create(owner,com.hjs.foodshare.post.domain.PostType.SHARE,"real-food","food","1개",0,"서울",0.0,today().plusDays(20),37.5,127.0,null,"real",null,null,null));
+  Long id=demoPost.getId();em.persist(new com.hjs.foodshare.demo.DemoPost(id));em.flush();em.clear();
+  assertFalse(demo.enabled());assertTrue(market.getPosts(null).stream().noneMatch(p->p.postId().equals(id)));
+  assertTrue(market.getPosts(null).stream().anyMatch(p->p.postId().equals(realPost.getId())));
+  mvc.perform(get("/api/posts/"+id)).andExpect(status().isNotFound());
+  mvc.perform(post("/api/posts/"+id+"/requests").header("Authorization","Bearer "+jwt.createAccessToken(viewer))).andExpect(status().isNotFound());
+  mvc.perform(put("/api/demo-mode").header("Authorization","Bearer "+jwt.createAccessToken(admin)).contentType("application/json").content("{\"enabled\":true}")).andExpect(status().isOk()).andExpect(jsonPath("$.data.enabled").value(true));
+  em.flush();em.clear();assertTrue(demo.enabled());assertTrue(market.getPosts(null).stream().anyMatch(p->p.postId().equals(id)));
+  mvc.perform(get("/api/posts/"+id)).andExpect(status().isOk());
+  demo.setEnabled(admin.getId(),false);em.flush();em.clear();
+  mvc.perform(get("/api/posts/"+id)).andExpect(status().isNotFound());assertFalse(postRepo.findById(id).orElseThrow().isDeleted());
+  assertTrue(market.getPosts(viewer.getId()).stream().anyMatch(p->p.postId().equals(realPost.getId())));
+ }
+ @Test void demoControlsRejectAnonymousAndUnlistedAccountsEvenWithAdminNickname() throws Exception {
+  var impostor=user("새파란");em.persist(new com.hjs.foodshare.demo.DemoState());em.flush();
+  mvc.perform(get("/api/demo-mode").header("Authorization","Bearer "+jwt.createAccessToken(impostor))).andExpect(status().isOk()).andExpect(jsonPath("$.data.canManage").value(false));
+  mvc.perform(put("/api/demo-mode").header("Authorization","Bearer "+jwt.createAccessToken(impostor)).contentType("application/json").content("{\"enabled\":true}")).andExpect(status().isForbidden());
+  mvc.perform(put("/api/demo-mode").contentType("application/json").content("{\"enabled\":true}")).andExpect(status().isUnauthorized());
+  assertFalse(demo.enabled());
+ }
  @Test void rejectsDisguisedHtmlAndReencodesSafeBytes() throws Exception {
   var u=user("imageBytes");
   assertThrows(BusinessException.class,()->images.upload(new MockMultipartFile("file","fake.html","image/png","<script>alert(1)</script>".getBytes()),u.getId()));

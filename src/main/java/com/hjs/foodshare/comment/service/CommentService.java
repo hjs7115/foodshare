@@ -22,6 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CommentService {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.hjs.foodshare.demo.DemoVisibility demo;
+
     private final CommentRepository commentRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
@@ -39,6 +42,7 @@ public class CommentService {
 
     @Transactional
     public CommentResponse createComment(Long postId, Long userId, CommentCreateRequest request) {
+        demo.requireVisible(postId);
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Post not found."));
         if (!post.isOpen()) {
@@ -62,6 +66,7 @@ public class CommentService {
     }
 
     public List<CommentResponse> getComments(Long postId, Long currentUserId) {
+        demo.requireVisible(postId);
         if (!postRepository.existsById(postId)) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "Post not found.");
         }

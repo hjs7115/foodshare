@@ -33,6 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class MyPageService {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.hjs.foodshare.demo.DemoVisibility demo;
+
     @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.upload.service.ImageUploadService images;
     private final UserRepository userRepository;
     private final PostRepository postRepository;
@@ -95,8 +98,10 @@ public class MyPageService {
     }
 
     public List<PostResponse> getMyPosts(Long userId) {
+        var hidden = demo.hiddenPostIds();
         return postRepository.findAllByWriterIdAndDeletedFalseOrderByCreatedAtDesc(userId)
                 .stream()
+                .filter(post -> !hidden.contains(post.getId()))
                 .filter(post -> !post.isOpenFridgePost())
                 .map(post -> PostResponse.from(
                         post,

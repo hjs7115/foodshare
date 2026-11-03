@@ -24,6 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class TradeRequestService {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.hjs.foodshare.demo.DemoVisibility demo;
+
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
 
@@ -378,6 +381,7 @@ public class TradeRequestService {
     }
 
     private Post getActivePost(Long postId) {
+        demo.requireVisible(postId);
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Post not found."));
         if (post.isDeleted()) {

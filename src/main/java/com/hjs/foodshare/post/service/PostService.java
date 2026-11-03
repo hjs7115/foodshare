@@ -31,6 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class PostService {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.hjs.foodshare.demo.DemoVisibility demo;
+
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final CommentRepository commentRepository;
@@ -98,10 +101,11 @@ public class PostService {
     }
 
     public List<PostResponse> getPosts(Long currentUserId) {
+        var hidden = demo.hiddenPostIds();
         return postRepository.findAllByDeletedFalseAndStatusOrderByCreatedAtDesc(PostStatus.OPEN)
                 .stream()
                 .filter(Post::isOpen)
-                .filter(post -> !post.isOpenFridgePost())
+                .filter(post -> !post.isOpenFridgePost() && !hidden.contains(post.getId()))
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .map(post -> toResponse(post, currentUserId))
                 .toList();
@@ -121,6 +125,7 @@ public class PostService {
     @Transactional
     public List<PostResponse> searchPosts(PostType postType, String keyword, Double maxDistanceKm, Double latitude,
                                           Double longitude, Boolean expiringSoon, PostSort sort, Long currentUserId) {
+        var hidden = demo.hiddenPostIds();
         String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
         PostSort normalizedSort = sort == null ? PostSort.LATEST : sort;
 
@@ -128,7 +133,7 @@ public class PostService {
                 .stream()
                 .filter(this::keepVisibleOrCloseExpired)
                 .filter(Post::isOpen)
-                .filter(post -> !post.isOpenFridgePost())
+                .filter(post -> !post.isOpenFridgePost() && !hidden.contains(post.getId()))
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .filter(post -> !Boolean.TRUE.equals(expiringSoon) || isExpiringSoon(post))
                 .map(post -> toResponse(post, currentUserId).withDistance(resolveDistanceKm(post, latitude, longitude)))
@@ -191,6 +196,7 @@ public class PostService {
     }
 
     private Post getActivePost(Long postId) {
+        demo.requireVisible(postId);
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Post not found."));
         if (post.isDeleted()) {

@@ -84,7 +84,8 @@ export default function GroupBuyingBoard({
   useEffect(() => {
     const changed = () => { loadLocation(); void loadPosts(); };
     window.addEventListener('location-updated', changed);
-    return () => window.removeEventListener('location-updated', changed);
+    window.addEventListener('demo-mode-changed', changed);
+    return () => {window.removeEventListener('location-updated', changed);window.removeEventListener('demo-mode-changed', changed);};
   }, [radiusKm, sortType]);
 
   const loadLocation = () => {

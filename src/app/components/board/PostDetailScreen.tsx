@@ -770,14 +770,16 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto bg-[#f7fafc]">
-        {/* Image */}
-        <div className="bg-white">
-          <BackendImage
-            src={resolveImageUrl(post.image)}
-            alt={post.title}
-            className="w-full h-80 object-cover"
-          />
-        </div>
+        {/* Purchase requests have no product photo, including legacy image URLs. */}
+        {post.postType !== 'BUY' && (
+          <div className="bg-white">
+            <BackendImage
+              src={resolveImageUrl(post.image)}
+              alt={post.title}
+              className="w-full h-80 object-cover"
+            />
+          </div>
+        )}
 
         {/* Post Info */}
         <div className="bg-white px-5 py-6 mb-2">

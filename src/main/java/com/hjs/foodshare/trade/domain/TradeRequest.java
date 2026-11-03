@@ -42,6 +42,20 @@ public class TradeRequest {
 
     private LocalDateTime completedAt;
 
+    private Boolean requesterHistoryHidden;
+    private Boolean writerHistoryHidden;
+
+    public boolean isHistoryHiddenFor(Long userId) {
+        return requester.getId().equals(userId) ? Boolean.TRUE.equals(requesterHistoryHidden)
+                : post.getWriter().getId().equals(userId) && Boolean.TRUE.equals(writerHistoryHidden);
+    }
+
+    public void hideHistoryFor(Long userId) {
+        if (requester.getId().equals(userId)) requesterHistoryHidden = true;
+        else if (post.getWriter().getId().equals(userId)) writerHistoryHidden = true;
+        else throw new IllegalArgumentException("Not a trade participant");
+    }
+
     @Column(length=300) private String exchangeDescription;
     public String getExchangeDescription(){return exchangeDescription;}
     public static TradeRequest exchange(Post post,User requester,String description){var r=new TradeRequest(post,requester);r.exchangeDescription=description;return r;}

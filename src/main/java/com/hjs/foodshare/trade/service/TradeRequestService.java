@@ -76,9 +76,26 @@ public class TradeRequestService {
         return toResponse(savedRequest);
     }
 
+    @Transactional
+    public void hideHistory(List<Long> requestIds, Long userId) {
+        if (requestIds == null || requestIds.isEmpty() || requestIds.size() > 100 || requestIds.stream().anyMatch(java.util.Objects::isNull))
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "Invalid trade request IDs.");
+        // Lock in ID order so simultaneous deletions by both participants preserve both flags.
+        for (Long id : requestIds.stream().distinct().sorted().toList()) {
+            TradeRequest request = entityManager.find(TradeRequest.class, id, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            if (request == null) throw new BusinessException(HttpStatus.NOT_FOUND, "Trade request not found.");
+            if (!request.getRequester().getId().equals(userId) && !request.getPost().getWriter().getId().equals(userId))
+                throw new BusinessException(HttpStatus.FORBIDDEN, "Only participants can delete their history.");
+            if (request.getStatus() == TradeRequestStatus.PENDING || request.getStatus() == TradeRequestStatus.ACCEPTED)
+                throw new BusinessException(HttpStatus.CONFLICT, "진행 중인 거래는 삭제할 수 없습니다.");
+            request.hideHistoryFor(userId);
+        }
+    }
+
     public List<TradeRequestResponse> getMyRequests(Long requesterId) {
         return tradeRequestRepository.findAllByRequesterIdOrderByCreatedAtDesc(requesterId)
                 .stream()
+                .filter(request -> !request.isHistoryHiddenFor(requesterId))
                 .filter(this::isVisibleTradeRequest)
                 .map(this::toResponse)
                 .toList();
@@ -87,6 +104,7 @@ public class TradeRequestService {
     public List<TradeRequestResponse> getReceivedRequests(Long writerId) {
         return tradeRequestRepository.findAllByPostWriterIdOrderByCreatedAtDesc(writerId)
                 .stream()
+                .filter(request -> !request.isHistoryHiddenFor(writerId))
                 .filter(this::isVisibleTradeRequest)
                 .map(this::toResponse)
                 .toList();

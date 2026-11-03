@@ -646,7 +646,7 @@ export default function SharingBoard({
                       </span>
                     </div>
                   </div>
-                  <div className="ml-4">
+                  {!isBuying && <div className="ml-4">
                     <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-[#f0fdf4] to-[#dcfce7] overflow-hidden border-2 border-[#bef264] shadow-sm">
                       <BackendImage
                         src={item.image}
@@ -654,7 +654,7 @@ export default function SharingBoard({
                         className="w-full h-full object-cover"
                       />
                     </div>
-                  </div>
+                  </div>}
                 </button>
               );
             })}

@@ -119,6 +119,7 @@ public class MyPageService {
     public List<TradeRequestResponse> getMyTradeRequests(Long userId) {
         return tradeRequestRepository.findAllByRequesterIdOrderByCreatedAtDesc(userId)
                 .stream()
+                .filter(request -> !request.isHistoryHiddenFor(userId))
                 .map(this::toTradeRequestResponse)
                 .toList();
     }
@@ -126,6 +127,7 @@ public class MyPageService {
     public List<TradeRequestResponse> getReceivedTradeRequests(Long userId) {
         return tradeRequestRepository.findAllByPostWriterIdOrderByCreatedAtDesc(userId)
                 .stream()
+                .filter(request -> !request.isHistoryHiddenFor(userId))
                 .map(this::toTradeRequestResponse)
                 .toList();
     }

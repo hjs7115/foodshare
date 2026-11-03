@@ -61,6 +61,21 @@ class StabilizationTests {
  LocalDate today(){return LocalDate.now(ZoneId.of("Asia/Seoul"));}
  Long item(User u,String name){var f=fridge.createItem(u.getId(),new FridgeItemRequest(name,"2개",today().plusDays(3),"냉장",""));open.publish(u.getId(),f.id(),"1개");return f.id();}
  byte[] png() throws Exception {var out=new ByteArrayOutputStream();ImageIO.write(new BufferedImage(20,20,BufferedImage.TYPE_INT_RGB),"png",out);return out.toByteArray();}
+ @Test void historyDeletionIsPrivatePersistentAndKeepsTrade() throws Exception {
+  var owner=user("historyOwner");var buyer=user("historyBuyer");var stranger=user("historyStranger");
+  Long id=open.request(buyer.getId(),item(owner,"historyFood")).requestId();
+  mvc.perform(delete("/api/trade-requests/history").contentType("application/json").content("["+id+"]")).andExpect(status().isUnauthorized());
+  mvc.perform(delete("/api/trade-requests/history").header("Authorization","Bearer "+jwt.createAccessToken(stranger)).contentType("application/json").content("["+id+"]")).andExpect(status().isForbidden());
+  mvc.perform(delete("/api/trade-requests/history").header("Authorization","Bearer "+jwt.createAccessToken(buyer)).contentType("application/json").content("["+id+"]")).andExpect(status().isConflict());
+  var request=em.find(com.hjs.foodshare.trade.domain.TradeRequest.class,id);request.complete();em.flush();
+  trades.hideHistory(List.of(id),buyer.getId());em.flush();em.clear();
+  assertTrue(mypage.getMyTradeRequests(buyer.getId()).isEmpty());
+  assertEquals(1,mypage.getReceivedTradeRequests(owner.getId()).size());
+  assertEquals(com.hjs.foodshare.trade.domain.TradeRequestStatus.COMPLETED,em.find(com.hjs.foodshare.trade.domain.TradeRequest.class,id).getStatus());
+  trades.hideHistory(List.of(id),buyer.getId());
+  trades.hideHistory(List.of(id),owner.getId());em.flush();em.clear();
+  assertTrue(mypage.getReceivedTradeRequests(owner.getId()).isEmpty());
+ }
  @Test void rejectsDisguisedHtmlAndReencodesSafeBytes() throws Exception {
   var u=user("imageBytes");
   assertThrows(BusinessException.class,()->images.upload(new MockMultipartFile("file","fake.html","image/png","<script>alert(1)</script>".getBytes()),u.getId()));

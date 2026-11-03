@@ -285,6 +285,27 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     }
   };
 
+  const [deletingHistory, setDeletingHistory] = useState(false);
+  const canDeleteHistory = (group: TradeRequestGroup) => group.requests.every(
+    request => ['COMPLETED', 'REJECTED', 'CANCELLED'].includes(request.status)
+  );
+  const deleteHistory = async (group: TradeRequestGroup) => {
+    if (deletingHistory || !canDeleteHistory(group)) return;
+    if (!(await showConfirm('내 거래 내역에서만 삭제됩니다. 상대방의 내역과 채팅은 유지됩니다.', '거래 내역 삭제', '삭제'))) return;
+    setDeletingHistory(true);
+    try {
+      await apiRequest(API_ENDPOINTS.deleteTradeHistory, {
+        method: 'DELETE', body: JSON.stringify(group.requests.map(request => request.requestId)),
+      });
+      const ids = new Set(group.requests.map(request => request.requestId));
+      setSentRequests(current => current.filter(request => !ids.has(request.requestId)));
+      setReceivedRequests(current => current.filter(request => !ids.has(request.requestId)));
+      showToast('거래 내역을 삭제했습니다.');
+    } catch (error: any) {
+      showToast(error?.message || '삭제하지 못했습니다. 다시 시도해 주세요.');
+    } finally { setDeletingHistory(false); }
+  };
+
   const completedRequests = useMemo(
     () => [...receivedRequests, ...sentRequests].filter((request) => request.status === 'COMPLETED'),
     [receivedRequests, sentRequests]
@@ -610,11 +631,18 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
                 return (
                 <div
                   key={`${activeTab}-${group.key}`}
-                  className={`rounded-2xl border p-4 ${tone.card}`}
+                  className={`relative rounded-2xl border p-4 ${tone.card}`}
                 >
+                  {canDeleteHistory(group) && (
+                    <button type="button" aria-label={`${group.postTitle} 거래 내역 삭제`}
+                      onClick={() => deleteHistory(group)} disabled={deletingHistory}
+                      className="absolute right-2 top-2 flex size-9 items-center justify-center rounded-full text-[#718096] hover:bg-black/5 disabled:opacity-40">
+                      <X size={17} />
+                    </button>
+                  )}
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2 pr-7">
                         <span className={`rounded-full px-2 py-0.5 text-xs ${getStatusClassName(group.status)}`}>
                           {getStatusLabel(group.status)}
                         </span>
@@ -622,7 +650,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
                           {formatDate(group.date)}
                         </span>
                       </div>
-                      <h3 className="text-sm text-[#2d3748] mb-1 truncate" style={{ fontWeight: 600 }}>
+                      <h3 className="text-sm text-[#2d3748] mb-1 truncate pr-7" style={{ fontWeight: 600 }}>
                         {group.postTitle || '게시글 제목 없음'}
                       </h3>
                       <div className="mt-3 space-y-2">

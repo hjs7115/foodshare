@@ -25,6 +25,14 @@ public class TradeRequestController {
         this.tradeRequestService = tradeRequestService;
     }
 
+    @org.springframework.web.bind.annotation.DeleteMapping("/trade-requests/history")
+    public ResponseEntity<ApiResponse<Void>> hideHistory(
+            @org.springframework.web.bind.annotation.RequestBody List<Long> requestIds,
+            @AuthenticationPrincipal AuthUser authUser) {
+        tradeRequestService.hideHistory(requestIds, authUser.userId());
+        return ResponseEntity.ok(ApiResponse.ok("Trade history deleted.", null));
+    }
+
     @PostMapping("/posts/{postId}/requests")
     public ResponseEntity<ApiResponse<TradeRequestResponse>> createRequest(
             @PathVariable Long postId,

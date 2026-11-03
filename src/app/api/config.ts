@@ -87,6 +87,7 @@ export const API_ENDPOINTS = {
   updateProfile: `${API_BASE_URL}/api/mypage`,
   mypagePosts: `${API_BASE_URL}/api/mypage/posts`,
   mypageComments: `${API_BASE_URL}/api/mypage/comments`,
+  deleteTradeHistory: `${API_BASE_URL}/api/trade-requests/history`,
   mypageTradeRequests: `${API_BASE_URL}/api/mypage/trade-requests`,
   mypageReceivedTradeRequests: `${API_BASE_URL}/api/mypage/received-trade-requests`,
   updateLocation: `${API_BASE_URL}/api/mypage/location`,

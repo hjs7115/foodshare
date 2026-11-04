@@ -445,7 +445,7 @@ export default function SignupScreen({
               </div>
 
               <div>
-                {renderFieldLabel('phone', '연락처 (본인인증 미지원)')}
+                {renderFieldLabel('phone', '전화번호')}
                 <input
                   id="phone"
                   type="tel"

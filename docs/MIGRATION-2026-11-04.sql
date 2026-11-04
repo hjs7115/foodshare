@@ -10,17 +10,22 @@ SET @apply_sessions = NOT EXISTS (
     SELECT 1 FROM app_data_migrations WHERE version='2026-11-04-workflow-safety'
 );
 
--- Phone numbers are unverified contact data, never an identity or a reserved identifier.
-SELECT GROUP_CONCAT(CONCAT('DROP INDEX `', REPLACE(idx_name,'`','``'), '`')) INTO @phone_indexes
-FROM (
-    SELECT INDEX_NAME AS idx_name
-    FROM INFORMATION_SCHEMA.STATISTICS
-    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users'
-      AND NON_UNIQUE=0 AND INDEX_NAME<>'PRIMARY'
-    GROUP BY INDEX_NAME
-    HAVING COUNT(*)=1 AND MAX(COLUMN_NAME)='phone_number'
-) AS phone_only_unique;
-SET @phone_sql=IF(@phone_indexes IS NULL,'SELECT 1',CONCAT('ALTER TABLE users ',@phone_indexes));
+-- Preserve the original unique contact-number policy. No phone/SMS verification is required.
+-- This also repairs databases where the earlier draft migration removed the unique index.
+-- If this query returns duplicates, resolve them explicitly before adding the constraint.
+SELECT phone_number,COUNT(*) AS duplicate_count FROM users
+GROUP BY phone_number HAVING COUNT(*)>1;
+SELECT COUNT(*) INTO @phone_duplicates FROM (
+    SELECT 1 FROM users GROUP BY phone_number HAVING COUNT(*)>1
+) duplicate_phone_groups;
+SELECT COUNT(*) INTO @phone_index FROM (
+    SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='users' AND NON_UNIQUE=0 AND INDEX_NAME<>'PRIMARY'
+    GROUP BY INDEX_NAME HAVING COUNT(*)=1 AND MAX(COLUMN_NAME)='phone_number'
+) unique_phone_indexes;
+SET @phone_sql=IF(@phone_duplicates=0 AND @phone_index=0,
+    'ALTER TABLE users ADD UNIQUE INDEX uk_users_phone_number (phone_number)',
+    'SELECT ''Phone uniqueness already exists, or duplicate contacts require resolution'' AS phone_migration_status');
 PREPARE phone_stmt FROM @phone_sql;
 EXECUTE phone_stmt;
 DEALLOCATE PREPARE phone_stmt;

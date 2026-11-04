@@ -133,7 +133,9 @@ public class AuthService {
     }
 
     public FindEmailResponse findEmail(FindEmailRequest request) {
-        throw new BusinessException(HttpStatus.BAD_REQUEST,"인증되지 않은 전화번호로는 계정을 찾을 수 없습니다. 가입한 이메일을 이용해주세요.");
+        User user = userRepository.findByNameAndPhoneNumber(request.name(), request.phoneNumber())
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        return new FindEmailResponse(user.getEmail());
     }
 
     public FindEmailResponse findId(FindIdRequest request) {
@@ -189,7 +191,9 @@ public class AuthService {
         if (userRepository.existsByNickname(request.nickname())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Nickname already exists.");
         }
-
+        if (userRepository.existsByPhoneNumber(request.phoneNumber())) {
+            throw new BusinessException(HttpStatus.CONFLICT, "Phone number already exists.");
+        }
     }
 
     private AuthResponse createAuthResponse(User user) {

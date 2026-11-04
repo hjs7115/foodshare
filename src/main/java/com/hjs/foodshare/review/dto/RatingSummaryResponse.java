@@ -7,6 +7,7 @@ public record RatingSummaryResponse(
         String freshnessLevel,
         String freshnessIcon,
         String freshnessLabel,
-        long reviewCount
+        long reviewCount,
+        java.util.List<Long> ratingCounts
 ) {
 }

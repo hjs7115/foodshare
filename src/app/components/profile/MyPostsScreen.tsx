@@ -55,7 +55,7 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
     }
   };
   const deletePost = async (id: number) => {
-    if (!(await showConfirm('게시글을 삭제하시겠습니까?', '게시글 삭제', '삭제'))) return;
+    if (!(await showConfirm('게시글을 삭제하면 대기 요청이 종료됩니다. 진행 중 거래가 있으면 먼저 취소하거나 완료해주세요. 삭제할까요?', '게시글 삭제', '삭제'))) return;
 
     setDeletingPostId(id);
     try {

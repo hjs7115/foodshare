@@ -28,6 +28,9 @@ public class IngredientAnalysis {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Column(length=64) private String imageFingerprint;
+    public String getImageFingerprint(){return imageFingerprint;}
+    public void setImageFingerprint(String value){imageFingerprint=value;}
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

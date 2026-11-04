@@ -50,7 +50,7 @@ public record NotificationResponse(
                 notification.getMessage(),
                 notification.getTargetType(),
                 notification.getTargetId(),
-                tradeRequest == null ? null : tradeRequest.getPost().getId(),
+                tradeRequest == null ? ("POST".equals(notification.getTargetType())?notification.getTargetId():null) : tradeRequest.getPost().getId(),
                 tradeRequest == null ? null : tradeRequest.getPost().getPostType(),
                 requester == null ? null : requester.getId(),
                 requester == null ? null : requester.getNickname(),

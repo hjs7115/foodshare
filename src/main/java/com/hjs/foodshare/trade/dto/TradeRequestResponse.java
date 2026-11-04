@@ -41,7 +41,10 @@ public record TradeRequestResponse(
         String cancellationReason,
         boolean marketTrade,
         boolean reopenCandidate,
-        java.time.LocalDate expirationDate
+        java.time.LocalDate expirationDate,
+        LocalDateTime writerConfirmedAt,
+        LocalDateTime requesterConfirmedAt,
+        boolean exchangeTrade, boolean postOpen
 ) {
 
     public static TradeRequestResponse from(TradeRequest tradeRequest) {
@@ -101,7 +104,9 @@ public record TradeRequestResponse(
                 tradeRequest.getPost().getPostType()!=PostType.GROUP_BUY && !tradeRequest.getPost().isOpenFridgePost() && tradeRequest.getExchangeDescription()==null,
                 tradeRequest.getStatus()==TradeRequestStatus.CANCELLED && tradeRequest.isCancelledAfterAcceptance()
                     && tradeRequest.getPost().getStatus()==com.hjs.foodshare.post.domain.PostStatus.CLOSED && !tradeRequest.getPost().isDeleted(),
-                tradeRequest.getPost().getExpirationDate()
+                tradeRequest.getPost().getExpirationDate(),
+                tradeRequest.getWriterConfirmedAt(), tradeRequest.getRequesterConfirmedAt(),
+                tradeRequest.getExchangeDescription()!=null, tradeRequest.getPost().isOpen()
         );
     }
 }

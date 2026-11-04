@@ -1,3 +1,5 @@
+import {useEffect,useState} from 'react';
+import {API_ENDPOINTS,apiRequest} from '../../api/config';
 import { X, Star, Leaf } from 'lucide-react';
 import { getStoredUserInfo } from '../../auth/session';
 
@@ -11,14 +13,25 @@ interface Review {
   rating: number;
   comment: string;
   date: string;
-  type: '나눔' | '판매' | '공동구매';
+  type: string;
 }
 
 export default function RatingDetailScreen({ onClose }: RatingDetailScreenProps) {
-  const userInfo = getStoredUserInfo<{ freshness?: number; freshnessLabel?: string }>();
-  const freshnessPercent = getFreshnessPercent(userInfo?.freshness);
-  const freshnessLabel = getFreshnessLabel(freshnessPercent);
-  const totalReviews = 0;
+  const userInfo=getStoredUserInfo<{userId?:number;id?:number;freshness?:number}>();
+  const [freshness,setFreshness]=useState(userInfo?.freshness??50);
+  const [page,setPage]=useState(0);const [hasMore,setHasMore]=useState(false);const [total,setTotal]=useState(0);const [counts,setCounts]=useState<number[]>([0,0,0,0,0]);
+  const [reviews,setReviews]=useState<Review[]>([]);
+  const [error,setError]=useState('');
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{let active=true;const id=userInfo?.userId??userInfo?.id;
+    Promise.all([apiRequest(API_ENDPOINTS.getReviews(Number(id))+'/page?page=0&size=30'),apiRequest(API_ENDPOINTS.getRating(Number(id)))])
+      .then(([r,rating])=>{if(!active)return;setFreshness(Number(rating.data?.freshness??50));setPage(0);setHasMore(!r.data?.last);setTotal(Number(rating.data?.reviewCount||0));setCounts(rating.data?.ratingCounts||[0,0,0,0,0]);setReviews((r.data?.content||[]).map((v:any)=>({id:v.reviewId,reviewer:v.reviewerNickname,rating:v.rating,comment:v.content||'',date:v.createdAt,type:'거래'})));})
+      .catch(e=>{if(active)setError(e.message||'평가를 불러오지 못했습니다.');}).finally(()=>{if(active)setLoading(false);});
+    return()=>{active=false;};
+  },[]);
+  const freshnessPercent=getFreshnessPercent(freshness);
+  const freshnessLabel=getFreshnessLabel(freshnessPercent);
+  const totalReviews=total;
 
   const freshnessLevels = [
     { min: 95, max: 100, range: '95~100%', label: '👑 전설 반띵러' },
@@ -31,15 +44,7 @@ export default function RatingDetailScreen({ onClose }: RatingDetailScreenProps)
     { min: 0, max: 19.9, range: '0~19.9%', label: '🤮 제한 반띵러' },
   ];
 
-  const ratingDistribution = [
-    { stars: 5, count: 0, percentage: 0 },
-    { stars: 4, count: 0, percentage: 0 },
-    { stars: 3, count: 0, percentage: 0 },
-    { stars: 2, count: 0, percentage: 0 },
-    { stars: 1, count: 0, percentage: 0 },
-  ];
-
-  const reviews: Review[] = [];
+  const ratingDistribution=[5,4,3,2,1].map(stars=>{const count=Number(counts[stars-1]||0);return {stars,count,percentage:totalReviews?count/totalReviews*100:0};});
 
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col">
@@ -127,7 +132,7 @@ export default function RatingDetailScreen({ onClose }: RatingDetailScreenProps)
             받은 평가
           </h2>
 
-          {reviews.length === 0 ? (
+          {loading?<p role="status">평가를 불러오는 중…</p>:error?<p role="alert">{error}</p>:reviews.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-sm text-[#a0aec0]">아직 받은 평가가 없습니다</p>
             </div>
@@ -170,6 +175,10 @@ export default function RatingDetailScreen({ onClose }: RatingDetailScreenProps)
           )}
         </div>
 
+        {hasMore&&<button disabled={loading} className="w-full p-4 text-sm text-green-700" onClick={async()=>{setLoading(true);try{
+          const id=userInfo?.userId??userInfo?.id;const r=await apiRequest(API_ENDPOINTS.getReviews(Number(id))+`/page?page=${page+1}&size=30`);
+          setReviews(prev=>[...prev,...(r.data?.content||[]).map((v:any)=>({id:v.reviewId,reviewer:v.reviewerNickname,rating:v.rating,comment:v.content||'',date:v.createdAt,type:'거래'}))]);setPage(p=>p+1);setHasMore(!r.data?.last);
+        }catch(e:any){setError(e.message);}finally{setLoading(false);}}}>이전 평가 더 보기</button>}
         <div className="px-5 py-6">
           <div className="bg-[#eff6ff] border border-[#bfdbfe] rounded-2xl p-4">
             <p className="text-sm text-[#1e3a8a]">

@@ -1,7 +1,7 @@
 import { resetDeviceSession } from '../../auth/deviceSession';
 import { useEffect, useState } from 'react';
 import { Ban, Bell, ChevronRight, FileText, Heart, History, Leaf, LogOut, MessageCircle, Plus, Settings, ShoppingCart, Snowflake, Star, Trophy, User } from 'lucide-react';
-import { API_ENDPOINTS, apiRequest, getNotifications, resolveImageUrl } from '../../api/config';
+import { API_ENDPOINTS, apiRequest, getNotifications, getNotificationUnreadCount, resolveImageUrl } from '../../api/config';
 import { clearAuthSession, getAuthToken, getStoredUserInfo, saveStoredUserInfo } from '../../auth/session';
 import EditProfileScreen from './EditProfileScreen';
 import BackendImage from '../common/BackendImage';
@@ -9,12 +9,13 @@ import FavoritesScreen from './FavoritesScreen';
 import MyPostsScreen from './MyPostsScreen';
 import SettingsScreen from './SettingsScreen';
 import RatingDetailScreen from './RatingDetailScreen';
+import ReportsScreen from './ReportsScreen';
 import TransactionHistoryScreen from './TransactionHistoryScreen';
 import BadgesScreen from './BadgesScreen';
 import BlockedUsersScreen from './BlockedUsersScreen';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
-import { showConfirm } from '../../utils/feedback';
+import { showConfirm, showToast } from '../../utils/feedback';
 import { useNestedBack } from '../../utils/useNestedBack';
 
 interface UserInfo {
@@ -49,6 +50,8 @@ export default function ProfileScreen({
   const [showFavorites, setShowFavorites] = useState(false);
   const [showMyPosts, setShowMyPosts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showReports,setShowReports]=useState(false);
+  useNestedBack(showReports,()=>setShowReports(false));
   const [showRatingDetail, setShowRatingDetail] = useState(false);
   const [showTransactionHistory, setShowTransactionHistory] = useState(false);
   const [showBadges, setShowBadges] = useState(false);
@@ -65,8 +68,10 @@ export default function ProfileScreen({
   useNestedBack(showBlockedUsers, () => setShowBlockedUsers(false));
 
   useEffect(() => {
+    const query=new URLSearchParams(window.location.search);
+    if(query.get('ratings')==='1')setShowRatingDetail(true);
+    if(query.get('reports')==='1')setShowReports(true);
     loadUserInfo();
-    loadPendingReceivedRequests();
     loadUnreadNotifications();
   }, []);
 
@@ -103,14 +108,8 @@ export default function ProfileScreen({
     return Number.isFinite(numeric) ? numeric : fallback;
   };
 
-  const loadUnreadNotifications = async () => {
-    try {
-      const response = await getNotifications(0, 10);
-      setHasUnreadNotifications(getNotificationItems(response).some(isUnreadNotification));
-    } catch (error) {
-      console.warn('읽지 않은 알림 조회에 실패했습니다.', error);
-      setHasUnreadNotifications(false);
-    }
+  const loadUnreadNotifications=async()=>{
+    try{setHasUnreadNotifications((await getNotificationUnreadCount())>0);}catch{setHasUnreadNotifications(false);}
   };
 
   const loadUserInfo = async () => {
@@ -137,6 +136,7 @@ export default function ProfileScreen({
             user.groupBuyCount
           ),
         };
+        setPendingReceivedRequestCount(Number(payload.pendingReceivedRequestCount||0));
         setUserInfo(nextUser);
         saveStoredUserInfo(nextUser);
       }
@@ -145,26 +145,6 @@ export default function ProfileScreen({
     }
   };
 
-  const loadPendingReceivedRequests = async () => {
-    const token = getAuthToken();
-    if (!token) return;
-
-    try {
-      const response = await apiRequest(API_ENDPOINTS.mypageReceivedTradeRequests, { method: 'GET' });
-      const rawRequests =
-        response.tradeRequests ||
-        response.requests ||
-        response.data?.tradeRequests ||
-        response.data?.requests ||
-        response.data ||
-        response;
-      const requests = Array.isArray(rawRequests) ? rawRequests : [];
-      setPendingReceivedRequestCount(requests.filter((request: any) => request.status === 'PENDING').length);
-    } catch (error) {
-      console.warn('받은 거래 요청 수 조회에 실패했습니다.', error);
-      setPendingReceivedRequestCount(0);
-    }
-  };
 
   const getFreshnessPercent = () => {
     const value = Number(userInfo?.freshness ?? 50);
@@ -367,9 +347,10 @@ export default function ProfileScreen({
         />
       )}
 
+      {showReports&&<ReportsScreen onClose={()=>setShowReports(false)}/>}
       {showRatingDetail && (
         <RatingDetailScreen
-          onClose={() => setShowRatingDetail(false)}
+          onClose={() => {setShowRatingDetail(false);void loadUserInfo();}}
         />
       )}
 
@@ -377,7 +358,7 @@ export default function ProfileScreen({
         <TransactionHistoryScreen
           onClose={() => {
             setShowTransactionHistory(false);
-            loadPendingReceivedRequests();
+            void loadUserInfo();
           }}
         />
       )}

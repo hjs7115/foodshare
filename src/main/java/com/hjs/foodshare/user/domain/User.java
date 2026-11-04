@@ -15,6 +15,26 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private Boolean suspended;
+    private LocalDateTime withdrawnAt;
+    private Long tokenVersion;
+    private LocalDateTime consentedAt;
+    @Column(length=30) private String consentVersion;
+    private Boolean expiryReminder;
+    public boolean isAvailable() { return !Boolean.TRUE.equals(suspended) && withdrawnAt==null; }
+    public long getTokenVersion() { return tokenVersion==null?0:tokenVersion; }
+    public void revokeSessions() { tokenVersion=getTokenVersion()+1; }
+    public void suspend(boolean value) { suspended=value; revokeSessions(); }
+    public void recordConsent(String version) { consentVersion=version; consentedAt=LocalDateTime.now(); }
+    public boolean isExpiryReminder() { return !Boolean.FALSE.equals(expiryReminder); }
+    public void setExpiryReminder(Boolean value) { if(value!=null) expiryReminder=value; }
+    public void withdraw() {
+        withdrawnAt=LocalDateTime.now(); revokeSessions();
+        name="탈퇴한 사용자"; nickname="탈퇴사용자"+id; email="withdrawn-"+id+"@invalid.local";
+        phoneNumber="x"+id; password=java.util.UUID.randomUUID().toString();
+        location=null; latitude=null; longitude=null; profileImage=null;
+        notificationNewPost=false; notificationComment=false; notificationTradeRequest=false; notificationTradeAccepted=false; notificationMarketing=false; chatPushEnabled=false;
+    }
 
     @Column(nullable = false, length = 50)
     private String name;
@@ -28,7 +48,7 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(nullable = false, length = 20)
     private String phoneNumber;
 
     @Column(length = 100)

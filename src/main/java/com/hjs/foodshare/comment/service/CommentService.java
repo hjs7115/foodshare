@@ -59,7 +59,7 @@ public class CommentService {
                     post.getWriter().getId(),
                     "COMMENT",
                     "새 댓글",
-                    writer.getNickname() + "님이 '" + post.getTitle() + "' 게시글에 댓글을 남겼습니다."
+                    writer.getNickname() + "님이 '" + post.getTitle() + "' 게시글에 댓글을 남겼습니다.", "POST", postId
             );
         }
         return CommentResponse.from(savedComment);
@@ -67,9 +67,8 @@ public class CommentService {
 
     public List<CommentResponse> getComments(Long postId, Long currentUserId) {
         demo.requireVisible(postId);
-        if (!postRepository.existsById(postId)) {
-            throw new BusinessException(HttpStatus.NOT_FOUND, "Post not found.");
-        }
+        Post parent=postRepository.findById(postId).filter(p -> !p.isDeleted() && p.getWriter().isAvailable()).orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND,"게시글을 찾을 수 없습니다."));
+        validateNotBlocked(currentUserId,parent.getWriter().getId());
 
         return commentRepository.findAllByPostIdOrderByCreatedAtAsc(postId)
                 .stream()
@@ -118,6 +117,6 @@ public class CommentService {
         if (currentUserId == null || currentUserId.equals(writerId)) {
             return true;
         }
-        return !userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, currentUserId);
+        return !userBlockRepository.blockedEitherWay(writerId, currentUserId);
     }
 }

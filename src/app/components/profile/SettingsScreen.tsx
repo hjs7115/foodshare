@@ -16,13 +16,15 @@ import {
   X,
 } from 'lucide-react';
 import NotificationSettingsScreen from './NotificationSettingsScreen';
+import ReportsScreen from './ReportsScreen';
+import WithdrawalScreen from './WithdrawalScreen';
 import LocationSettingsScreen from './LocationSettingsScreen';
 import ChatSettingsScreen from './ChatSettingsScreen';
 import FindPasswordScreen from '../auth/FindPasswordScreen';
 import { getStoredUserInfo } from '../../auth/session';
 import { showConfirm, showToast } from '../../utils/feedback';
 
-type SettingsView = 'main' | 'password' | 'notifications' | 'location' | 'chat' | 'privacy' | 'terms' | 'help' | 'notice';
+type SettingsView = 'main' | 'password' | 'notifications' | 'location' | 'chat' | 'privacy' | 'terms' | 'help' | 'notice' | 'reports' | 'withdraw';
 
 export default function SettingsScreen({ onClose }: { onClose: () => void }) {
   const [demoMode, setDemoMode] = useState<{canManage: boolean; enabled: boolean} | null>(null);
@@ -67,6 +69,8 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
     window.location.reload();
   };
 
+  if(currentView==='reports')return <ReportsScreen onClose={()=>setCurrentView('main')}/>;
+  if(currentView==='withdraw')return <WithdrawalScreen onClose={()=>setCurrentView('main')}/>;
   if (currentView === 'notifications') {
     return <NotificationSettingsScreen onClose={() => setCurrentView('main')} />;
   }
@@ -105,6 +109,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
       title: '계정',
       items: [
         { icon: Lock, label: '비밀번호 변경', description: '이메일 인증 후 새 비밀번호를 설정합니다.', action: () => setCurrentView('password') },
+        { icon: AlertCircle, label: '회원탈퇴', description: '진행 거래 종료와 개인정보 삭제 안내를 확인합니다.', action: () => setCurrentView('withdraw') },
         { icon: Shield, label: '개인정보 처리방침', description: '수집하는 정보와 이용 목적을 확인합니다.', action: () => setCurrentView('privacy') },
         { icon: FileText, label: '이용약관', description: '반띵 서비스 이용 기준을 확인합니다.', action: () => setCurrentView('terms') },
       ],
@@ -121,6 +126,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
     {
       title: '고객 지원',
       items: [
+        { icon: Shield, label: '내 신고·분쟁 내역', description: '접수 상태와 운영자의 조치 결과를 확인합니다.', action: () => setCurrentView('reports') },
         { icon: HelpCircle, label: '도움말', description: '게시글, 거래, 채팅 이용 방법을 확인합니다.', action: () => setCurrentView('help') },
         { icon: FileText, label: '공지사항', description: '서비스 변경 사항과 운영 안내를 확인합니다.', action: () => setCurrentView('notice') },
         { icon: AlertCircle, label: '문의하기', description: '오류나 불편 사항은 프로젝트 관리자에게 전달합니다.', action: () => showToast('문의는 관리자 이메일 또는 GitHub 이슈로 전달해주세요.') },
@@ -193,7 +199,7 @@ type InfoView = Exclude<SettingsView, 'main' | 'password' | 'notifications' | 'l
 const policySections = {
   privacy: {
     title: '개인정보 처리방침',
-    updatedAt: '최종 수정일 2026.09.08',
+    updatedAt: '최종 수정일 2026.11.04',
     intro: '반띵은 식재료 나눔, 판매, 공동구매와 안전한 거래 경험을 제공하기 위해 필요한 개인정보만 수집하고 목적 범위 안에서 이용합니다.',
     sections: [
       {
@@ -217,8 +223,8 @@ const policySections = {
       {
         heading: '보관 및 파기',
         items: [
-          '회원 정보는 탈퇴 요청 또는 서비스 종료 시까지 보관합니다.',
-          '거래, 신고, 리뷰 기록은 분쟁 대응과 운영 안정성을 위해 필요한 기간 동안 보관될 수 있습니다.',
+          '회원탈퇴 시 연락처·위치·프로필을 삭제하고 기록의 작성자는 탈퇴 사용자로 표시합니다.',
+          '거래·채팅·신고 기록은 분쟁 대응을 위해 작성자를 비식별화하여 보관합니다. 탈퇴 시 송금 금액은 자동 환불되지 않습니다.',
           '브라우저에 저장된 로그인 토큰과 화면 설정은 설정의 기기 저장 데이터에서 직접 삭제할 수 있습니다.',
         ],
       },
@@ -242,7 +248,7 @@ const policySections = {
   },
   terms: {
     title: '이용약관',
-    updatedAt: '최종 수정일 2026.09.08',
+    updatedAt: '최종 수정일 2026.11.04',
     intro: '이 약관은 반띵 서비스 이용에 필요한 기본 규칙과 사용자 간 거래 기준을 안내합니다.',
     sections: [
       {
@@ -273,7 +279,7 @@ const policySections = {
         heading: '거래와 책임',
         items: [
           '거래는 사용자 간 합의에 따라 진행되며, 거래 전 상태와 조건을 충분히 확인해야 합니다.',
-          '거래 완료 후 리뷰와 신선도 평가를 남길 수 있습니다.',
+          '양쪽이 완료를 확인한 뒤 거래 평가를 남길 수 있습니다.',
           '분쟁이 발생하면 채팅 내역, 게시글 정보, 신고 내용을 바탕으로 운영자가 검토할 수 있습니다.',
         ],
       },

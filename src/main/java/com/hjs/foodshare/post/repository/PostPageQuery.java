@@ -16,7 +16,7 @@ public class PostPageQuery {
         var params = new HashMap<String,Object>();
         params.put("today", LocalDate.now());
         params.put("now", LocalDateTime.now());
-        var where = new StringBuilder(" where p.deleted=false and p.status=com.hjs.foodshare.post.domain.PostStatus.OPEN and p.openFridgeValidUntil is null and p.expirationDate>=:today");
+        var where = new StringBuilder(" where p.deleted=false and coalesce(p.writer.suspended,false)=false and p.writer.withdrawnAt is null and p.status=com.hjs.foodshare.post.domain.PostStatus.OPEN and p.openFridgeValidUntil is null and p.expirationDate>=:today");
         where.append(" and (p.postType<>com.hjs.foodshare.post.domain.PostType.GROUP_BUY or p.deadlineDate is null or p.deadlineDate>:now)");
         where.append(" and (not exists (select d.postId from DemoPost d where d.postId=p.id) or exists (select ds.id from DemoState ds where ds.id=1 and ds.enabled=true))");
         if (marketOnly) where.append(" and p.postType<>com.hjs.foodshare.post.domain.PostType.GROUP_BUY");
@@ -25,12 +25,12 @@ public class PostPageQuery {
             where.append(" and (lower(p.title) like :keyword or lower(p.ingredientName) like :keyword)");
             params.put("keyword","%"+keyword.trim().toLowerCase(Locale.ROOT)+"%");
         }
-        if(userId!=null){where.append(" and not exists(select b.id from UserBlock b where b.blocker.id=p.writer.id and b.blockedUser.id=:viewer)");params.put("viewer",userId);}
+        if(userId!=null){where.append(" and not exists(select b.id from UserBlock b where ((b.blocker.id=p.writer.id and b.blockedUser.id=:viewer) or (b.blockedUser.id=p.writer.id and b.blocker.id=:viewer)))");params.put("viewer",userId);}
         if(expiring){where.append(" and p.expirationDate<=:soon");params.put("soon",LocalDate.now().plusDays(3));}
         boolean coordinates=lat!=null && lng!=null && Double.isFinite(lat) && Double.isFinite(lng) && Math.abs(lat)<=90 && Math.abs(lng)<=180;
         String distance="p.distanceKm";
         if(coordinates) {
-            distance="(6371.0 * acos(least(1.0, greatest(-1.0, sin(radians(:lat))*sin(radians(p.latitude))+cos(radians(:lat))*cos(radians(p.latitude))*cos(radians(p.longitude-:lng))))))";
+            distance="(6371.0 * acos(least(1.0, greatest(-1.0, sin(radians(:lat))*sin(radians(round(p.latitude,2)))+cos(radians(:lat))*cos(radians(round(p.latitude,2)))*cos(radians(round(p.longitude,2)-:lng))))))";
         }
         if(radius!=null){
             if(!coordinates || !Double.isFinite(radius) || radius<0) where.append(" and 1=0");

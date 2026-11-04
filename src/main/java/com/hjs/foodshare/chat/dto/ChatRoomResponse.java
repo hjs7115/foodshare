@@ -28,6 +28,9 @@ public record ChatRoomResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
+    public ChatRoomResponse withRoomName(String name){
+        return name==null||name.isBlank()?this:new ChatRoomResponse(chatRoomId,tradeRequestId,postId,postTitle,postType,name,partnerId,partnerNickname,partnerProfileImage,groupRoom,participantCount,participants,lastMessage,lastMessageAt,unreadCount,pinned,muted,createdAt,updatedAt);
+    }
     public static ChatRoomResponse from(ChatRoom room, Long currentUserId, ChatMessage lastMessage) {
         User partner = room.getWriter().getId().equals(currentUserId) ? room.getRequester() : room.getWriter();
         int unreadCount = room.getWriter().getId().equals(currentUserId)

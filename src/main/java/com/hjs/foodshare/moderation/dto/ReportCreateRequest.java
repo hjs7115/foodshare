@@ -9,6 +9,6 @@ public record ReportCreateRequest(
         @NotNull ReportTargetType targetType,
         @NotNull Long targetId,
         @NotBlank @Size(max = 100) String reason,
-        String description
+        @Size(max=2000) String description
 ) {
 }

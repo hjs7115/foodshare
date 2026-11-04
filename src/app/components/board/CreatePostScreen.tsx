@@ -33,31 +33,12 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
   const isSale = category === '판매';
   const isBuy = category === '구매';
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    const fileArray = Array.from(files);
-    const imageUrls: string[] = [];
-    setImageFiles((currentFiles) => [...currentFiles, ...fileArray]);
-
-    fileArray.forEach((file) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        imageUrls.push(reader.result as string);
-        if (imageUrls.length === fileArray.length) {
-          setImages([...images, ...imageUrls]);
-          setImageError('');
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+  const handleImageSelect=(e:React.ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0];if(!file)return;
+    setAiAnalysis(null);setImageFiles([file]);setImages([]);setImageError('');
+    const reader=new FileReader();reader.onloadend=()=>setImages([String(reader.result)]);reader.readAsDataURL(file);
   };
-
-  const handleRemoveImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
-    setImageFiles(imageFiles.filter((_, i) => i !== index));
-  };
+  const handleRemoveImage=(_index:number)=>{setAiAnalysis(null);setImages([]);setImageFiles([]);};
 
   const getAuthorLocation = () => {
     const tradeLocation = localStorage.getItem('userLocation') || '';
@@ -168,7 +149,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
       return;
     }
     if (!isBuy && images.length === 0) {
-      const message = '게시글 사진을 최소 1장 첨부해주세요.';
+      const message = '게시글 사진을 1장 첨부해주세요.';
       setImageError(message);
       showToast(message);
       return;
@@ -377,7 +358,6 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
-                  multiple
                   onChange={handleImageSelect}
                   className="hidden"
                 />
@@ -388,7 +368,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
                 >
                   <Camera size={24} className="text-[#cbd5e0] mb-1" />
                   <span className="text-xs text-[#718096]">
-                    {images.length}/10
+                    {images.length}/1
                   </span>
                 </button>
 

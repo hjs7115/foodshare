@@ -14,8 +14,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     List<Review> findAllByReviewerIdOrderByCreatedAtDesc(Long reviewerId);
 
+    org.springframework.data.domain.Page<Review> findAllByTargetUserIdOrderByCreatedAtDesc(Long userId,org.springframework.data.domain.Pageable page);
+    org.springframework.data.domain.Page<Review> findAllByReviewerIdOrderByCreatedAtDesc(Long userId,org.springframework.data.domain.Pageable page);
     long countByTargetUserId(Long targetUserId);
 
+    long countByTargetUserIdAndRating(Long id,Integer rating);
     long countByTargetUserIdAndRatingGreaterThanEqual(Long targetUserId, Integer rating);
 
     long countByTargetUserIdAndRatingLessThanEqual(Long targetUserId, Integer rating);

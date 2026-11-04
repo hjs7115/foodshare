@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ModerationService {
 
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
     private final ReportRepository reportRepository;
     private final UserBlockRepository userBlockRepository;
     private final UserRepository userRepository;
@@ -47,6 +48,18 @@ public class ModerationService {
     public ReportResponse createReport(Long reporterId, ReportCreateRequest request) {
         User reporter = getUser(reporterId);
         User targetUser = resolveTargetUser(request.targetType(), request.targetId());
+        String evidence=null;
+        if(request.targetType()==ReportTargetType.CHAT_MESSAGE){
+            var message=em.find(com.hjs.foodshare.chat.domain.ChatMessage.class,request.targetId());
+            if(!chatService.canAccessRoom(reporterId,message.getChatRoom().getId()))throw new BusinessException(HttpStatus.FORBIDDEN,"참여한 채팅만 신고할 수 있습니다.");
+            evidence="room="+message.getChatRoom().getId()+", sender="+targetUser.getId()+", at="+message.getCreatedAt()+"\n"+message.getContent();
+        }
+        if(request.targetType()==ReportTargetType.TRADE_REQUEST){
+            var trade=em.find(com.hjs.foodshare.trade.domain.TradeRequest.class,request.targetId());
+            if(!trade.getRequester().getId().equals(reporterId)&&!trade.getPost().getWriter().getId().equals(reporterId))throw new BusinessException(HttpStatus.FORBIDDEN,"참여한 거래만 신고할 수 있습니다.");
+            targetUser=trade.getRequester().getId().equals(reporterId)?trade.getPost().getWriter():trade.getRequester();
+            evidence="post="+trade.getPost().getId()+", status="+trade.getStatus()+", price="+trade.getPost().getPrice()+", quantity="+trade.getPost().getQuantity();
+        }
         if (reporter.getId().equals(targetUser.getId())) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "You cannot report yourself.");
         }
@@ -66,6 +79,7 @@ public class ModerationService {
                 request.reason(),
                 request.description()
         );
+        report.recordEvidence(evidence);
         return ReportResponse.from(reportRepository.save(report));
     }
 
@@ -88,6 +102,10 @@ public class ModerationService {
         }
         BlockedUserResponse response = BlockedUserResponse.from(userBlockRepository.save(UserBlock.create(blocker, blockedUser)));
         chatService.leaveDirectRoomsBetweenUsers(blockerId, blockedUserId);
+        var pending=em.createQuery("select t from TradeRequest t where t.status=com.hjs.foodshare.trade.domain.TradeRequestStatus.PENDING and ((t.requester.id=:a and t.post.writer.id=:b) or (t.requester.id=:b and t.post.writer.id=:a)) order by t.post.id,t.id",com.hjs.foodshare.trade.domain.TradeRequest.class).setParameter("a",blockerId).setParameter("b",blockedUserId).getResultList();
+        for(var request:pending){em.refresh(request.getPost(),jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);em.refresh(request);if(request.getStatus()==com.hjs.foodshare.trade.domain.TradeRequestStatus.PENDING)request.reject();}
+        // A concurrent accept may have committed a new room while we waited for its post.
+        chatService.leaveDirectRoomsBetweenUsers(blockerId, blockedUserId);
         return response;
     }
 
@@ -107,6 +125,16 @@ public class ModerationService {
 
     private User resolveTargetUser(ReportTargetType targetType, Long targetId) {
         return switch (targetType) {
+            case CHAT_MESSAGE -> {
+                var message=em.find(com.hjs.foodshare.chat.domain.ChatMessage.class,targetId);
+                if(message==null||message.getSender()==null)throw new BusinessException(HttpStatus.NOT_FOUND,"메시지를 찾을 수 없습니다.");
+                yield message.getSender();
+            }
+            case TRADE_REQUEST -> {
+                var trade=em.find(com.hjs.foodshare.trade.domain.TradeRequest.class,targetId);
+                if(trade==null)throw new BusinessException(HttpStatus.NOT_FOUND,"거래를 찾을 수 없습니다.");
+                yield trade.getPost().getWriter();
+            }
             case USER -> getUser(targetId);
             case POST -> {
                 Post post = postRepository.findById(targetId)

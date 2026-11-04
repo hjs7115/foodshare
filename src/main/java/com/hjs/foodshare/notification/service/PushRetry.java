@@ -5,6 +5,7 @@ import java.time.Instant;
 public class PushRetry {
  @Id @GeneratedValue(strategy=GenerationType.IDENTITY) Long id;
  Long userId; Long tokenId;
+ Long sourceUserId; Long messageId;
  @Column(length=80) String type;
  @Column(length=200) String title;
  @Column(length=2000) String body;
@@ -13,5 +14,5 @@ public class PushRetry {
  Instant dueAt;
  Instant expiresAt;
  protected PushRetry(){}
- PushRetry(Long userId,Long tokenId,String type,String title,String body,String targetType,Long targetId){this.userId=userId;this.tokenId=tokenId;this.type=type;this.title=title;this.body=body;this.targetType=targetType;this.targetId=targetId;dueAt=Instant.now().plusSeconds(60);expiresAt=Instant.now().plusSeconds(3600);}
+ PushRetry(Long userId,Long tokenId,String type,String title,String body,String targetType,Long targetId){this.userId=userId;this.tokenId=tokenId;this.type=type;this.title=title;this.body=body;this.targetType=targetType;this.targetId=targetId;dueAt=Instant.now();expiresAt=Instant.now().plusSeconds(3600);}
 }

@@ -50,6 +50,13 @@ public class TradeRequestController {
         return ResponseEntity.ok(ApiResponse.ok("다시 모집합니다.", tradeRequestService.reopenMarketTrade(requestId,authUser.userId(),request.confirmed())));
     }
 
+    @PostMapping("/posts/{postId}/cancel-trades")
+    public ResponseEntity<ApiResponse<Void>> cancelPost(@PathVariable Long postId,@AuthenticationPrincipal AuthUser user,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody CancelRequest request) {
+        tradeRequestService.cancelPostTrades(postId,user.userId(),request.reason());
+        return ResponseEntity.ok(ApiResponse.ok("전체 거래를 취소했습니다.",null));
+    }
+
     @PostMapping("/posts/{postId}/requests")
     public ResponseEntity<ApiResponse<TradeRequestResponse>> createRequest(
             @PathVariable Long postId,
@@ -76,6 +83,9 @@ public class TradeRequestController {
         return ResponseEntity.ok(ApiResponse.ok("Post trade requests found.",
                 tradeRequestService.getRequestsForPost(postId, authUser.userId())));
     }
+
+    @GetMapping("/posts/{postId}/my-request")
+    public Object ownPostRequest(@PathVariable Long postId,@AuthenticationPrincipal AuthUser user){return ApiResponse.ok("내 요청",tradeRequestService.getMyRequestForPost(user.userId(),postId));}
 
     @GetMapping("/trade-requests/me")
     public ResponseEntity<ApiResponse<List<TradeRequestResponse>>> getMyRequests(@AuthenticationPrincipal AuthUser authUser) {

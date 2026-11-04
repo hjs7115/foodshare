@@ -42,6 +42,19 @@ public class TradeRequest {
 
     private LocalDateTime completedAt;
 
+    private LocalDateTime writerConfirmedAt;
+    private LocalDateTime requesterConfirmedAt;
+
+    public LocalDateTime getWriterConfirmedAt() { return writerConfirmedAt; }
+    public LocalDateTime getRequesterConfirmedAt() { return requesterConfirmedAt; }
+    public boolean confirmCompletion(Long userId) {
+        if (post.getWriter().getId().equals(userId)) writerConfirmedAt = LocalDateTime.now();
+        else if (requester.getId().equals(userId)) requesterConfirmedAt = LocalDateTime.now();
+        else throw new IllegalArgumentException("Not a participant");
+        if (writerConfirmedAt != null && requesterConfirmedAt != null) { complete(); return true; }
+        return false;
+    }
+
     private Long cancelledBy;
     @Column(length=100) private String cancellationReason;
     private Boolean cancelledAfterAcceptance;

@@ -15,8 +15,14 @@ public class PushRetryService {
  private final FcmPushService push;
  private final TransactionTemplate tx;
  public PushRetryService(FcmPushService push,PlatformTransactionManager manager){this.push=push;tx=new TransactionTemplate(manager);}
- public void enqueue(Long user,Long token,String type,String title,String body,String target,Long targetId){em.persist(new PushRetry(user,token,type,title,body,target,targetId));}
- @Scheduled(fixedDelay=30000,initialDelay=60000)
+ public void enqueue(Long user,Long token,String type,String title,String body,String target,Long targetId){
+  String text=body==null?"":body; if(text.length()>1800)text=text.substring(0,1800);
+  em.persist(new PushRetry(user,token,type,title,text,target,targetId));
+ }
+ public void enqueueChat(Long user,Long token,Long sender,Long message,String title,String body,Long room){
+  var job=new PushRetry(user,token,"CHAT_MESSAGE",title,body,"CHAT_ROOM",room);job.sourceUserId=sender;job.messageId=message;em.persist(job);
+ }
+ @Scheduled(fixedDelay=2000,initialDelay=10000)
  public void tick(){
   List<Long> ids=tx.execute(s->em.createQuery("select p.id from PushRetry p where p.dueAt<=:now order by p.id",Long.class).setParameter("now",Instant.now()).setMaxResults(100).getResultList());
   if(ids==null)return;
@@ -27,7 +33,12 @@ public class PushRetryService {
   if(job==null||job.dueAt.isAfter(Instant.now()))return;
   var token=em.find(UserFcmToken.class,job.tokenId);
   var user=em.find(User.class,job.userId);
-  if(token==null||user==null||!token.getUser().getId().equals(job.userId)||!allowed(user,job.type)||Instant.now().isAfter(job.expiresAt)){em.remove(job);return;}
+  if(token==null||user==null||!user.isAvailable()||!token.getUser().getId().equals(job.userId)||!allowed(user,job.type)||Instant.now().isAfter(job.expiresAt)){em.remove(job);return;}
+  if("CHAT_MESSAGE".equals(job.type)){
+   var member=em.createQuery("select m from ChatRoomMember m where m.chatRoom.id=:room and m.user.id=:user",com.hjs.foodshare.chat.domain.ChatRoomMember.class).setParameter("room",job.targetId).setParameter("user",job.userId).getResultList();
+   boolean blocked=job.sourceUserId==null || em.createQuery("select count(b) from UserBlock b where (b.blocker.id=:a and b.blockedUser.id=:b) or (b.blocker.id=:b and b.blockedUser.id=:a)",Long.class).setParameter("a",job.userId).setParameter("b",job.sourceUserId).getSingleResult()>0;
+   if(blocked || member.isEmpty() || !member.getFirst().isActive() || member.getFirst().isMuted() || (job.messageId!=null && member.getFirst().getLastReadMessageId()>=job.messageId)){em.remove(job);return;}
+  }
   var result=push.sendPush(token.getToken(),job.title,job.body,NotificationService.pushData(job.type,job.targetType,job.targetId));
   job.attempts++;
   if(result==FcmPushService.SendResult.INVALID_TOKEN)em.remove(token);
@@ -38,7 +49,10 @@ public class PushRetryService {
   if("CHAT_MESSAGE".equals(type))return user.isChatPushEnabled();
   if("SHOPPING_REMINDER".equals(type))return em.createQuery("select count(p) from ShoppingPreference p where p.userId=:id and p.reminderEnabled=true",Long.class).setParameter("id",user.getId()).getSingleResult()>0;
   if("TRADE_REQUEST".equals(type))return user.isNotificationTradeRequest();
-  if("TRADE_ACCEPTED".equals(type)||"FRIDGE_EXCHANGE".equals(type))return user.isNotificationTradeAccepted();
+  if("NEW_POST".equals(type))return user.isNotificationNewPost();
+  if("EXPIRING_SOON".equals(type))return user.isExpiryReminder();
+  if("COMMENT".equals(type))return user.isNotificationComment();
+  if("TRADE_ACCEPTED".equals(type))return user.isNotificationTradeAccepted();
   return true;
  }
 }

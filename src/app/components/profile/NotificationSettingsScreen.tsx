@@ -10,6 +10,7 @@ interface NotificationSettings {
   tradeRequest: boolean;
   tradeAccepted: boolean;
   marketing: boolean;
+  expiryReminder:boolean;
 }
 
 const DEFAULT_SETTINGS: NotificationSettings = {
@@ -18,6 +19,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   tradeRequest: true,
   tradeAccepted: true,
   marketing: false,
+  expiryReminder:true,
 };
 
 export default function NotificationSettingsScreen({ onClose }: { onClose: () => void }) {
@@ -109,6 +111,7 @@ export default function NotificationSettingsScreen({ onClose }: { onClose: () =>
 
   const settingItems = [
     { key: 'newPost' as const, icon: ShoppingBag, label: '새 게시글 알림', description: '주변에 새 식재료 게시글이 올라오면 알려줍니다.' },
+    { key: 'expiryReminder' as const, icon: Bell, label: '내 게시글 기한 알림', description: '내 글의 유통기한이 가까워지면 알려줍니다.' },
     { key: 'comment' as const, icon: MessageCircle, label: '댓글 알림', description: '내 게시글에 댓글이 달리면 알려줍니다.' },
     { key: 'tradeRequest' as const, icon: Bell, label: '거래 요청 알림', description: '내 게시글에 거래 요청이 오면 알려줍니다.' },
     { key: 'tradeAccepted' as const, icon: UserCheck, label: '거래 수락 알림', description: '보낸 거래 요청이 수락되면 알려줍니다.' },

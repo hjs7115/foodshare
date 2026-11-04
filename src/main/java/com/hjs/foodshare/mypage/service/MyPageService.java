@@ -62,23 +62,25 @@ public class MyPageService {
 
     public MyPageResponse getMyPage(Long userId) {
         User user = getUser(userId);
-        List<PostResponse> posts = getMyPosts(userId);
-        List<CommentResponse> comments = getMyComments(userId);
-        List<TradeRequestResponse> myRequests = getMyTradeRequests(userId);
-        List<TradeRequestResponse> receivedRequests = getReceivedTradeRequests(userId);
+        long postCount=postRepository.countByWriterIdAndDeletedFalse(userId);
+        long commentCount=commentRepository.countByWriterId(userId);
+        long sentCount=tradeRequestRepository.countByRequesterId(userId);
+        long receivedCount=tradeRequestRepository.countByPostWriterId(userId);
         RatingSummaryResponse ratingSummary = reviewService.getRatingSummary(userId);
 
         return new MyPageResponse(
                 UserResponse.from(user),
-                posts.size(),
-                comments.size(),
-                myRequests.size(),
-                receivedRequests.size(),
+                (int)Math.min(postCount,Integer.MAX_VALUE),
+                (int)Math.min(commentCount,Integer.MAX_VALUE),
+                (int)Math.min(sentCount,Integer.MAX_VALUE),
+                (int)Math.min(receivedCount,Integer.MAX_VALUE),
                 ratingSummary.averageRating(),
                 ratingSummary.reviewCount(),
                 countShareCompleted(userId),
                 countSaleCompleted(userId),
-                countGroupBuyParticipation(userId)
+                countGroupBuyParticipation(userId),
+                tradeRequestRepository.countCompletedTradesForUser(userId,TradeRequestStatus.COMPLETED),
+                tradeRequestRepository.countByPostWriterIdAndStatus(userId,TradeRequestStatus.PENDING)
         );
     }
 
@@ -140,6 +142,8 @@ public class MyPageService {
     @Transactional
     public UserResponse updateProfile(Long userId, ProfileUpdateRequest request) {
         User user = getUser(userId);
+        if (request.nickname()!=null && !request.nickname().strip().equals(user.getNickname()) && userRepository.existsByNickname(request.nickname().strip()))
+            throw new BusinessException(HttpStatus.CONFLICT,"이미 사용 중인 닉네임입니다.");
         images.requireOwned(request.profileImage(), userId, user.getProfileImage());
         user.updateProfile(request.nickname(), request.location(), request.profileImage());
         return UserResponse.from(user);

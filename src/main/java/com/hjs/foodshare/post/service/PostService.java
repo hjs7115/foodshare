@@ -36,6 +36,9 @@ public class PostService {
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.hjs.foodshare.post.repository.PostPageQuery pages;
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.trade.repository.TradeRequestRepository trades;
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.notification.service.NotificationService notifications;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final CommentRepository commentRepository;
@@ -62,6 +65,7 @@ public class PostService {
 
     @Transactional
     public PostResponse createPost(Long userId, PostCreateRequest request) {
+        com.hjs.foodshare.post.dto.PostValues.coordinates(request.latitude(),request.longitude());
         imageUploadService.requireOwned(request.imageUrlValue(), userId, null);
         User writer = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
@@ -73,7 +77,7 @@ public class PostService {
         );
         IngredientAnalysis ingredientAnalysis = request.postType() == PostType.GROUP_BUY
                 ? null
-                : ingredientAnalysisService.claimForPost(request.analysisId(), userId);
+                : ingredientAnalysisService.claimForPost(request.analysisId(), userId,request.imageUrlValue());
 
         Post post = Post.create(
                 writer,
@@ -84,7 +88,7 @@ public class PostService {
                 request.priceValue(),
                 request.tradeLocation(),
                 request.distanceKm() == null ? 0.0 : request.distanceKm(),
-                request.expirationDateValue(),
+                request.postType()==PostType.GROUP_BUY ? request.deadlineDateValue().toLocalDate() : request.expirationDateValue(),
                 request.latitude(),
                 request.longitude(),
                 request.imageUrlValue(),
@@ -95,7 +99,10 @@ public class PostService {
                 ingredientAnalysis
         );
 
-        return toResponse(postRepository.save(post), userId);
+        post.setPriceNegotiable(request.priceNegotiable());
+        Post saved = postRepository.save(post);
+        notifications.notifyNearbyPost(saved);
+        return toResponse(saved, userId);
     }
 
     public List<PostResponse> getPosts() {
@@ -152,7 +159,11 @@ public class PostService {
     public PostResponse updatePost(Long postId, Long userId, PostUpdateRequest request) {
         Post post = getActivePost(postId);
         validateWriter(post, userId);
+        em.refresh(post,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (trades.existsByPostIdAndStatusIn(postId,List.of(com.hjs.foodshare.trade.domain.TradeRequestStatus.PENDING,com.hjs.foodshare.trade.domain.TradeRequestStatus.ACCEPTED,com.hjs.foodshare.trade.domain.TradeRequestStatus.COMPLETED)))
+            throw new BusinessException(HttpStatus.CONFLICT,"거래 요청이 있는 글의 조건은 바꿀 수 없습니다. 대기 요청을 정리하고 새 글을 작성해주세요.");
         if (post.isOpenFridgePost()) throw new BusinessException(HttpStatus.BAD_REQUEST, "열린 냉장고에서 재료를 수정하고 다시 공개해주세요.");
+        com.hjs.foodshare.post.dto.PostValues.coordinates(request.latitude(),request.longitude());
         String previousImageUrl = post.getImageUrl();
         imageUploadService.requireOwned(request.imageUrlValue(), userId, previousImageUrl);
         validatePostRequest(
@@ -162,6 +173,7 @@ public class PostService {
                 request.deadlineDateValue()
         );
 
+        post.clearAnalysis();
         post.update(
                 request.postType(),
                 request.title(),
@@ -170,7 +182,7 @@ public class PostService {
                 request.priceValue(),
                 request.tradeLocation(),
                 request.distanceKm() == null ? 0.0 : request.distanceKm(),
-                request.expirationDateValue(),
+                request.postType()==PostType.GROUP_BUY ? request.deadlineDateValue().toLocalDate() : request.expirationDateValue(),
                 request.latitude(),
                 request.longitude(),
                 request.imageUrlValue(),
@@ -180,6 +192,7 @@ public class PostService {
                 normalizeDeadlineDate(request.postType(), request.deadlineDateValue())
         );
 
+        post.setPriceNegotiable(request.priceNegotiable());
         deleteReplacedImage(previousImageUrl, post.getImageUrl());
 
         return toResponse(post, userId);
@@ -189,6 +202,12 @@ public class PostService {
     public void deletePost(Long postId, Long userId) {
         Post post = getActivePost(postId);
         validateWriter(post, userId);
+        em.refresh(post,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (trades.existsByPostIdAndStatusIn(postId,List.of(com.hjs.foodshare.trade.domain.TradeRequestStatus.ACCEPTED)))
+            throw new BusinessException(HttpStatus.CONFLICT,"진행 중인 거래를 먼저 취소하거나 완료해주세요.");
+        trades.findAllByPostIdAndStatus(postId,com.hjs.foodshare.trade.domain.TradeRequestStatus.PENDING).forEach(r -> {
+            r.reject(); notifications.createNotification(r.getRequester().getId(),"TRADE_CANCELLED","거래 요청 종료","게시글이 삭제되어 요청이 종료되었습니다.","TRADE_REQUEST",r.getId());
+        });
         post.delete();
         imageUploadService.deleteIfLocalUpload(post.getImageUrl());
     }
@@ -197,7 +216,7 @@ public class PostService {
         demo.requireVisible(postId);
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Post not found."));
-        if (post.isDeleted()) {
+        if (post.isDeleted() || !post.getWriter().isAvailable()) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "Post not found.");
         }
         return post;
@@ -216,7 +235,7 @@ public class PostService {
         if (post.getLatitude() == null || post.getLongitude() == null) {
             return null;
         }
-        return calculateDistanceKm(latitude, longitude, post.getLatitude(), post.getLongitude());
+        return Math.round(calculateDistanceKm(latitude, longitude, Math.round(post.getLatitude()*100)/100.0, Math.round(post.getLongitude()*100)/100.0)*10)/10.0;
     }
 
     private boolean isInsideDistance(PostResponse response, Double maxDistanceKm, Double latitude, Double longitude) {
@@ -249,17 +268,17 @@ public class PostService {
         if (postType != PostType.GROUP_BUY) {
             return;
         }
-        int currentCount = currentParticipantCount == null ? 1 : currentParticipantCount;
+        int currentCount = 1;
         if (targetParticipantCount == null) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "targetParticipantCount is required for group buy posts.");
         }
-        if (targetParticipantCount < currentCount) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "targetParticipantCount must be greater than or equal to currentParticipantCount.");
+        if (targetParticipantCount < 2 || targetParticipantCount > 100 || targetParticipantCount < currentCount) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "공동구매 정원은 주최자를 포함해 2~100명으로 입력해주세요.");
         }
         if (deadlineDate == null) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "deadlineDate is required for group buy posts.");
         }
-        if (deadlineDate.isBefore(LocalDateTime.now())) {
+        if (deadlineDate.withMinute(0).withSecond(0).withNano(0).isBefore(LocalDateTime.now())) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "deadlineDate must be now or later.");
         }
     }
@@ -268,7 +287,7 @@ public class PostService {
         if (currentUserId == null || currentUserId.equals(writerId)) {
             return true;
         }
-        return !userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, currentUserId);
+        return !userBlockRepository.blockedEitherWay(writerId, currentUserId);
     }
 
     private void deleteReplacedImage(String previousImageUrl, String nextImageUrl) {
@@ -281,7 +300,7 @@ public class PostService {
         if (postType != PostType.GROUP_BUY) {
             return null;
         }
-        return currentParticipantCount == null ? 1 : Math.max(currentParticipantCount, 1);
+        return 1;
     }
 
     private Integer normalizeTargetParticipantCount(PostType postType, Integer targetParticipantCount) {

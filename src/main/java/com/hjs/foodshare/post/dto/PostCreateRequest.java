@@ -50,6 +50,7 @@ public record PostCreateRequest(
         @JsonAlias("image")
         String imageUrl,
 
+        @Size(max=10000)
         @NotBlank(message = "content is required.")
         String content,
 
@@ -92,7 +93,7 @@ public record PostCreateRequest(
             ingredientName = title;
         }
         if (price == null) {
-            price = 0;
+            price = postType==PostType.SHARE?0:"가격미정";
         }
         if (tradeLocation == null || tradeLocation.isBlank()) {
             tradeLocation = "거래 위치 미정";
@@ -105,27 +106,10 @@ public record PostCreateRequest(
         }
     }
 
-    public Integer priceValue() {
-        if (price instanceof Number number) {
-            return Math.max(number.intValue(), 0);
-        }
-        if (price instanceof String text) {
-            String digits = text.replaceAll("[^0-9-]", "");
-            if (digits.isBlank() || "-".equals(digits)) {
-                return 0;
-            }
-            return Math.max(Integer.parseInt(digits), 0);
-        }
-        return 0;
-    }
-
-    public LocalDate expirationDateValue() {
-        return toDateOrDefault(expirationDate, LocalDate.now().plusDays(7));
-    }
-
-    public LocalDateTime deadlineDateValue() {
-        return toDateTimeOrDefault(deadlineDate, null);
-    }
+    public Integer priceValue() { return PostValues.price(price); }
+    public boolean priceNegotiable() { return PostValues.negotiable(price); }
+    public LocalDate expirationDateValue() { return PostValues.expiration(expirationDate); }
+    public LocalDateTime deadlineDateValue() { return PostValues.deadline(deadlineDate); }
 
     public String imageUrlValue() {
         return ImageUrlNormalizer.normalize(imageUrl);

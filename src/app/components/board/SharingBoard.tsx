@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Bell, ArrowUpDown, MapPin, MessageCircle, Heart, Snowflake, ShoppingCart, User, Leaf } from 'lucide-react';
 import CreatePostScreen from './CreatePostScreen';
 import BoardSwitchModal from './BoardSwitchModal';
@@ -7,7 +7,7 @@ import LocationSettingsScreen from '../profile/LocationSettingsScreen';
 import BackendImage from '../common/BackendImage';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
-import { API_ENDPOINTS, apiRequest, buildPostsUrl, getNotifications, resolveImageUrl } from '../../api/config';
+import { API_ENDPOINTS, apiRequest, buildPostsUrl, getNotifications, getNotificationUnreadCount, resolveImageUrl } from '../../api/config';
 import { useNestedBack } from '../../utils/useNestedBack';
 
 interface FoodItem {
@@ -133,14 +133,8 @@ export default function SharingBoard({
     notification.status === 'READ'
   );
 
-  const loadUnreadNotifications = async () => {
-    try {
-      const response = await getNotifications(0, 10);
-      setHasUnreadNotifications(getNotificationItems(response).some(isUnreadNotification));
-    } catch (error) {
-      console.warn('읽지 않은 알림 조회에 실패했습니다.', error);
-      setHasUnreadNotifications(false);
-    }
+  const loadUnreadNotifications=async()=>{
+    try{setHasUnreadNotifications((await getNotificationUnreadCount())>0);}catch{setHasUnreadNotifications(false);}
   };
 
   const getPostQueryParams = () => {
@@ -193,7 +187,7 @@ export default function SharingBoard({
             emoji: post.emoji || '🥬',
             name: post.title || post.name,
             amount: post.amount || '수량 미정',
-            price: post.price || (postType === 'SHARE' ? '무료나눔' : postType === 'BUY' ? '희망가 협의' : '가격미정'),
+            price: post.priceText || (post.price ?? (postType === 'SHARE' ? '무료나눔' : '가격 협의')),
             distance: queryParams.lat === undefined ? '거리 미정' : post.distance || `${distanceValue.toFixed(1)}km`,
             distanceValue,
             tradeLocation: getPostLocation(post),
@@ -585,7 +579,7 @@ export default function SharingBoard({
         ) : (
           <div className="space-y-3">
             {foodItems.map((item) => {
-              const isFree = item.tradeType === 'SHARE' || item.price === '무료나눔' || item.price === 'Free' || item.price === 0;
+              const isFree = item.tradeType === 'SHARE' || item.price === '무료나눔' || item.price === '무료' || item.price === 'Free' || item.price === 0;
               const isBuying = item.tradeType === 'BUY';
               const neighborhood = getNeighborhood(item.tradeLocation);
               return (

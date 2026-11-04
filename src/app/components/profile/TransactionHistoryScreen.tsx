@@ -1,9 +1,10 @@
 import MarketTradeActionDialog from './MarketTradeActionDialog';
+import ReviewDialog from './ReviewDialog';
 import { useEffect, useMemo, useState } from 'react';
 import { X, ArrowDownLeft, ArrowUpRight, CheckCircle2, XCircle, RefreshCw, User } from 'lucide-react';
-import { API_ENDPOINTS, apiRequest, resolveImageUrl } from '../../api/config';
+import { API_ENDPOINTS, apiRequest, resolveImageUrl, createReport } from '../../api/config';
 import BackendImage from '../common/BackendImage';
-import { showToast, showConfirm } from '../../utils/feedback';
+import { showToast, showConfirm, showPrompt } from '../../utils/feedback';
 import { getStoredUserInfo } from '../../auth/session';
 import { useNestedBack } from '../../utils/useNestedBack';
 
@@ -19,6 +20,10 @@ interface TradeRequest {
   cancelledBy?: number;
   cancellationReason?: string;
   marketTrade?: boolean;
+  exchangeTrade?: boolean;
+  postOpen?: boolean;
+  writerConfirmedAt?:string;
+  requesterConfirmedAt?:string;
   reopenCandidate?: boolean;
   expirationDate?: string;
   postId: number;
@@ -89,6 +94,12 @@ function getGroupDate(requests: TradeRequest[]): string | null | undefined {
 export default function TransactionHistoryScreen({ onClose }: TransactionHistoryScreenProps) {
   const storedUser = getStoredUserInfo<{ id?: number; userId?: number }>();
   const currentUserId = Number(storedUser?.id ?? storedUser?.userId);
+  const [moreHistory,setMoreHistory]=useState({sent:false,received:false});
+  const [historyPage,setHistoryPage]=useState(0);
+  const [loadingMore,setLoadingMore]=useState(false);
+  const [reviewTarget,setReviewTarget]=useState<TradeRequest|null>(null);
+  const [reviewed,setReviewed]=useState<Set<number>>(new Set());
+  const [lifetimeCompleted,setLifetimeCompleted]=useState(0);
   const [activeTab, setActiveTab] = useState<TransactionTab>('received');
   const [sentRequests, setSentRequests] = useState<TradeRequest[]>([]);
   const [receivedRequests, setReceivedRequests] = useState<TradeRequest[]>([]);
@@ -103,6 +114,8 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
 
   useEffect(() => {
     loadTradeRequests();
+    apiRequest(API_ENDPOINTS.getProfile).then(r=>setLifetimeCompleted(Number((r.data||r).completedTradeCount||0))).catch(()=>{});
+    apiRequest(API_ENDPOINTS.posts.replace(/\/posts$/,'')+'/mypage/reviews').then(r=>setReviewed(new Set((r.data||[]).map((v:any)=>Number(v.tradeRequestId))))).catch(()=>{});
   }, []);
 
   const normalizeRequest = (request: any): TradeRequest => ({
@@ -110,6 +123,9 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     cancelledBy: request.cancelledBy,
     cancellationReason: request.cancellationReason,
     marketTrade: request.marketTrade === true,
+    exchangeTrade: request.exchangeTrade === true,
+    postOpen: request.postOpen === true,
+    writerConfirmedAt: request.writerConfirmedAt, requesterConfirmedAt: request.requesterConfirmedAt,
     reopenCandidate: request.reopenCandidate === true,
     expirationDate: request.expirationDate,
     postId: Number(request.postId ?? request.post?.id),
@@ -247,6 +263,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       response.requests ||
       response.data?.tradeRequests ||
       response.data?.requests ||
+      response.data?.content ||
       response.data ||
       response;
 
@@ -258,14 +275,16 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     setLoadError('');
 
     try {
-      const sentResult = await apiRequest(API_ENDPOINTS.mypageTradeRequests, { method: 'GET' })
+      const sentResult = await apiRequest(API_ENDPOINTS.mypageTradeRequests+'/page?page=0&size=30', { method: 'GET' })
         .then((response) => ({ ok: true as const, response }))
         .catch((error) => ({ ok: false as const, error }));
 
-      const receivedResult = await apiRequest(API_ENDPOINTS.mypageReceivedTradeRequests, { method: 'GET' })
+      const receivedResult = await apiRequest(API_ENDPOINTS.mypageReceivedTradeRequests+'/page?page=0&size=30', { method: 'GET' })
         .then((response) => ({ ok: true as const, response }))
         .catch((error) => ({ ok: false as const, error }));
 
+      setHistoryPage(0);
+      setMoreHistory({sent:sentResult.ok&&!sentResult.response.data?.last,received:receivedResult.ok&&!receivedResult.response.data?.last});
       if (sentResult.ok) {
         setSentRequests(extractRequests(sentResult.response));
       } else {
@@ -285,7 +304,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
           !sentResult.ok ? '보낸 요청' : '',
           !receivedResult.ok ? '받은 요청' : '',
         ].filter(Boolean).join(', ');
-        setLoadError(`${failedTargets}을 불러오지 못했습니다. 다시 로그인해도 반복되면 백엔드 권한 설정을 확인해야 합니다.`);
+        setLoadError(`${failedTargets}을 불러오지 못했습니다. 잠시 후 새로고침해주세요.`);
       }
     } catch (error: any) {
       console.warn('거래 요청 목록 조회에 실패했습니다.', error);
@@ -297,6 +316,19 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     }
   };
 
+  const loadMoreHistory=async()=>{
+    if(loadingMore)return;setLoadingMore(true);
+    try{
+      const page=historyPage+1;
+      const [sent,received]=await Promise.all([
+        moreHistory.sent?apiRequest(API_ENDPOINTS.mypageTradeRequests+`/page?page=${page}&size=30`):null,
+        moreHistory.received?apiRequest(API_ENDPOINTS.mypageReceivedTradeRequests+`/page?page=${page}&size=30`):null
+      ]);
+      if(sent)setSentRequests(prev=>[...prev,...extractRequests(sent).filter(r=>!prev.some(p=>p.requestId===r.requestId))]);
+      if(received)setReceivedRequests(prev=>[...prev,...extractRequests(received).filter(r=>!prev.some(p=>p.requestId===r.requestId))]);
+      setMoreHistory({sent:Boolean(sent&&!sent.data?.last),received:Boolean(received&&!received.data?.last)});setHistoryPage(page);
+    }catch(e:any){showToast(e.message||'이전 내역을 불러오지 못했습니다.');}finally{setLoadingMore(false);}
+  };
   const [deletingHistory, setDeletingHistory] = useState(false);
   const canDeleteHistory = (group: TradeRequestGroup) => group.requests.every(
     request => ['COMPLETED', 'REJECTED', 'CANCELLED'].includes(request.status)
@@ -353,14 +385,14 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     return Array.from(groups.values());
   }, [activeTab, visibleRequests]);
 
-  const completedCount = completedRequests.length;
+  const completedCount = lifetimeCompleted;
   const pendingReceivedCount = receivedRequests.filter((request) => request.status === 'PENDING').length;
 
   const handleRequestAction = async (
     requestId: number,
     action: 'accept' | 'reject' | 'complete'
   ) => {
-    const actionLabel = action === 'accept' ? '수락' : action === 'reject' ? '거절' : '거래 완료';
+    const actionLabel = action === 'accept' ? '수락' : action === 'reject' ? '거절' : '완료 확인';
     if (!(await showConfirm(`${actionLabel} 처리하시겠습니까?`, '거래 요청 처리', actionLabel))) return;
 
     setProcessingId(requestId);
@@ -380,6 +412,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         showToast(`${actionLabel} 처리했습니다.`);
       }
       await loadTradeRequests();
+      apiRequest(API_ENDPOINTS.getProfile).then(r=>setLifetimeCompleted(Number((r.data||r).completedTradeCount||0))).catch(()=>{});
     } catch (error: any) {
       showToast(error.message || `${actionLabel} 처리에 실패했습니다.`);
     } finally {
@@ -410,6 +443,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         showToast('거래 완료 처리했습니다.');
       }
       await loadTradeRequests();
+      apiRequest(API_ENDPOINTS.getProfile).then(r=>setLifetimeCompleted(Number((r.data||r).completedTradeCount||0))).catch(()=>{});
     } catch (error: any) {
       showToast(error.message || `${actionLabel} 처리에 실패했습니다.`);
     } finally {
@@ -502,13 +536,16 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       );
     }
 
+    if(request.status==='COMPLETED') return <button disabled={reviewed.has(request.requestId)} onClick={()=>setReviewTarget(request)} className="mt-3 w-full rounded-xl border border-lime-300 py-2 text-sm disabled:opacity-50">{reviewed.has(request.requestId)?'평가 작성 완료':'거래 평가하기'}</button>;
     if (request.status === 'ACCEPTED') {
+      const mineConfirmed=Boolean(currentUserId===request.requesterId?request.requesterConfirmedAt:request.writerConfirmedAt);
+      const recruiting=request.boardType==='group'&&request.postOpen;
       return <div className="mt-3 flex gap-2">
-        <button onClick={() => handleRequestAction(request.requestId, 'complete')} disabled={isProcessing} className="flex-1 rounded-xl bg-[#bef264] py-2.5 text-sm font-semibold disabled:opacity-50">거래 완료</button>
-        {request.marketTrade && <button onClick={()=>setMarketAction({request,action:'cancel'})} disabled={isProcessing} className="flex-1 rounded-xl border border-red-200 py-2.5 text-sm text-red-700">거래 취소</button>}
+        <button onClick={() => handleRequestAction(request.requestId, 'complete')} disabled={isProcessing||mineConfirmed||recruiting} className="flex-1 rounded-xl bg-[#bef264] py-2.5 text-sm font-semibold disabled:opacity-50">{recruiting?'모집 종료 후 완료 확인':mineConfirmed?'상대 완료 확인 대기':'완료 확인'}</button>
+        {!request.exchangeTrade && <button onClick={()=>setMarketAction({request,action:'cancel'})} disabled={isProcessing} className="flex-1 rounded-xl border border-red-200 py-2.5 text-sm text-red-700">거래 취소</button>}
       </div>;
     }
-    if (request.marketTrade && request.status==='PENDING' && request.requesterId===currentUserId) {
+    if (!request.exchangeTrade && request.status==='PENDING' && request.requesterId===currentUserId) {
       return <button onClick={()=>setMarketAction({request,action:'cancel'})} className="mt-3 w-full rounded-xl border border-red-200 py-2.5 text-sm text-red-700">요청 취소</button>;
     }
     if (request.marketTrade && request.reopenCandidate && request.writerId===currentUserId) {
@@ -518,42 +555,21 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     return null;
   };
 
-  const renderGroupActions = (group: TradeRequestGroup) => {
-    if (group.requests.length === 1 && group.boardType !== 'group') {
-      return renderActions(group.requests[0]);
-    }
-
-    const isProcessing = processingGroupKey === group.key;
-    const hasPending = group.requests.some((request) => request.status === 'PENDING');
-    const hasAccepted = group.requests.some((request) => request.status === 'ACCEPTED');
-
-    if (activeTab === 'received' && group.boardType === 'group' && hasPending) {
-      return (
-        <button
-          onClick={() => handleGroupAction(group, 'closeRecruitment')}
-          disabled={isProcessing}
-          className="mt-3 w-full rounded-xl bg-[#bef264] py-2.5 text-sm text-[#0a0a0a] disabled:opacity-50"
-          style={{ fontWeight: 600 }}
-        >
-          모집마감
-        </button>
-      );
-    }
-
-    if (hasAccepted) {
-      return (
-        <button
-          onClick={() => handleGroupAction(group, 'complete')}
-          disabled={isProcessing}
-          className="mt-3 w-full rounded-xl bg-[#bef264] py-2.5 text-sm text-[#0a0a0a] disabled:opacity-50"
-          style={{ fontWeight: 600 }}
-        >
-          거래 완료
-        </button>
-      );
-    }
-
-    return null;
+  const renderGroupActions=(group:TradeRequestGroup)=>{
+    const active=group.requests.some(r=>r.status==='PENDING'||r.status==='ACCEPTED');
+    const recruiting=group.requests.some(r=>r.postOpen);
+    const groupOwner=activeTab==='received'&&group.boardType==='group';
+    return <div className="space-y-3">
+      {group.requests.map(r=><div key={r.requestId}>{group.requests.length>1&&<p className="mt-3 text-xs text-gray-600">{r.requesterNickname} · {getStatusLabel(r.status)}</p>}{renderActions(r)}{['ACCEPTED','COMPLETED','CANCELLED'].includes(r.status)&&<button className="mt-2 text-xs text-gray-600" onClick={async()=>{
+        const reason=await showPrompt('물품 미수령·잘못된 완료 처리 등 사유를 입력해주세요.','거래 신고·분쟁 접수');if(!reason?.trim())return;
+        try{await createReport({targetType:'TRADE_REQUEST',targetId:r.requestId,reason:reason.trim()});showToast('거래 기록과 함께 접수했습니다. 설정의 내 신고 내역에서 처리 결과를 확인할 수 있습니다.');}catch(e:any){showToast(e.message);}
+      }}>신고·분쟁 접수</button>}</div>)}
+      {groupOwner&&active&&recruiting&&<button disabled={processingGroupKey===group.key} onClick={()=>handleGroupAction(group,'closeRecruitment')} className="mt-3 w-full rounded-xl bg-lime-200 py-3 text-sm">남은 대기 요청도 수락하고 모집마감</button>}
+      {groupOwner&&active&&<button className="w-full rounded-xl border border-red-200 py-2 text-sm text-red-700" onClick={async()=>{
+        if(!await showConfirm('진행 중인 참여 요청을 모두 취소하고 모집을 닫을까요? 송금 금액은 자동 환불되지 않습니다.','공동구매 전체 취소','전체 취소'))return;
+        try{await apiRequest(API_ENDPOINTS.posts+'/'+group.postId+'/cancel-trades',{method:'POST',body:JSON.stringify({reason:'기타'})});await loadTradeRequests();}catch(e:any){showToast(e.message||'취소하지 못했습니다.');}
+      }}>공동구매 전체 취소</button>}
+    </div>;
   };
 
   return (
@@ -714,6 +730,8 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         </div>
       </div>
 
+      {(moreHistory.sent||moreHistory.received)&&<button disabled={loadingMore} onClick={()=>void loadMoreHistory()} className="w-full bg-white p-3 text-sm">{loadingMore?'불러오는 중…':'이전 거래 내역 더 보기'}</button>}
+      {reviewTarget&&<ReviewDialog requestId={reviewTarget.requestId} title={reviewTarget.postTitle} onClose={()=>setReviewTarget(null)} onDone={()=>{setReviewed(prev=>new Set([...prev,reviewTarget.requestId]));setReviewTarget(null);}}/>}
       {marketAction && <MarketTradeActionDialog requestId={marketAction.request.requestId} title={marketAction.request.postTitle} action={marketAction.action} expirationDate={marketAction.request.expirationDate} onClose={()=>setMarketAction(null)} onDone={()=>{setMarketAction(null);void loadTradeRequests();}} />}
       {selectedProfile && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 px-4" onClick={() => setSelectedProfile(null)}>

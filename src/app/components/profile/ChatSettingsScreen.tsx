@@ -67,13 +67,7 @@ export default function ChatSettingsScreen({ onClose }: { onClose: () => void })
       description: '채팅방을 열면 상대에게 읽음 상태를 표시합니다.',
       enabled: true,
     },
-    {
-      key: 'hideLeftRooms' as const,
-      icon: Trash2,
-      title: '나간 채팅방 숨기기',
-      description: '채팅방 나가기 기능이 연결되면 목록에서 숨깁니다.',
-      enabled: false,
-    },
+
   ];
 
   return (

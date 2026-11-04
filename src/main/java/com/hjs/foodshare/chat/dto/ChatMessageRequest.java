@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Size;
 public record ChatMessageRequest(
         @NotBlank
         @Size(max = 1000)
-        String content
+        String content,
+        @Size(max=80) String clientMessageId
 ) {
+    public ChatMessageRequest(String content){this(content,null);}
 }

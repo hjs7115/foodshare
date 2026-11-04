@@ -22,6 +22,7 @@ public class FavoriteService {
     @org.springframework.beans.factory.annotation.Autowired
     private com.hjs.foodshare.demo.DemoVisibility demo;
 
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.moderation.repository.UserBlockRepository blocks;
     private final FavoriteRepository favoriteRepository;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
@@ -38,6 +39,7 @@ public class FavoriteService {
     @Transactional
     public FavoriteResponse addFavorite(Long postId, Long userId) {
         Post post = getActivePost(postId);
+        if (blocks.blockedEitherWay(userId,post.getWriter().getId())) throw new BusinessException(HttpStatus.FORBIDDEN,"차단된 사용자입니다.");
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
 
@@ -63,6 +65,8 @@ public class FavoriteService {
         var hidden = demo.hiddenPostIds();
         return favoriteRepository.findAllByUserIdOrderByCreatedAtDesc(userId)
                 .stream()
+                .filter(favorite -> favorite.getPost().getWriter().isAvailable())
+                .filter(favorite -> !blocks.blockedEitherWay(userId, favorite.getPost().getWriter().getId()))
                 .filter(favorite -> !hidden.contains(favorite.getPost().getId()) && !favorite.getPost().isDeleted() && !favorite.getPost().isOpenFridgePost())
                 .map(favorite -> PostResponse.from(
                         favorite.getPost(),

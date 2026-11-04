@@ -13,8 +13,16 @@ public record ChatMessageResponse(
         boolean systemMessage,
         boolean mine,
         boolean unreadByPartner,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        int unreadCount,
+        String clientMessageId
 ) {
+    public ChatMessageResponse(Long messageId,Long chatRoomId,Long senderId,String senderNickname,String senderProfileImage,String content,boolean systemMessage,boolean mine,boolean unreadByPartner,LocalDateTime createdAt) {
+        this(messageId,chatRoomId,senderId,senderNickname,senderProfileImage,content,systemMessage,mine,unreadByPartner,createdAt,unreadByPartner?1:0,null);
+    }
+    public ChatMessageResponse withUnreadCount(int count) {
+        return new ChatMessageResponse(messageId,chatRoomId,senderId,senderNickname,senderProfileImage,content,systemMessage,mine,count>0,createdAt,count,clientMessageId);
+    }
     public static ChatMessageResponse from(ChatMessage message, Long currentUserId) {
         return from(message, currentUserId, false);
     }
@@ -31,7 +39,7 @@ public record ChatMessageResponse(
                 message.isSystemMessage(),
                 senderId != null && senderId.equals(currentUserId),
                 unreadByPartner,
-                message.getCreatedAt()
+                message.getCreatedAt(), unreadByPartner?1:0, message.getClientMessageId()
         );
     }
 }

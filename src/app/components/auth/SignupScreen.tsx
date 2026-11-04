@@ -261,6 +261,10 @@ export default function SignupScreen({
           latitude: addressCoords?.lat,
           longitude: addressCoords?.lng,
           password,
+          termsAccepted: agreedTerms.service,
+          privacyAccepted: agreedTerms.privacy,
+          apiAccepted: agreedTerms.api,
+          termsVersion: '2026-11-04',
         }),
       });
 
@@ -441,7 +445,7 @@ export default function SignupScreen({
               </div>
 
               <div>
-                {renderFieldLabel('phone', '전화번호')}
+                {renderFieldLabel('phone', '연락처 (본인인증 미지원)')}
                 <input
                   id="phone"
                   type="tel"
@@ -648,6 +652,7 @@ export default function SignupScreen({
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl text-[#2d3748]" style={{ fontWeight: 800 }}>{TERMS[activeTerms].title}</h2>
+                <p className="mt-1 text-xs text-[#718096]">약관 버전 2026-11-04</p>
                 <p className="mt-2 text-sm leading-5 text-[#718096]">{TERMS[activeTerms].summary}</p>
               </div>
               <button

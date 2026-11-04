@@ -16,7 +16,8 @@ public record ReportResponse(
         String description,
         ReportStatus status,
         LocalDateTime createdAt,
-        LocalDateTime reviewedAt
+        LocalDateTime reviewedAt,
+        String action,String resolution,String evidence
 ) {
 
     public static ReportResponse from(Report report) {
@@ -31,7 +32,7 @@ public record ReportResponse(
                 report.getDescription(),
                 report.getStatus(),
                 report.getCreatedAt(),
-                report.getReviewedAt()
+                report.getReviewedAt(), report.getAction(), report.getResolution(),report.getEvidence()
         );
     }
 }

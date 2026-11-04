@@ -51,6 +51,15 @@ public class Report {
     private LocalDateTime createdAt;
 
     private LocalDateTime reviewedAt;
+    @Column(length=500) private String resolution;
+    @Column(length=30) private String action;
+    @Column(columnDefinition="TEXT") private String evidence;
+    public String getResolution(){return resolution;}
+    public String getAction(){return action;}
+    public String getEvidence(){return evidence;}
+    public void recordEvidence(String text){evidence=text;}
+    public void resolve(String action,String text){this.action=action;resolution=text;}
+
 
     protected Report() {
     }

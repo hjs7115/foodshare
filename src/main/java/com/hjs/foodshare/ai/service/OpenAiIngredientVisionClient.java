@@ -31,6 +31,7 @@ public class OpenAiIngredientVisionClient {
     private final HttpClient httpClient;
     private final String apiKey;
     private final String model;
+    private final java.util.concurrent.Semaphore slots=new java.util.concurrent.Semaphore(2);
 
     public OpenAiIngredientVisionClient(
             ObjectMapper objectMapper,
@@ -56,6 +57,7 @@ public class OpenAiIngredientVisionClient {
                     "AI 분석 키가 설정되지 않았습니다. 서버의 OPENAI_API_KEY를 확인해주세요.");
         }
 
+        if(!slots.tryAcquire())throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS,"분석 요청이 많아요. 잠시 후 다시 시도해주세요.");
         try {
             ObjectNode requestBody = buildRequest(image, storageMethod, openStatus, purchaseDate);
             HttpRequest request = HttpRequest.newBuilder()
@@ -105,7 +107,7 @@ public class OpenAiIngredientVisionClient {
             throw new BusinessException(HttpStatus.BAD_GATEWAY, "AI 분석 요청이 중단되었습니다.");
         } catch (IOException | IllegalArgumentException exception) {
             throw new BusinessException(HttpStatus.BAD_GATEWAY, "AI 분석 결과를 처리하지 못했습니다.");
-        }
+        } finally {slots.release();}
     }
 
     public String modelVersion() {

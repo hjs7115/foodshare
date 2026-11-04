@@ -5,6 +5,7 @@ public record NotificationSettingsRequest(
         Boolean comment,
         Boolean tradeRequest,
         Boolean tradeAccepted,
-        Boolean marketing
+        Boolean marketing,
+        Boolean expiryReminder
 ) {
 }

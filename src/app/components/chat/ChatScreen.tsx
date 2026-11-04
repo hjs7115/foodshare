@@ -1,6 +1,7 @@
+import {type ChatMessage,applyReadReceipt,mergeMessages,mergeMessageList,hasEquivalentMessage,areMessageListsEqual} from '../../utils/chatMessages';
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Ban, Bell, BellOff, Camera, ChevronDown, ChevronUp, File as FileIcon, Flag, Image as ImageIcon, Leaf, Loader2, MapPin, MessageCircle, MoreVertical, Pencil, Pin, Plus, Search, Send, ShoppingCart, Snowflake, Trash2, User, X, type LucideIcon } from 'lucide-react';
-import { API_ENDPOINTS, WS_BASE_URL, apiRequest, blockUser, createReport, getNotifications, resolveImageUrl, uploadImage } from '../../api/config';
+import { API_ENDPOINTS, WS_BASE_URL, apiRequest, blockUser, createReport, getNotifications, getNotificationUnreadCount, resolveImageUrl, uploadImage } from '../../api/config';
 import { getAuthToken, getStoredUserInfo } from '../../auth/session';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
@@ -30,19 +31,6 @@ interface ChatRoom {
   muted?: boolean;
 }
 
-interface ChatMessage {
-  messageId: number;
-  senderId?: number;
-  senderNickname?: string;
-  senderProfileImage?: string;
-  content: string;
-  mine: boolean;
-  systemMessage: boolean;
-  unreadCount?: number;
-  unreadByPartner?: boolean;
-  readByUserIds?: number[];
-  createdAt?: string;
-}
 
 const TEMP_MESSAGE_ID_START = -1;
 let tempMessageId = TEMP_MESSAGE_ID_START;
@@ -64,6 +52,8 @@ export default function ChatScreen({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeFilter, setActiveFilter] = useState<ChatFilter>('ALL');
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
+  const [showParticipants,setShowParticipants]=useState(false);
+  useNestedBack(showParticipants,()=>setShowParticipants(false));
   const [profileTarget, setProfileTarget] = useState<number | null>(null);
   useNestedBack(profileTarget !== null, () => setProfileTarget(null));
   const [messageText, setMessageText] = useState('');
@@ -94,7 +84,11 @@ export default function ChatScreen({
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
-  const refreshInFlightRef = useRef(false);
+  const activeRoomIdRef = useRef<number | null>(null);
+  const refreshInFlightRef = useRef<number | null>(null);
+  const failedSendRef = useRef<{roomId:number;content:string;clientId:string}|null>(null);
+  const [hasOlderMessages,setHasOlderMessages] = useState(false);
+  const [loadingOlder,setLoadingOlder] = useState(false);
   const readInFlightRef = useRef(false);
   const shouldStickToBottomRef = useRef(true);
   const longPressTimerRef = useRef<number | null>(null);
@@ -150,11 +144,14 @@ export default function ChatScreen({
       });
     };
 
-    const timer = window.setInterval(refreshOpenRoom, 1500);
+    const moderationChanged=()=>{messagesRef.current=[];setMessages([]);void loadMessages(selectedRoom,{replace:true});void loadRooms(activeFilter);};
+    window.addEventListener('moderation-changed',moderationChanged);
+    const timer = window.setInterval(refreshOpenRoom, 5000);
     window.addEventListener('focus', refreshOpenRoom);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener('focus', refreshOpenRoom);
+      window.removeEventListener('moderation-changed',moderationChanged);
     };
   }, [selectedRoom?.chatRoomId]);
 
@@ -185,14 +182,8 @@ export default function ChatScreen({
 
   const filteredRooms = useMemo(() => rooms, [rooms]);
 
-  const loadUnreadNotifications = async () => {
-    try {
-      const response = await getNotifications(0, 30);
-      const raw = response?.data?.content || response?.data || response?.content || response?.notifications || [];
-      setHasUnreadNotifications(Array.isArray(raw) && raw.some((item: any) => !(item.read || item.isRead)));
-    } catch {
-      setHasUnreadNotifications(false);
-    }
+  const loadUnreadNotifications=async()=>{
+    try{setHasUnreadNotifications((await getNotificationUnreadCount())>0);}catch{setHasUnreadNotifications(false);}
   };
 
   const normalizeRoom = (room: any): ChatRoom => ({
@@ -286,12 +277,11 @@ export default function ChatScreen({
 
     socket.onopen = () => {
       socket.send(JSON.stringify({ type: 'SUBSCRIBE', roomId: room.chatRoomId }));
-      if (shouldSendReadReceipt()) {
-        socket.send(JSON.stringify({ type: 'READ', roomId: room.chatRoomId }));
-      }
+      socket.send(JSON.stringify({ type: 'READ', roomId: room.chatRoomId }));
     };
 
     socket.onmessage = (event) => {
+      if(activeRoomIdRef.current!==room.chatRoomId)return;
       try {
         const payload = JSON.parse(event.data);
         const type = getPayloadType(payload);
@@ -300,7 +290,7 @@ export default function ChatScreen({
         if (type === 'READ' && roomId === room.chatRoomId) {
           const readerId = getNumberValue(payload.readerId ?? payload.userId ?? payload.memberId);
           if (readerId !== undefined && readerId !== currentUserId) {
-            setMessages((prev) => prev.map((message) => applyReadReceipt(message, readerId)));
+            setMessages((prev) => prev.map((message) => message.messageId<=Number(payload.throughMessageId??Number.MAX_SAFE_INTEGER)?applyReadReceipt(message, readerId):message));
           }
           return;
         }
@@ -317,7 +307,7 @@ export default function ChatScreen({
         if (incoming.mine || shouldStickToBottomRef.current) {
           window.requestAnimationFrame(() => scrollMessagesToBottom('smooth'));
         }
-        if (!incoming.mine && socket.readyState === WebSocket.OPEN && shouldSendReadReceipt()) {
+        if (!incoming.mine && socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: 'READ', roomId: room.chatRoomId }));
           markRoomRead(room.chatRoomId).catch(() => null);
         }
@@ -351,6 +341,8 @@ export default function ChatScreen({
   };
 
   const openRoom = async (room: ChatRoom) => {
+    activeRoomIdRef.current=room.chatRoomId;
+    messagesRef.current=[]; setMessages([]); setMessageText(''); setHasOlderMessages(false);
     setSelectedRoom(room);
     setShowRoomMenu(false);
     setRoomActionTarget(null);
@@ -359,7 +351,7 @@ export default function ChatScreen({
     setActiveSearchMatchIndex(0);
     setIsMessagesLoading(true);
     try {
-      await loadMessages(room, { markRead: true });
+      await loadMessages(room, { markRead: true, replace: true });
       setRooms((prev) => prev.map((item) => item.chatRoomId === room.chatRoomId ? { ...item, unreadCount: 0 } : item));
       onChatUnreadChange?.(Math.max(0, chatUnreadCount - room.unreadCount));
     } catch (error) {
@@ -380,37 +372,39 @@ export default function ChatScreen({
     onInitialRoomHandled?.();
   }, [initialRoomId, isLoading, rooms]);
 
-  const loadMessages = async (room: ChatRoom, options: { markRead?: boolean } = {}) => {
-    if (refreshInFlightRef.current) return;
-    refreshInFlightRef.current = true;
-
+  const loadMessages = async (room:ChatRoom, options:{markRead?:boolean;replace?:boolean}={}) => {
+    if(refreshInFlightRef.current===room.chatRoomId)return;
+    refreshInFlightRef.current=room.chatRoomId;
     try {
-      const response = await apiRequest(API_ENDPOINTS.chatMessages(room.chatRoomId), { method: 'GET' });
-      const raw = response?.data?.content || response?.data || response?.messages || response;
-      const normalized = Array.isArray(raw) ? mergeMessageList(raw.map((message) => normalizeMessage(message, room)), currentUserId) : [];
-      const hasNewIncoming = normalized.some((message) => (
-        !message.mine && !hasEquivalentMessage(messagesRef.current, message)
-      ));
-
-      setMessages((prev) => {
-        const next = mergeMessageList([...prev, ...normalized], currentUserId);
-        return areMessageListsEqual(prev, next) ? prev : next;
+      const last=options.replace?0:Math.max(0,...messagesRef.current.map(m=>m.messageId));
+      const response=await apiRequest(API_ENDPOINTS.chatMessages(room.chatRoomId)+(last?`?after=${last}&size=100`:'?size=100'));
+      if(activeRoomIdRef.current!==room.chatRoomId)return;
+      const raw=response?.data?.content||response?.data||response?.messages||response;
+      const normalized=Array.isArray(raw)?raw.map(m=>normalizeMessage(m,room)):[];
+      if(options.replace)setHasOlderMessages(normalized.length===100);
+      setMessages(prev=>{
+        const next=mergeMessageList([...(options.replace?[]:prev),...normalized],currentUserId);
+        messagesRef.current=next;
+        return areMessageListsEqual(prev,next)?prev:next;
       });
+      if(options.markRead || normalized.some(m=>!m.mine))await markRoomRead(room.chatRoomId);
+      if(options.replace || (normalized.length && shouldStickToBottomRef.current))window.requestAnimationFrame(()=>scrollMessagesToBottom('auto'));
+    } finally {if(refreshInFlightRef.current===room.chatRoomId)refreshInFlightRef.current=null;}
+  };
 
-      if (options.markRead || hasNewIncoming) {
-        await markRoomRead(room.chatRoomId);
-        setRooms((prev) => prev.map((item) => item.chatRoomId === room.chatRoomId ? { ...item, unreadCount: 0 } : item));
-      }
-      if ((hasNewIncoming && shouldStickToBottomRef.current) || options.markRead) {
-        window.requestAnimationFrame(() => scrollMessagesToBottom(hasNewIncoming ? 'smooth' : 'auto'));
-      }
-    } finally {
-      refreshInFlightRef.current = false;
-    }
+  const loadOlderMessages=async()=>{
+    if(!selectedRoom||loadingOlder)return;
+    const room=selectedRoom;setLoadingOlder(true);
+    try{
+      const first=Math.min(...messagesRef.current.filter(m=>m.messageId>0).map(m=>m.messageId));
+      const r=await apiRequest(API_ENDPOINTS.chatMessages(room.chatRoomId)+`?before=${first}&size=100`);
+      if(activeRoomIdRef.current!==room.chatRoomId)return;
+      const rows=Array.isArray(r.data)?r.data:[];setHasOlderMessages(rows.length===100);
+      setMessages(prev=>{const next=mergeMessageList([...rows.map(m=>normalizeMessage(m,room)),...prev],currentUserId);messagesRef.current=next;return next;});
+    }catch(e:any){showToast(e.message||'이전 대화를 불러오지 못했습니다.');}finally{setLoadingOlder(false);}
   };
 
   const markRoomRead = async (chatRoomId: number) => {
-    if (!shouldSendReadReceipt()) return;
     if (readInFlightRef.current) return;
     readInFlightRef.current = true;
     try {
@@ -420,63 +414,25 @@ export default function ChatScreen({
     }
   };
 
-  const sendChatContent = async (rawContent: string, options: { restoreInputOnFail?: boolean } = {}) => {
-    if (!selectedRoom || !rawContent.trim()) return false;
-
-    const content = rawContent.trim();
-    const unreadCount = getUnreadRecipientCount(selectedRoom);
-    const optimisticMessage: ChatMessage = {
-      messageId: getNextTempMessageId(),
-      senderId: currentUserId,
-      content,
-      mine: true,
-      systemMessage: false,
-      unreadCount,
-      unreadByPartner: unreadCount > 0,
-      createdAt: new Date().toISOString(),
-    };
-    try {
-      if (socketRef.current?.readyState === WebSocket.OPEN) {
-        setMessages((prev) => [...prev, optimisticMessage]);
-        setRooms((prev) => prev.map((room) => (
-          room.chatRoomId === selectedRoom.chatRoomId
-            ? { ...room, lastMessage: content, lastMessageAt: optimisticMessage.createdAt }
-            : room
-        )));
-        window.requestAnimationFrame(() => scrollMessagesToBottom('smooth'));
-        socketRef.current.send(JSON.stringify({
-          type: 'SEND',
-          roomId: selectedRoom.chatRoomId,
-          content,
-        }));
-        window.setTimeout(() => {
-          loadMessages(selectedRoom, { markRead: true }).catch(() => null);
-        }, 600);
-        return true;
-      }
-
-      const response = await apiRequest(API_ENDPOINTS.chatMessages(selectedRoom.chatRoomId), {
-        method: 'POST',
-        body: JSON.stringify({ content }),
-      });
-      const created = normalizeMessage(response?.data || response, selectedRoom);
-      setMessages((prev) => mergeMessages(prev, created, currentUserId));
-      setRooms((prev) => prev.map((room) => (
-        room.chatRoomId === selectedRoom.chatRoomId
-          ? { ...room, lastMessage: content, lastMessageAt: new Date().toISOString() }
-          : room
-      )));
-      window.requestAnimationFrame(() => scrollMessagesToBottom('smooth'));
-      window.setTimeout(() => {
-        loadMessages(selectedRoom, { markRead: true }).catch(() => null);
-      }, 600);
+  const sendChatContent = async (rawContent:string,options:{restoreInputOnFail?:boolean}={}) => {
+    if(!selectedRoom || !rawContent.trim())return false;
+    const room=selectedRoom,content=rawContent.trim();
+    if(content.length>1000){showToast('메시지는 1000자 이내로 입력해주세요.');if(options.restoreInputOnFail)setMessageText(content);return false;}
+    const previous=failedSendRef.current;
+    const clientId=previous?.roomId===room.chatRoomId&&previous.content===content?previous.clientId:crypto.randomUUID();
+    try{
+      const response=await apiRequest(API_ENDPOINTS.chatMessages(room.chatRoomId),{method:'POST',body:JSON.stringify({content,clientMessageId:clientId})});
+      failedSendRef.current=null;
+      if(activeRoomIdRef.current!==room.chatRoomId)return true;
+      const created=normalizeMessage(response.data||response,room);
+      setMessages(prev=>{const next=mergeMessages(prev,created,currentUserId);messagesRef.current=next;return next;});
+      setRooms(prev=>prev.map(r=>r.chatRoomId===room.chatRoomId?{...r,lastMessage:content,lastMessageAt:created.createdAt}:r));
+      window.requestAnimationFrame(()=>scrollMessagesToBottom('smooth'));
       return true;
-    } catch (error: any) {
-      showToast(error.message || '메시지 전송에 실패했습니다.');
-      if (options.restoreInputOnFail) {
-        setMessageText(content);
-      }
-      return false;
+    }catch(e:any){
+      failedSendRef.current={roomId:room.chatRoomId,content,clientId};
+      if(activeRoomIdRef.current===room.chatRoomId&&options.restoreInputOnFail)setMessageText(content);
+      showToast(e.message||'전송하지 못했습니다. 다시 보내면 중복 없이 재시도합니다.');return false;
     }
   };
 
@@ -603,6 +559,7 @@ export default function ChatScreen({
   }, [activeSearchMessageId, isSearchingMessages]);
 
   const closeSelectedRoom = () => {
+    activeRoomIdRef.current=null; messagesRef.current=[]; setMessages([]); setMessageText('');
     setSelectedRoom(null);
     setShowRoomMenu(false);
     setIsSearchingMessages(false);
@@ -827,7 +784,7 @@ export default function ChatScreen({
             >
               <ArrowLeft size={22} className="text-[#1a202c]" />
             </button>
-            <button type="button" aria-label="상대 프로필 보기" onClick={() => setProfileTarget(selectedRoom.partnerId ?? null)}>
+            <button type="button" aria-label="상대 프로필 보기" onClick={() => selectedRoom.groupRoom?setShowParticipants(true):setProfileTarget(selectedRoom.partnerId ?? null)}>
             <ChatProfileAvatar
               src={selectedRoom.partnerProfileImage}
               alt={selectedRoom.partnerNickname}
@@ -914,6 +871,10 @@ export default function ChatScreen({
                   <MessageMeta message={message} align="right" />
                 )}
                 <div className="max-w-[72%]">
+                  {!message.mine&&message.messageId>0&&<button className="mb-1 ml-2 text-[10px] text-gray-500" onClick={async()=>{
+                    const reason=await showPrompt('이 메시지를 신고하는 이유를 입력해주세요.','메시지 신고');if(!reason?.trim())return;
+                    try{await createReport({targetType:'CHAT_MESSAGE',targetId:message.messageId,reason:reason.trim()});showToast('메시지 증거와 함께 신고가 접수되었습니다.');}catch(e:any){showToast(e.message);}
+                  }}>메시지 신고</button>}
                   {!message.mine && message.senderNickname && (
                     <p className="mb-1 ml-2 text-[11px] text-[#64748b]" style={{ fontWeight: 800 }}>
                       {message.senderNickname}
@@ -929,6 +890,7 @@ export default function ChatScreen({
               </div>
             );
           })}
+          {hasOlderMessages && <button disabled={loadingOlder} onClick={()=>void loadOlderMessages()} className="rounded-xl bg-white px-4 py-3 text-sm text-teal-700">{loadingOlder?'불러오는 중…':'이전 대화 더 보기'}</button>}
           <div ref={messagesEndRef} />
         </div>
 
@@ -993,6 +955,7 @@ export default function ChatScreen({
           />
         )}
 
+        {showParticipants&&<div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/30 p-5" onClick={()=>setShowParticipants(false)}><section role="dialog" aria-modal="true" aria-label="채팅 참여자" className="max-h-[80vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-5" onClick={e=>e.stopPropagation()}><header className="mb-4 flex justify-between"><h2 className="font-semibold">채팅 참여자</h2><button onClick={()=>setShowParticipants(false)}>닫기</button></header>{selectedRoom.participants?.map(p=><button key={p.userId} onClick={()=>{setShowParticipants(false);setProfileTarget(p.userId);}} className="mb-2 flex w-full items-center gap-3 rounded-xl border p-3 text-left"><ChatProfileAvatar src={p.profileImage} alt={p.nickname} className="h-9 w-9"/><span>{p.nickname}{p.userId===currentUserId?' (나)':''}</span></button>)}</section></div>}
         {profileTarget !== null && <ChatParticipantProfile roomId={selectedRoom.chatRoomId} userId={profileTarget} onClose={() => setProfileTarget(null)} />}
         {showRoomMenu && (
           <div className="fixed inset-0 z-[70] bg-black/35 flex items-end" onClick={() => setShowRoomMenu(false)}>
@@ -1002,8 +965,8 @@ export default function ChatScreen({
             >
               <div className="mx-auto mb-4 h-1.5 w-16 rounded-full bg-[#e2e8f0]" />
               <div className="mb-4 overflow-hidden rounded-3xl bg-[#f8fafc]">
-                <RoomMenuButton icon={Ban} label="차단하기" onClick={() => handleRoomMenuAction('block')} />
-                <RoomMenuButton icon={Flag} label="신고하기" onClick={() => handleRoomMenuAction('report')} />
+                {!selectedRoom.groupRoom && <RoomMenuButton icon={Ban} label="차단하기" onClick={() => handleRoomMenuAction('block')} />}
+                {!selectedRoom.groupRoom && <RoomMenuButton icon={Flag} label="신고하기" onClick={() => handleRoomMenuAction('report')} />}
               </div>
               <div className="mb-4 overflow-hidden rounded-3xl bg-[#f8fafc]">
                 <RoomMenuButton icon={Pin} label={selectedRoom.pinned ? '상단 고정 해제' : '상단 고정'} onClick={() => handleRoomMenuAction('pin')} />
@@ -1289,153 +1252,6 @@ function extractReadByUserIds(message: any): number[] {
     .filter((readerId: number) => Number.isFinite(readerId));
 }
 
-function applyReadReceipt(message: ChatMessage, readerId: number): ChatMessage {
-  if (!message.mine || message.systemMessage) return message;
-  if (message.readByUserIds?.includes(readerId)) return message;
-
-  const currentUnreadCount = message.unreadCount ?? (message.unreadByPartner ? 1 : 0);
-  const nextUnreadCount = Math.max(0, currentUnreadCount - 1);
-
-  return {
-    ...message,
-    unreadCount: nextUnreadCount,
-    unreadByPartner: nextUnreadCount > 0,
-    readByUserIds: [...(message.readByUserIds || []), readerId],
-  };
-}
-
-function mergeMessageList(messages: ChatMessage[], currentUserId?: number) {
-  return sortMessages(messages.reduce<ChatMessage[]>((merged, message) => (
-    mergeMessages(merged, message, currentUserId)
-  ), []));
-}
-
-function mergeMessages(messages: ChatMessage[], incoming: ChatMessage, currentUserId?: number) {
-  const normalizedIncoming = normalizeMine(incoming, currentUserId);
-
-  const idIndex = normalizedIncoming.messageId > 0
-    ? messages.findIndex((message) => message.messageId === normalizedIncoming.messageId)
-    : -1;
-  if (idIndex >= 0) {
-    const next = [...messages];
-    next[idIndex] = mergeMessageState(next[idIndex], normalizedIncoming);
-    return sortMessages(next);
-  }
-
-  const pendingIndex = messages.findIndex((message) => isMatchingPendingMessage(message, normalizedIncoming, currentUserId));
-  if (pendingIndex >= 0) {
-    const next = [...messages];
-    next[pendingIndex] = mergeMessageState(next[pendingIndex], { ...normalizedIncoming, mine: true });
-    return sortMessages(next);
-  }
-
-  if (messages.some((message) => isSameMessage(message, normalizedIncoming))) {
-    return messages;
-  }
-
-  return sortMessages([...messages, normalizedIncoming]);
-}
-
-function mergeMessageState(existing: ChatMessage, incoming: ChatMessage): ChatMessage {
-  const unreadCount = incoming.unreadCount !== undefined ? incoming.unreadCount : existing.unreadCount;
-
-  return {
-    ...existing,
-    ...incoming,
-    unreadCount,
-    unreadByPartner: unreadCount !== undefined ? unreadCount > 0 : incoming.unreadByPartner,
-    readByUserIds: incoming.readByUserIds && incoming.readByUserIds.length > 0
-      ? incoming.readByUserIds
-      : existing.readByUserIds,
-  };
-}
-
-function normalizeMine(message: ChatMessage, currentUserId?: number) {
-  if (currentUserId === undefined || message.senderId === undefined) {
-    return message;
-  }
-  return {
-    ...message,
-    mine: message.mine || message.senderId === currentUserId,
-  };
-}
-
-function isMatchingPendingMessage(message: ChatMessage, incoming: ChatMessage, currentUserId?: number) {
-  if (message.messageId >= 0 || !message.mine || message.content !== incoming.content) {
-    return false;
-  }
-
-  if (incoming.mine || (currentUserId !== undefined && incoming.senderId === currentUserId)) {
-    return true;
-  }
-
-  return currentUserId === undefined && areCloseMessageTimes(message.createdAt, incoming.createdAt, 15000);
-}
-
-function isSameMessage(message: ChatMessage, incoming: ChatMessage) {
-  if (message.messageId > 0 && incoming.messageId > 0 && message.messageId === incoming.messageId) {
-    return true;
-  }
-
-  if (message.content !== incoming.content || message.systemMessage !== incoming.systemMessage) {
-    return false;
-  }
-
-  const sameSender = message.senderId !== undefined && incoming.senderId !== undefined
-    ? message.senderId === incoming.senderId
-    : message.mine === incoming.mine && message.senderNickname === incoming.senderNickname;
-
-  return sameSender && areCloseMessageTimes(message.createdAt, incoming.createdAt, 2000);
-}
-
-function hasEquivalentMessage(messages: ChatMessage[], incoming: ChatMessage) {
-  return messages.some((message) => isSameMessage(message, incoming));
-}
-
-function areMessageListsEqual(left: ChatMessage[], right: ChatMessage[]) {
-  if (left.length !== right.length) return false;
-
-  return left.every((message, index) => {
-    const other = right[index];
-    return Boolean(other) &&
-      message.messageId === other.messageId &&
-      message.senderId === other.senderId &&
-      message.senderNickname === other.senderNickname &&
-      message.senderProfileImage === other.senderProfileImage &&
-      message.content === other.content &&
-      message.mine === other.mine &&
-      message.systemMessage === other.systemMessage &&
-      (message.unreadCount ?? 0) === (other.unreadCount ?? 0) &&
-      Boolean(message.unreadByPartner) === Boolean(other.unreadByPartner) &&
-      message.createdAt === other.createdAt;
-  });
-}
-
-function areCloseMessageTimes(left?: string, right?: string, thresholdMs = 2000) {
-  if (!left || !right) return left === right;
-  const leftTime = new Date(left).getTime();
-  const rightTime = new Date(right).getTime();
-  if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) return left === right;
-  return Math.abs(leftTime - rightTime) <= thresholdMs;
-}
-
-function sortMessages(messages: ChatMessage[]) {
-  return [...messages].sort((left, right) => {
-    const leftTime = getMessageTime(left);
-    const rightTime = getMessageTime(right);
-    if (leftTime !== rightTime) return leftTime - rightTime;
-
-    const leftId = left.messageId > 0 ? left.messageId : Number.MAX_SAFE_INTEGER + Math.abs(left.messageId);
-    const rightId = right.messageId > 0 ? right.messageId : Number.MAX_SAFE_INTEGER + Math.abs(right.messageId);
-    return leftId - rightId;
-  });
-}
-
-function getMessageTime(message: ChatMessage) {
-  const time = message.createdAt ? new Date(message.createdAt).getTime() : NaN;
-  return Number.isNaN(time) ? 0 : time;
-}
-
 function MessageMeta({ message, align }: { message: ChatMessage; align: 'left' | 'right' }) {
   const unreadCount = message.unreadCount ?? (message.unreadByPartner ? 1 : 0);
 
@@ -1701,6 +1517,10 @@ function ChatParticipantProfile({roomId,userId,onClose}:{roomId:number;userId:nu
     </div> : <p role="status">{error?'프로필을 불러오지 못했어요. 다시 눌러주세요.':'프로필을 불러오는 중…'}</p>}
     <button type="button" autoFocus onClick={onClose} aria-label="프로필 닫기" className="shrink-0 text-[#718096]"><X size={20}/></button>
    </div>
+   {profile&&Number(getStoredUserInfo<any>()?.userId??getStoredUserInfo<any>()?.id)!==userId&&<div className="mb-3 flex gap-3">
+    <button className="text-sm text-red-700" onClick={async()=>{if(!await showConfirm(`${profile.nickname}님을 차단할까요?`,'사용자 차단','차단'))return;try{await blockUser(userId);window.dispatchEvent(new Event('moderation-changed'));showToast('사용자를 차단했습니다.');onClose();}catch(e:any){showToast(e.message);}}}>이 사용자 차단</button>
+    <button className="text-sm" onClick={async()=>{const reason=await showPrompt('신고 사유를 입력해주세요.','사용자 신고');if(!reason?.trim())return;try{await createReport({targetType:'USER',targetId:userId,reason:reason.trim(),description:`채팅방 ${roomId}`});showToast('신고가 접수되었습니다.');}catch(e:any){showToast(e.message);}}}>사용자 신고</button>
+   </div>}
    {profile && <div className="rounded-2xl border border-[#ccfbf1] bg-[#f0fdfa] p-4"><h3 className="mb-3 text-xs font-semibold text-[#0f766e]">활동 통계</h3><div className="grid grid-cols-3 gap-3">
     {[[profile.shareCount,'나눔 완료'],[profile.saleCount,'판매 완료'],[profile.groupBuyCount,'공구 참여']].map(([value,label])=><div key={label} className="text-center"><p className="mb-1 text-2xl font-bold text-[#2d3748]">{value}</p><p className="text-xs text-[#718096]">{label}</p></div>)}
    </div></div>}

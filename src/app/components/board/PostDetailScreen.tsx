@@ -448,7 +448,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
     if (post?.status === 'CLOSED') {
-      showToast('거래 완료된 게시글에는 댓글을 작성할 수 없습니다.');
+      showToast('모집이 종료된 게시글에는 댓글을 작성할 수 없습니다.');
       return;
     }
 
@@ -589,7 +589,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
   const checkMyTradeRequest = async () => {
     try {
-      const response = await apiRequest(API_ENDPOINTS.mypageTradeRequests, { method: 'GET' });
+      const response = await apiRequest(API_ENDPOINTS.posts+`/${postId}/my-request`, { method: 'GET' });
       const existingRequest = extractTradeRequests(response)
         .filter((request) => request.postId === postId && !['REJECTED','CANCELLED'].includes(request.status))
         .sort((a, b) => b.requestId - a.requestId)[0];
@@ -604,7 +604,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   const handleTradeRequest = async () => {
     if (!post) return;
     if (post.status === 'CLOSED') {
-      showToast('거래 완료된 게시글입니다.');
+      showToast('모집이 종료된 게시글입니다.');
       return;
     }
 
@@ -684,7 +684,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   };
 
   const getTradeButtonLabel = () => {
-    if (post?.status === 'CLOSED') return '거래 완료';
+    if (post?.status === 'CLOSED') return '모집 종료';
     if (isTradeRequestSubmitting) return '요청 중';
     switch (tradeRequestStatus) {
       case 'PENDING':
@@ -771,6 +771,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto bg-[#f7fafc]">
+        <p className="px-5 py-2 text-xs text-gray-500">거래 전에는 대략적인 동네만 표시합니다. 정확한 만남 장소는 수락 후 채팅으로 정해주세요.</p>
         {/* Purchase requests have no product photo, including legacy image URLs. */}
         {post.postType !== 'BUY' && post.image && (
           <div className="bg-white">
@@ -786,7 +787,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
         <div className="bg-white px-5 py-6 mb-2">
           {isPostClosed && (
             <div className="mb-4 rounded-2xl border border-[#cbd5e1] bg-[#f8fafc] px-4 py-3 text-sm text-[#475569]">
-              거래 완료된 게시글입니다. 게시판 목록에서는 숨김 처리되며, 거래 기록 확인용으로 보관됩니다.
+              모집이 종료된 게시글입니다. 게시판 목록에서는 숨김 처리되며, 거래 기록 확인용으로 보관됩니다.
             </div>
           )}
           <div className="flex items-center gap-3 mb-4">
@@ -1061,7 +1062,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
           {/* Comment Input */}
           {isPostClosed && (
             <p className="mb-3 rounded-2xl bg-[#f8fafc] px-4 py-3 text-sm text-[#718096]">
-              거래 완료된 게시글에는 새 댓글을 작성할 수 없습니다.
+              모집이 종료된 게시글에는 새 댓글을 작성할 수 없습니다.
             </p>
           )}
           <div className="flex gap-2">
@@ -1074,7 +1075,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
                   handleAddComment();
                 }
               }}
-              placeholder={isPostClosed ? '거래 완료된 게시글입니다' : '댓글을 입력하세요'}
+              placeholder={isPostClosed ? '모집이 종료된 게시글입니다' : '댓글을 입력하세요'}
               disabled={isPostClosed}
               className="flex-1 px-4 py-3 rounded-2xl border border-[#e2e8f0] focus:border-[#bef264] focus:outline-none bg-[#f7fafc]"
             />

@@ -38,6 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/api/auth/reset-password"
     );
 
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.auth.service.SessionAccessService sessions;
     private final JwtTokenProvider jwtTokenProvider;
 
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
@@ -53,6 +54,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = extractBearerToken(authorization);
             if (token != null) {
                 AuthUser authUser = jwtTokenProvider.parseAuthUser(token);
+                sessions.requireActive(authUser);
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         authUser,
                         null,

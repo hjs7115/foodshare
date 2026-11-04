@@ -14,7 +14,7 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "reviews")
+@Table(name = "reviews",uniqueConstraints=@jakarta.persistence.UniqueConstraint(name="uk_review_trade_author",columnNames={"trade_request_id","reviewer_id"}))
 public class Review {
 
     @Id

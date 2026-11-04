@@ -17,6 +17,11 @@ public class AuthThrottle {
  @PersistenceContext private EntityManager em;
  private final TransactionTemplate tx;
  public AuthThrottle(PlatformTransactionManager manager){tx=new TransactionTemplate(manager);tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);}
+ public synchronized void requireAvailable(String action,String identity,int limit){
+  String id=key(action+":"+identity.strip().toLowerCase(Locale.ROOT));
+  boolean allowed=Boolean.TRUE.equals(tx.execute(s->{var row=em.find(AuthAttempt.class,id);return row==null||!row.expiresAt.isAfter(Instant.now())||row.attempts<limit;}));
+  if(!allowed)throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS,"시도가 너무 많아요. 잠시 후 다시 시도해주세요.");
+ }
  // Commit counters independently of the rejected authentication transaction. The server runs one backend instance.
  public synchronized void check(String action,String identity,int limit,int seconds){
   String id=key(action+":"+identity.strip().toLowerCase(Locale.ROOT));

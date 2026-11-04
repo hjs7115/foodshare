@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/chat")
 public class ChatController {
 
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.chat.websocket.ChatWebSocketHandler live;
     private final ChatService chatService;
 
     public ChatController(ChatService chatService) {
@@ -58,10 +59,13 @@ public class ChatController {
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
             @AuthenticationPrincipal AuthUser authUser,
-            @PathVariable Long roomId
+            @PathVariable Long roomId,
+            @org.springframework.web.bind.annotation.RequestParam(required=false) Long after,
+            @org.springframework.web.bind.annotation.RequestParam(required=false) Long before,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue="100") int size
     ) {
         return ResponseEntity.ok(ApiResponse.ok("Chat messages found.",
-                chatService.getMessages(authUser.userId(), roomId)));
+                chatService.getMessages(authUser.userId(), roomId,after,before,size)));
     }
 
     @PostMapping("/rooms/{roomId}/messages")
@@ -70,8 +74,9 @@ public class ChatController {
             @PathVariable Long roomId,
             @Valid @RequestBody ChatMessageRequest request
     ) {
-        return ResponseEntity.ok(ApiResponse.ok("Chat message sent.",
-                chatService.sendMessage(authUser.userId(), roomId, request)));
+        var saved=chatService.sendMessage(authUser.userId(),roomId,request);
+        live.publishSavedMessage(authUser.userId(),saved);
+        return ResponseEntity.ok(ApiResponse.ok("Chat message sent.",saved));
     }
 
     @PatchMapping("/rooms/{roomId}/read")
@@ -80,6 +85,7 @@ public class ChatController {
             @PathVariable Long roomId
     ) {
         chatService.markAsRead(authUser.userId(), roomId);
+        live.publishRead(authUser.userId(),roomId);
         return ResponseEntity.ok(ApiResponse.ok("Chat room read.", null));
     }
 

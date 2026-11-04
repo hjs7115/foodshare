@@ -139,9 +139,12 @@ class StabilizationTests {
   when(fcm.sendPush(eq("success-device"),anyString(),anyString(),anyMap())).thenReturn(FcmPushService.SendResult.SENT);
   when(fcm.sendPush(eq("retry-device"),anyString(),anyString(),anyMap())).thenReturn(FcmPushService.SendResult.FAILED,FcmPushService.SendResult.SENT);
   notifications.createNotification(u.getId(),"TEST","title","body");em.flush();
-  var ids=em.createQuery("select p.id from PushRetry p where p.userId=:id",Long.class).setParameter("id",u.getId()).getResultList();assertEquals(1,ids.size());
+  var ids=em.createQuery("select p.id from PushRetry p where p.userId=:id",Long.class).setParameter("id",u.getId()).getResultList();assertEquals(2,ids.size());
+  verifyNoInteractions(fcm); // Delivery is queued in the business transaction, never sent before commit.
+  for(Long id:ids)retries.deliver(id);em.flush();
+  assertEquals(1L,em.createQuery("select count(p) from PushRetry p where p.userId=:id",Long.class).setParameter("id",u.getId()).getSingleResult());
   em.createQuery("update PushRetry p set p.dueAt=:time where p.userId=:id").setParameter("time",Instant.EPOCH).setParameter("id",u.getId()).executeUpdate();em.clear();
-  retries.deliver(ids.getFirst());em.flush();
+  var pending=em.createQuery("select p.id from PushRetry p where p.userId=:id",Long.class).setParameter("id",u.getId()).getSingleResult();retries.deliver(pending);em.flush();
   assertEquals(1,notes.findAllByUserIdOrderByCreatedAtDesc(u.getId()).size());
   verify(fcm,times(1)).sendPush(eq("success-device"),anyString(),anyString(),anyMap());verify(fcm,times(2)).sendPush(eq("retry-device"),anyString(),anyString(),anyMap());
   assertEquals(0L,em.createQuery("select count(p) from PushRetry p where p.userId=:id",Long.class).setParameter("id",u.getId()).getSingleResult());

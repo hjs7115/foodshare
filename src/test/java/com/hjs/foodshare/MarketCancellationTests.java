@@ -59,7 +59,7 @@ class MarketCancellationTests {
   assertThrows(BusinessException.class,()->trades.cancelMarketTrade(id,user("stranger").getId(),"기타"));assertEquals(TradeRequestStatus.ACCEPTED,requests.findById(id).orElseThrow().getStatus());
  }
  @Test void completedTradeCannotBeCancelled(){
-  var owner=user("owner");var p=post(owner);Long id=trades.createRequest(p.getId(),user("buyer").getId()).requestId();trades.accept(id,owner.getId());trades.complete(id,owner.getId());
+  var owner=user("owner");var p=post(owner);Long id=trades.createRequest(p.getId(),user("buyer").getId()).requestId();trades.accept(id,owner.getId());trades.complete(id,owner.getId());trades.complete(id,requests.findById(id).orElseThrow().getRequester().getId());
   assertThrows(BusinessException.class,()->trades.cancelMarketTrade(id,owner.getId(),"기타"));assertEquals(TradeRequestStatus.COMPLETED,requests.findById(id).orElseThrow().getStatus());
  }
  @Test void cancelledTradeCannotBeCompleted(){

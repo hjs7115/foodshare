@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ReviewService {
 
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
     private final ReviewRepository reviewRepository;
     private final TradeRequestRepository tradeRequestRepository;
     private final UserRepository userRepository;
@@ -48,6 +49,9 @@ public class ReviewService {
         if (tradeRequest.getStatus() != TradeRequestStatus.COMPLETED) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Only completed trades can be reviewed.");
         }
+        // Serialize reviews of one trade, then score changes on the target user.
+        em.refresh(tradeRequest,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if(tradeRequest.getStatus()!=TradeRequestStatus.COMPLETED)throw new BusinessException(HttpStatus.CONFLICT,"완료 거래만 평가할 수 있습니다.");
         if (reviewRepository.existsByTradeRequestIdAndReviewerId(tradeRequestId, reviewerId)) {
             throw new BusinessException(HttpStatus.CONFLICT, "You already reviewed this trade.");
         }
@@ -66,6 +70,7 @@ public class ReviewService {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Only trade participants can review this trade.");
         }
 
+        em.refresh(targetUser,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         Review review = Review.create(tradeRequest, reviewer, targetUser, request.rating(), request.content());
         targetUser.updateFreshnessScore(
                 FreshnessCalculator.update(targetUser.getFreshnessScore(), request.rating())
@@ -116,7 +121,8 @@ public class ReviewService {
     }
 
     public PageResponse<ReviewResponse> getReviewsForUserPage(Long userId, int page, int size) {
-        return PageResponse.of(getReviewsForUser(userId), page, size);
+        var result=reviewRepository.findAllByTargetUserIdOrderByCreatedAtDesc(userId,org.springframework.data.domain.PageRequest.of(Math.max(0,page),Math.min(100,Math.max(1,size))));
+        return new PageResponse<>(result.getContent().stream().map(ReviewResponse::from).toList(),result.getNumber(),result.getSize(),result.getTotalElements(),result.getTotalPages(),result.isFirst(),result.isLast());
     }
 
     public List<ReviewResponse> getMyWrittenReviews(Long userId) {
@@ -127,16 +133,13 @@ public class ReviewService {
     }
 
     public PageResponse<ReviewResponse> getMyWrittenReviewsPage(Long userId, int page, int size) {
-        return PageResponse.of(getMyWrittenReviews(userId), page, size);
+        var result=reviewRepository.findAllByReviewerIdOrderByCreatedAtDesc(userId,org.springframework.data.domain.PageRequest.of(Math.max(0,page),Math.min(100,Math.max(1,size))));
+        return new PageResponse<>(result.getContent().stream().map(ReviewResponse::from).toList(),result.getNumber(),result.getSize(),result.getTotalElements(),result.getTotalPages(),result.isFirst(),result.isLast());
     }
 
     public RatingSummaryResponse getRatingSummary(Long userId) {
-        List<Review> reviews = reviewRepository.findAllByTargetUserIdOrderByCreatedAtDesc(userId);
-        double average = reviews.stream()
-                .mapToInt(Review::getRating)
-                .average()
-                .orElse(0.0);
-        double averageRating = Math.round(average * 10.0) / 10.0;
+        long count=reviewRepository.countByTargetUserId(userId);
+        double averageRating=Math.round(reviewRepository.averageRatingByTargetUserId(userId)*10.0)/10.0;
         double freshness = userRepository.findById(userId)
                 .map(User::getFreshnessScore)
                 .orElse(FreshnessCalculator.baseScore());
@@ -148,7 +151,7 @@ public class ReviewService {
                 freshnessGrade.name(),
                 freshnessGrade.getIcon(),
                 freshnessGrade.getLabel(),
-                reviews.size()
+                count,java.util.stream.IntStream.rangeClosed(1,5).mapToObj(n->reviewRepository.countByTargetUserIdAndRating(userId,n)).toList()
         );
     }
 }

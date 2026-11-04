@@ -55,7 +55,7 @@ export default function EditProfileScreen({ onClose, onSave }: EditProfileScreen
     try {
       const uploadedProfileImage = selectedImageFile
         ? await uploadImage(selectedImageFile)
-        : profileImage;
+        : (userInfo.profileImage || '');
 
       const response = await apiRequest(API_ENDPOINTS.updateProfile, {
         method: 'PUT',

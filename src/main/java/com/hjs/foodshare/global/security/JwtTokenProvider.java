@@ -34,13 +34,17 @@ public class JwtTokenProvider {
         this.expirationSeconds = expirationSeconds;
     }
 
-    public String createAccessToken(User user) {
+    public String createAccessToken(User user) { return createAccessToken(user,null); }
+
+    public String createAccessToken(User user,Long sessionId) {
         Instant now = Instant.now();
         String header = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
         String payload = "{"
                 + "\"sub\":\"" + escapeJson(user.getId().toString()) + "\","
                 + "\"email\":\"" + escapeJson(user.getEmail()) + "\","
                 + "\"nickname\":\"" + escapeJson(user.getNickname()) + "\","
+                + "\"ver\":" + user.getTokenVersion() + ","
+                + (sessionId==null?"":"\"sid\":"+sessionId+",")
                 + "\"iat\":" + now.getEpochSecond() + ","
                 + "\"exp\":" + now.plusSeconds(expirationSeconds).getEpochSecond()
                 + "}";
@@ -63,6 +67,7 @@ public class JwtTokenProvider {
             throw new BusinessException(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다.");
         }
 
+        try {
         Map<String, String> payload = decodePayload(parts[1]);
         long expiration = Long.parseLong(payload.get("exp"));
         if (Instant.now().getEpochSecond() >= expiration) {
@@ -72,8 +77,11 @@ public class JwtTokenProvider {
         return new AuthUser(
                 Long.valueOf(payload.get("sub")),
                 payload.get("email"),
-                payload.get("nickname")
+                payload.get("nickname"),
+                Long.parseLong(payload.getOrDefault("ver","0")),
+                payload.containsKey("sid")?Long.valueOf(payload.get("sid")):null
         );
+        } catch(BusinessException e){throw e;}catch(RuntimeException e){throw new BusinessException(HttpStatus.UNAUTHORIZED,"유효하지 않은 토큰입니다.");}
     }
 
     private String encode(String value) {

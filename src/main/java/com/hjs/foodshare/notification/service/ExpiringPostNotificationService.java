@@ -46,7 +46,7 @@ public class ExpiringPostNotificationService {
     }
 
     private void notifyExpiringPostOnce(Post post) {
-        if (!post.getWriter().isNotificationNewPost()) {
+        if (!post.getWriter().isExpiryReminder()) {
             return;
         }
 

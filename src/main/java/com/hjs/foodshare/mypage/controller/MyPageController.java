@@ -27,6 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/mypage")
 public class MyPageController {
 
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.trade.service.TradeRequestService trades;
+    @GetMapping("/trade-requests/page")
+    public Object sentPage(@AuthenticationPrincipal AuthUser user,@org.springframework.web.bind.annotation.RequestParam(defaultValue="0") int page,@org.springframework.web.bind.annotation.RequestParam(defaultValue="30") int size){return ApiResponse.ok("내역",trades.historyPage(user.userId(),false,page,size));}
+    @GetMapping("/received-trade-requests/page")
+    public Object receivedPage(@AuthenticationPrincipal AuthUser user,@org.springframework.web.bind.annotation.RequestParam(defaultValue="0") int page,@org.springframework.web.bind.annotation.RequestParam(defaultValue="30") int size){return ApiResponse.ok("내역",trades.historyPage(user.userId(),true,page,size));}
     private final MyPageService myPageService;
 
     public MyPageController(MyPageService myPageService) {

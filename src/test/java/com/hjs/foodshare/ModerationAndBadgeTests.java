@@ -97,10 +97,10 @@ class ModerationAndBadgeTests {
         assertFalse(postService.searchPosts(null, "Blocked", null, null, null, null, null, blocked.getId())
                 .stream()
                 .anyMatch(post -> post.postId().equals(postId)));
-        assertTrue(postService.searchPosts(null, "Visible to blocker", null, null, null, null, null, writer.getId())
+        assertFalse(postService.searchPosts(null, "Visible to blocker", null, null, null, null, null, writer.getId())
                 .stream()
                 .anyMatch(post -> post.postId().equals(blockedPostId)));
-        assertEquals(TradeRequestStatus.PENDING, tradeRequestRepository.findById(pendingRequestId)
+        assertEquals(TradeRequestStatus.REJECTED, tradeRequestRepository.findById(pendingRequestId)
                 .orElseThrow()
                 .getStatus());
     }

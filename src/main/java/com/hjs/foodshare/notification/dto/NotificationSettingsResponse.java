@@ -7,7 +7,8 @@ public record NotificationSettingsResponse(
         boolean comment,
         boolean tradeRequest,
         boolean tradeAccepted,
-        boolean marketing
+        boolean marketing,
+        boolean expiryReminder
 ) {
 
     public static NotificationSettingsResponse from(User user) {
@@ -16,7 +17,8 @@ public record NotificationSettingsResponse(
                 user.isNotificationComment(),
                 user.isNotificationTradeRequest(),
                 user.isNotificationTradeAccepted(),
-                user.isNotificationMarketing()
+                user.isNotificationMarketing(),
+                user.isExpiryReminder()
         );
     }
 }

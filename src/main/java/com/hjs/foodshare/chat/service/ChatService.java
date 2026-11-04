@@ -34,6 +34,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ChatService {
 
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.moderation.repository.UserBlockRepository blocks;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
@@ -59,6 +61,7 @@ public class ChatService {
 
     @Transactional
     public ChatRoom openRoomForTradeRequest(TradeRequest tradeRequest) {
+        if(blocks.blockedEitherWay(tradeRequest.getRequester().getId(),tradeRequest.getPost().getWriter().getId()))throw new BusinessException(HttpStatus.FORBIDDEN,"차단된 사용자와 새 방을 열 수 없습니다.");
         return chatRoomRepository.findByTradeRequestId(tradeRequest.getId())
                 .orElseGet(() -> {
                     ChatRoom room = chatRoomRepository.save(ChatRoom.create(tradeRequest));
@@ -74,6 +77,7 @@ public class ChatService {
         if (tradeRequests == null || tradeRequests.isEmpty()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "At least one trade request is required.");
         }
+        for(var request:tradeRequests)if(blocks.blockedEitherWay(request.getRequester().getId(),request.getPost().getWriter().getId()))throw new BusinessException(HttpStatus.FORBIDDEN,"차단된 사용자와 새 방을 열 수 없습니다.");
         TradeRequest primaryRequest = tradeRequests.get(0);
         ChatRoom room = chatRoomRepository.findGroupRoomByPostId(primaryRequest.getPost().getId())
                 .orElseGet(() -> chatRoomRepository.findByTradeRequestId(primaryRequest.getId())
@@ -94,7 +98,7 @@ public class ChatService {
         List<ChatRoom> rooms = switch ((filter == null ? "ALL" : filter).toUpperCase()) {
             case "SHARE", "SALE", "SHARING" -> chatRoomRepository.findAllByParticipantIdAndPostTypes(
                     userId,
-                    List.of(PostType.SHARE, PostType.SALE)
+                    List.of(PostType.SHARE, PostType.SALE, PostType.BUY)
             );
             case "GROUP", "GROUP_BUY" -> chatRoomRepository.findAllByParticipantIdAndPostTypes(
                     userId,
@@ -113,46 +117,64 @@ public class ChatService {
                 .toList();
     }
 
-    public List<ChatMessageResponse> getMessages(Long userId, Long roomId) {
-        ChatRoom room = getParticipantRoom(userId, roomId);
-        List<ChatMessage> messages = chatMessageRepository.findAllByChatRoomIdOrderByCreatedAtAsc(room.getId());
-        Set<Long> unreadByPartnerMessageIds = unreadByPartnerMessageIds(messages, userId, partnerUnreadCount(room, userId));
+    public List<ChatMessageResponse> getMessages(Long userId,Long roomId) { return getMessages(userId,roomId,null,null,100); }
 
-        return messages
-                .stream()
-                .map(message -> ChatMessageResponse.from(
-                        message,
-                        userId,
-                        unreadByPartnerMessageIds.contains(message.getId())
-                ))
-                .toList();
+    public List<ChatMessageResponse> getMessages(Long userId,Long roomId,Long after,Long before,int size) {
+        ChatRoom room=getParticipantRoom(userId,roomId);
+        var query=em.createQuery("select m from ChatMessage m left join fetch m.sender where m.chatRoom.id=:room and (:after is null or m.id>:after) and (:before is null or m.id<:before) and (m.sender is null or not exists(select b.id from UserBlock b where (b.blocker.id=:viewer and b.blockedUser.id=m.sender.id) or (b.blocker.id=m.sender.id and b.blockedUser.id=:viewer))) order by m.id "+(after==null?"desc":"asc"),ChatMessage.class)
+            .setParameter("room",roomId).setParameter("viewer",userId).setParameter("after",after).setParameter("before",before).setMaxResults(Math.min(Math.max(size,1),100));
+        var messages=new java.util.ArrayList<>(query.getResultList());
+        if(after==null)java.util.Collections.reverse(messages);
+        var members=chatRoomMemberRepository.findAllByChatRoom(room);
+        return messages.stream().map(message -> {
+            int unread=0;
+            if(message.getSender()!=null && message.getSender().getId().equals(userId))
+                unread=(int)members.stream().filter(ChatRoomMember::isActive).filter(m -> !m.getUser().getId().equals(userId) && !blocks.blockedEitherWay(userId,m.getUser().getId()))
+                    .filter(m -> !m.getUser().isChatReadReceiptEnabled() || readCursorFor(m)<message.getId()).count();
+            return ChatMessageResponse.from(message,userId).withUnreadCount(unread);
+        }).toList();
     }
 
     @Transactional
-    public ChatMessageResponse sendMessage(Long userId, Long roomId, ChatMessageRequest request) {
-        return sendMessage(userId, roomId, request.content());
+    public ChatMessageResponse sendMessage(Long userId,Long roomId,ChatMessageRequest request) {
+        return sendMessage(userId,roomId,request.content(),request.clientMessageId());
     }
+    @Transactional
+    public ChatMessageResponse sendMessage(Long userId,Long roomId,String content) {return sendMessage(userId,roomId,content,null);}
 
     @Transactional
-    public ChatMessageResponse sendMessage(Long userId, Long roomId, String content) {
-        ChatRoom room = getParticipantRoom(userId, roomId);
-        User sender = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
-        String trimmedContent = content == null ? "" : content.trim();
-        if (trimmedContent.isBlank()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Message content is required.");
-        }
-        ChatMessage message = chatMessageRepository.save(ChatMessage.user(room, sender, trimmedContent));
-        notifyUnreadMembers(room, sender, trimmedContent);
-        return ChatMessageResponse.from(message, userId, true);
+    public ChatMessageResponse sendMessage(Long userId,Long roomId,String content,String clientId) {
+        ChatRoom room=lockRoom(userId,roomId);
+        User sender=userRepository.findById(userId).orElseThrow();
+        if(!sender.isAvailable())throw new BusinessException(HttpStatus.FORBIDDEN,"이용이 제한된 계정입니다.");
+        String text=content==null?"":content.strip();
+        if(text.isBlank() || text.length()>1000 || (clientId!=null && !clientId.matches("[A-Za-z0-9-]{1,80}")))
+            throw new BusinessException(HttpStatus.BAD_REQUEST,"메시지는 1~1000자로 입력해주세요.");
+        if(clientId!=null){var previous=chatMessageRepository.findByChatRoomIdAndSenderIdAndClientMessageId(roomId,userId,clientId);if(previous.isPresent()){if(!previous.get().getContent().equals(text))throw new BusinessException(HttpStatus.CONFLICT,"같은 전송 식별자로 다른 메시지를 보낼 수 없습니다.");return ChatMessageResponse.from(previous.get(),userId);}}
+        var message=ChatMessage.user(room,sender,text);message.setClientMessageId(clientId);
+        chatMessageRepository.saveAndFlush(message);notifyUnreadMembers(room,sender,text,message.getId());
+        return ChatMessageResponse.from(message,userId,true).withUnreadCount((int)chatRoomMemberRepository.findAllByChatRoom(room).stream().filter(ChatRoomMember::isActive).filter(m->!m.getUser().getId().equals(userId)&&!blocks.blockedEitherWay(userId,m.getUser().getId())).count());
     }
+
+    private ChatRoom lockRoom(Long userId,Long roomId){
+        ChatRoom room=em.find(ChatRoom.class,roomId,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if(room==null)throw new BusinessException(HttpStatus.NOT_FOUND,"채팅방을 찾을 수 없습니다.");
+        validateParticipant(room,userId);return room;
+    }
+
+    public long readCursor(Long userId,Long roomId){getParticipantRoom(userId,roomId);return chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId,userId).map(this::readCursorFor).orElse(0L);}
+    public boolean showsReadReceipt(Long userId){return userRepository.findById(userId).map(User::isChatReadReceiptEnabled).orElse(false);}
+    public boolean canReceiveFrom(Long viewerId,Long senderId){return senderId==null || !blocks.blockedEitherWay(viewerId,senderId);}
+
+    @Transactional
+    public void removeTradeParticipant(Long requestId,Long userId){findRoomForTradeRequest(requestId).ifPresent(room -> leaveMember(room,userId));}
 
     @Transactional
     public void markAsRead(Long userId, Long roomId) {
-        ChatRoom room = getParticipantRoom(userId, roomId);
+        ChatRoom room = lockRoom(userId, roomId);
         room.markAsRead(userId);
         chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId, userId)
-                .ifPresent(ChatRoomMember::markAsRead);
+                .ifPresent(member -> member.readThrough(chatMessageRepository.findFirstByChatRoomIdOrderByIdDesc(roomId).map(ChatMessage::getId).orElse(0L)));
     }
 
     public ChatRoomResponse getRoomByTradeRequest(Long userId, Long tradeRequestId) {
@@ -164,7 +186,7 @@ public class ChatService {
 
     @Transactional
     public ChatRoomResponse togglePinned(Long userId, Long roomId) {
-        ChatRoom room = getParticipantRoom(userId, roomId);
+        ChatRoom room = lockRoom(userId, roomId);
         room.togglePinned(userId);
         chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .ifPresent(ChatRoomMember::togglePinned);
@@ -173,7 +195,7 @@ public class ChatService {
 
     @Transactional
     public ChatRoomResponse toggleMuted(Long userId, Long roomId) {
-        ChatRoom room = getParticipantRoom(userId, roomId);
+        ChatRoom room = lockRoom(userId, roomId);
         room.toggleMuted(userId);
         chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId, userId)
                 .ifPresent(ChatRoomMember::toggleMuted);
@@ -182,14 +204,14 @@ public class ChatService {
 
     @Transactional
     public ChatRoomResponse renameRoom(Long userId, Long roomId, ChatRoomNameRequest request) {
-        ChatRoom room = getParticipantRoom(userId, roomId);
-        room.rename(request.roomName());
+        ChatRoom room = lockRoom(userId, roomId);
+        chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId,userId).orElseThrow().rename(request.roomName());
         return toResponse(room, userId);
     }
 
     @Transactional
     public void leaveRoom(Long userId, Long roomId) {
-        ChatRoom room = getParticipantRoom(userId, roomId);
+        ChatRoom room = lockRoom(userId, roomId);
         leaveMember(room, userId);
     }
 
@@ -223,6 +245,7 @@ public class ChatService {
     }
 
     private boolean isActiveParticipant(ChatRoom room, Long userId) {
+        if(!room.isGroupRoom() && blocks.blockedEitherWay(room.getWriter().getId(),room.getRequester().getId())) return false;
         return chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId)
                 .map(ChatRoomMember::isActive)
                 .orElseGet(() -> room.getWriter().getId().equals(userId)
@@ -244,7 +267,8 @@ public class ChatService {
         return tradeRequestRepository.findById(tradeRequestId)
                 .filter(request -> request.getPost().getPostType() == PostType.GROUP_BUY)
                 .filter(request -> request.getStatus() == TradeRequestStatus.ACCEPTED
-                        || request.getStatus() == TradeRequestStatus.COMPLETED)
+                        || request.getStatus() == TradeRequestStatus.COMPLETED
+                        || request.isCancelledAfterAcceptance())
                 .flatMap(request -> chatRoomRepository.findGroupRoomByPostId(request.getPost().getId()));
     }
 
@@ -279,7 +303,7 @@ public class ChatService {
             User receiver = partner(room, senderId);
             return receiver.getId().equals(senderId) || room.isMutedFor(receiver.getId()) ? List.of() : List.of(receiver.getId());
         }
-        return members.stream().filter(ChatRoomMember::isActive).filter(member -> !member.isMuted())
+        return members.stream().filter(ChatRoomMember::isActive).filter(member -> !member.isMuted()).filter(member -> !blocks.blockedEitherWay(senderId,member.getUser().getId()))
                 .map(member -> member.getUser().getId()).filter(id -> !id.equals(senderId)).distinct().toList();
     }
 
@@ -298,7 +322,7 @@ public class ChatService {
         return ChatRoomResponse.from(
                 room,
                 userId,
-                chatMessageRepository.findFirstByChatRoomIdOrderByCreatedAtDesc(room.getId()).orElse(null),
+                lastVisibleMessage(room.getId(),userId),
                 partner(room, userId),
                 unreadCount(room, userId),
                 isPinned(room, userId),
@@ -306,7 +330,12 @@ public class ChatService {
                 room.isGroupRoom(),
                 participantCount(room),
                 participants(room)
-        );
+        ).withRoomName(chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(),userId).map(ChatRoomMember::getPersonalName).orElse(null));
+    }
+
+    private ChatMessage lastVisibleMessage(Long roomId,Long userId){
+        var found=em.createQuery("select m from ChatMessage m where m.chatRoom.id=:room and (m.sender is null or not exists(select b.id from UserBlock b where (b.blocker.id=:viewer and b.blockedUser.id=m.sender.id) or (b.blocker.id=m.sender.id and b.blockedUser.id=:viewer))) order by m.id desc",ChatMessage.class).setParameter("room",roomId).setParameter("viewer",userId).setMaxResults(1).getResultList();
+        return found.isEmpty()?null:found.getFirst();
     }
 
     private void validateParticipant(ChatRoom room, Long userId) {
@@ -317,17 +346,24 @@ public class ChatService {
 
     private User partner(ChatRoom room, Long userId) {
         if (room.isGroupRoom()) {
-            return room.getRequester();
+            return room.getWriter().getId().equals(userId) ? room.getRequester() : room.getWriter();
         }
         return room.getWriter().getId().equals(userId) ? room.getRequester() : room.getWriter();
     }
 
-    private int unreadCount(ChatRoom room, Long userId) {
-        return chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId)
-                .map(ChatRoomMember::getUnreadCount)
-                .orElseGet(() -> room.getWriter().getId().equals(userId)
-                        ? room.getWriterUnreadCount()
-                        : room.getRequesterUnreadCount());
+    private long readCursorFor(ChatRoomMember member){
+        if(member.hasReadCursor())return member.getLastReadMessageId();
+        // Preserve legacy read state until the next explicit read writes a cursor.
+        var previous=em.createQuery("select m.id from ChatMessage m where m.chatRoom.id=:room and m.sender.id<>:user and m.systemMessage=false order by m.id desc",Long.class)
+            .setParameter("room",member.getChatRoom().getId()).setParameter("user",member.getUser().getId()).setFirstResult(Math.max(0,member.getUnreadCount())).setMaxResults(1).getResultList();
+        return previous.isEmpty()?0:previous.getFirst();
+    }
+
+    private int unreadCount(ChatRoom room,Long userId) {
+        long cursor=chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(),userId).map(this::readCursorFor).orElse(0L);
+        long count=em.createQuery("select count(m) from ChatMessage m where m.chatRoom.id=:room and m.id>:cursor and m.systemMessage=false and m.sender.id<>:viewer and not exists(select b.id from UserBlock b where (b.blocker.id=:viewer and b.blockedUser.id=m.sender.id) or (b.blocker.id=m.sender.id and b.blockedUser.id=:viewer))",Long.class)
+            .setParameter("room",room.getId()).setParameter("cursor",cursor).setParameter("viewer",userId).getSingleResult();
+        return (int)Math.min(count,Integer.MAX_VALUE);
     }
 
     private int partnerUnreadCount(ChatRoom room, Long userId) {
@@ -389,26 +425,26 @@ public class ChatService {
         }
     }
 
-    private void notifyUnreadMembers(ChatRoom room, User sender, String content) {
+    private void notifyUnreadMembers(ChatRoom room, User sender, String content,Long messageId) {
         List<ChatRoomMember> members = chatRoomMemberRepository.findAllByChatRoom(room);
         if (members.isEmpty()) {
             User receiver = partner(room, sender.getId());
             room.increaseUnreadFor(receiver);
             if (!room.isMutedFor(receiver.getId())) {
-                notificationService.sendPushOnly(receiver.getId(), "CHAT_MESSAGE",
-                        sender.getNickname() + "님의 새 채팅", content, "CHAT_ROOM", room.getId());
+                notificationService.sendChatPush(receiver.getId(),sender.getId(),
+                        sender.getNickname()+"님의 새 채팅",content,room.getId(),messageId);
             }
             return;
         }
 
         members.stream()
                 .filter(ChatRoomMember::isActive)
-                .filter(member -> !member.getUser().getId().equals(sender.getId()))
+                .filter(member -> !member.getUser().getId().equals(sender.getId()) && !blocks.blockedEitherWay(sender.getId(),member.getUser().getId()))
                 .forEach(member -> {
                     member.increaseUnread();
                     if (!member.isMuted()) {
-                        notificationService.sendPushOnly(member.getUser().getId(), "CHAT_MESSAGE",
-                                sender.getNickname() + "님의 새 채팅", content, "CHAT_ROOM", room.getId());
+                        notificationService.sendChatPush(member.getUser().getId(),sender.getId(),
+                                sender.getNickname()+"님의 새 채팅",content,room.getId(),messageId);
                     }
                 });
         room.touch();

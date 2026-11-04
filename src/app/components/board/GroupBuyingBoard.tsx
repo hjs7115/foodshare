@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Bell, ArrowUpDown, MapPin, MessageCircle, Snowflake, Leaf, User, ShoppingCart } from 'lucide-react';
 import CreatePostScreen from './CreatePostScreen';
 import BoardSwitchModal from './BoardSwitchModal';
@@ -7,7 +7,7 @@ import LocationSettingsScreen from '../profile/LocationSettingsScreen';
 import BackendImage from '../common/BackendImage';
 import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
-import { API_ENDPOINTS, apiRequest, buildPostsUrl, getNotifications, resolveImageUrl } from '../../api/config';
+import { API_ENDPOINTS, apiRequest, buildPostsUrl, getNotifications, getNotificationUnreadCount, resolveImageUrl } from '../../api/config';
 import { useNestedBack } from '../../utils/useNestedBack';
 
 interface GroupItem {
@@ -108,14 +108,8 @@ export default function GroupBuyingBoard({
     notification.status === 'READ'
   );
 
-  const loadUnreadNotifications = async () => {
-    try {
-      const response = await getNotifications(0, 10);
-      setHasUnreadNotifications(getNotificationItems(response).some(isUnreadNotification));
-    } catch (error) {
-      console.warn('읽지 않은 알림 조회에 실패했습니다.', error);
-      setHasUnreadNotifications(false);
-    }
+  const loadUnreadNotifications=async()=>{
+    try{setHasUnreadNotifications((await getNotificationUnreadCount())>0);}catch{setHasUnreadNotifications(false);}
   };
 
   const getPostQueryParams = () => {
@@ -163,7 +157,7 @@ export default function GroupBuyingBoard({
             name: post.title || post.name,
             currentCount: post.currentCount || 1,
             targetCount: post.targetCount || 5,
-            price: `${post.amount || ''} / ${post.price || '가격미정'}`,
+            price: `${post.amount || ''} / ${post.priceText || (post.price ?? '가격 협의')}`,
             distance: post.distance || `${distanceValue.toFixed(1)}km`,
             distanceValue,
             deadline: post.deadline || '마감일 미정',

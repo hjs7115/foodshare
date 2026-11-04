@@ -292,18 +292,9 @@ export async function apiRequest(
 
     console.log(`📥 응답 상태: ${response.status}`);
 
-    // 403 Forbidden 특수 처리
-    if (response.status === 403) {
-      throw new Error(
-        `⛔ 백엔드 서버 접근 거부 (403 Forbidden)\n\n` +
-        `서버는 실행 중이지만 이 요청을 거부했습니다.\n\n` +
-        `확인 사항:\n` +
-        `1. 로그인 토큰이 없거나 만료되었는지 확인\n` +
-        `2. 게시글 작성 API가 인증된 사용자에게 허용되어 있는지 확인\n` +
-        `3. 백엔드 Security/CORS 설정에서 현재 Origin이 허용되어 있는지 확인\n` +
-        `4. POST 엔드포인트가 /api/posts 또는 /api/posts/create 중 무엇인지 확인\n\n` +
-        `현재 URL: ${API_BASE_URL}`
-      );
+    if(response.status===403){
+      const detail=await response.json().catch(()=>null);
+      throw new Error(detail?.message||'이 요청에 접근할 권한이 없습니다.');
     }
 
     // 204 No Content는 성공이지만 body가 없음
@@ -433,7 +424,7 @@ export async function uploadImage(file: File): Promise<string> {
   }
 }
 
-export type ReportTargetType = 'POST' | 'COMMENT' | 'USER';
+export type ReportTargetType = 'POST' | 'COMMENT' | 'USER' | 'CHAT_MESSAGE' | 'TRADE_REQUEST';
 
 export interface CreateReportPayload {
   targetType: ReportTargetType;
@@ -467,7 +458,7 @@ export async function getBlockedUsers(): Promise<any> {
 }
 
 export async function getNotifications(page = 0, size = 20): Promise<any> {
-  const url = `${API_ENDPOINTS.notifications}?page=${page}&size=${size}`;
+  const url = `${API_ENDPOINTS.notifications}/page?page=${page}&size=${size}`;
   return apiRequest(url, {
     method: 'GET',
     cache: 'no-store',

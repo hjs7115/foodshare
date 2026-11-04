@@ -45,6 +45,14 @@ public class ChatRoomMember {
     private LocalDateTime joinedAt;
 
     private LocalDateTime leftAt;
+    private Long lastReadMessageId;
+    @Column(length=100) private String personalName;
+    public boolean hasReadCursor(){return lastReadMessageId!=null;}
+    public long getLastReadMessageId(){return lastReadMessageId==null?0:lastReadMessageId;}
+    public void readThrough(long id){lastReadMessageId=Math.max(getLastReadMessageId(),id); unreadCount=0;}
+    public String getPersonalName(){return personalName;}
+    public void rename(String name){personalName=name;}
+
 
     public boolean isActive() { return leftAt == null; }
 
@@ -65,6 +73,7 @@ public class ChatRoomMember {
         this.pinned = false;
         this.muted = false;
         this.joinedAt = LocalDateTime.now();
+        this.lastReadMessageId=0L;
     }
 
     public static ChatRoomMember create(ChatRoom chatRoom, User user, int unreadCount) {

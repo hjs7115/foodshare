@@ -38,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     @org.springframework.beans.factory.annotation.Autowired private AuthThrottle throttle;
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -65,6 +66,8 @@ public class AuthService {
 
     @Transactional
     public AuthResponse signup(SignupRequest request) {
+        if (!Boolean.TRUE.equals(request.termsAccepted()) || !Boolean.TRUE.equals(request.privacyAccepted()) || !Boolean.TRUE.equals(request.apiAccepted()) || !"2026-11-04".equals(request.termsVersion()))
+            throw new BusinessException(HttpStatus.BAD_REQUEST,"현재 필수 약관에 모두 동의해주세요.");
         validateDuplicateUser(request);
         emailVerificationService.consumeVerifiedEmail(request.email());
 
@@ -77,6 +80,7 @@ public class AuthService {
                 request.location()
         );
 
+        user.recordConsent(request.termsVersion());
         user.updateLocation(request.location(), request.latitude(), request.longitude());
         User savedUser = userRepository.save(user);
         return createAuthResponse(savedUser);
@@ -84,12 +88,16 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        throttle.check("login", request.email(), 10, 900);
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Email or password is invalid."));
-
-        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Email or password is invalid.");
+        var attributes=org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        String remote=attributes instanceof org.springframework.web.context.request.ServletRequestAttributes servlet?servlet.getRequest().getRemoteAddr():"service";
+        String attemptKey=request.email().trim().toLowerCase(java.util.Locale.ROOT)+"|"+remote;
+        throttle.requireAvailable("login-failed",attemptKey,10);
+        throttle.requireAvailable("login-ip",remote,200);
+        User user = userRepository.findByEmail(request.email().trim().toLowerCase(java.util.Locale.ROOT)).orElse(null);
+        if (user==null || !user.isAvailable() || !passwordEncoder.matches(request.password(),user.getPassword())) {
+            throttle.check("login-ip",remote,200,900);
+            throttle.check("login-failed",attemptKey,10,900);
+            throw new BusinessException(HttpStatus.UNAUTHORIZED,"이메일 또는 비밀번호를 확인해주세요.");
         }
 
         return createAuthResponse(user);
@@ -97,9 +105,12 @@ public class AuthService {
 
     @Transactional
     public AuthResponse refresh(RefreshTokenRequest request) {
-        RefreshToken refreshToken = refreshTokenRepository.findByToken(request.refreshToken())
+        var previous=refreshTokenRepository.findByToken(request.refreshToken()).orElseThrow(()->new BusinessException(HttpStatus.UNAUTHORIZED,"세션이 종료되었습니다."));
+        em.find(User.class,previous.getUser().getId(),jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        RefreshToken refreshToken = refreshTokenRepository.lockToken(request.refreshToken())
                 .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "Refresh token is invalid."));
-        if (!refreshToken.isValid()) {
+        em.refresh(refreshToken,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (!refreshToken.isValid() || !refreshToken.getUser().isAvailable()) {
             refreshToken.revoke();
             throw new BusinessException(HttpStatus.UNAUTHORIZED, "Refresh token is expired or revoked.");
         }
@@ -109,20 +120,20 @@ public class AuthService {
 
     @Transactional
     public void logout(Long userId) {
+        User user=em.find(User.class,userId,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if(user!=null)user.revokeSessions();
         refreshTokenRepository.deleteAllByUserId(userId);
     }
 
     @Transactional
     public void logoutDevice(Long userId, String token) {
         if (token == null || token.isBlank()) return;
-        refreshTokenRepository.findByToken(token).filter(t -> t.getUser().getId().equals(userId)).ifPresent(RefreshToken::revoke);
+        em.find(User.class,userId,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        refreshTokenRepository.lockToken(token).filter(t -> t.getUser().getId().equals(userId)).ifPresent(RefreshToken::revoke);
     }
 
     public FindEmailResponse findEmail(FindEmailRequest request) {
-        User user = userRepository.findByNameAndPhoneNumber(request.name(), request.phoneNumber())
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
-
-        return new FindEmailResponse(user.getEmail());
+        throw new BusinessException(HttpStatus.BAD_REQUEST,"인증되지 않은 전화번호로는 계정을 찾을 수 없습니다. 가입한 이메일을 이용해주세요.");
     }
 
     public FindEmailResponse findId(FindIdRequest request) {
@@ -145,27 +156,11 @@ public class AuthService {
     }
 
     public PhoneVerificationSendResponse sendPhoneVerificationCode(PhoneVerificationSendRequest request) {
-        String code = "%06d".formatted(secureRandom.nextInt(1_000_000));
-        phoneVerificationCodes.put(request.phoneNumber(), new VerificationCode(code, Instant.now().plus(PHONE_CODE_TTL)));
-
-        return new PhoneVerificationSendResponse(
-                request.phoneNumber(),
-                (int) PHONE_CODE_TTL.toSeconds()
-        );
+        throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,"전화번호 본인 인증은 현재 제공하지 않습니다. 이메일 인증을 이용해주세요.");
     }
 
     public PhoneVerificationVerifyResponse verifyPhoneCode(PhoneVerificationVerifyRequest request) {
-        VerificationCode verificationCode = phoneVerificationCodes.get(request.phoneNumber());
-        if (verificationCode == null || verificationCode.expiresAt().isBefore(Instant.now())) {
-            phoneVerificationCodes.remove(request.phoneNumber());
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is expired or not found.");
-        }
-        if (!verificationCode.code().equals(request.code())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "Verification code is invalid.");
-        }
-
-        phoneVerificationCodes.remove(request.phoneNumber());
-        return new PhoneVerificationVerifyResponse(request.phoneNumber(), true);
+        throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,"전화번호 본인 인증은 현재 제공하지 않습니다.");
     }
 
     @Transactional
@@ -181,7 +176,9 @@ public class AuthService {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
 
+        em.refresh(user,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         user.changePassword(passwordEncoder.encode(request.newPassword()));
+        user.revokeSessions();
         refreshTokenRepository.deleteAllByUserId(user.getId());
     }
 
@@ -192,19 +189,19 @@ public class AuthService {
         if (userRepository.existsByNickname(request.nickname())) {
             throw new BusinessException(HttpStatus.CONFLICT, "Nickname already exists.");
         }
-        if (userRepository.existsByPhoneNumber(request.phoneNumber())) {
-            throw new BusinessException(HttpStatus.CONFLICT, "Phone number already exists.");
-        }
+
     }
 
     private AuthResponse createAuthResponse(User user) {
+        em.refresh(user,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if(!user.isAvailable())throw new BusinessException(HttpStatus.UNAUTHORIZED,"이용할 수 없는 계정입니다.");
         String refreshToken = createOpaqueRefreshToken();
-        refreshTokenRepository.save(RefreshToken.create(
+        RefreshToken session=refreshTokenRepository.saveAndFlush(RefreshToken.create(
                 user,
                 refreshToken,
                 LocalDateTime.now().plus(REFRESH_TOKEN_TTL)
         ));
-        return AuthResponse.of(jwtTokenProvider.createAccessToken(user), refreshToken, user);
+        return AuthResponse.of(jwtTokenProvider.createAccessToken(user,session.getId()), refreshToken, user);
     }
 
     private String createOpaqueRefreshToken() {

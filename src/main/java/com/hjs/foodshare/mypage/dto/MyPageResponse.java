@@ -12,6 +12,8 @@ public record MyPageResponse(
         long reviewCount,
         long shareCompletedCount,
         long saleCompletedCount,
-        long groupBuyParticipationCount
+        long groupBuyParticipationCount,
+        long completedTradeCount,
+        long pendingReceivedRequestCount
 ) {
 }

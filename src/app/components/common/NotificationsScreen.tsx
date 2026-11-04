@@ -19,6 +19,7 @@ import {
   getNotifications,
   readNotification,
   resolveImageUrl,
+  getNotificationUnreadCount,
 } from '../../api/config';
 import BackendImage from './BackendImage';
 import { showConfirm, showToast } from '../../utils/feedback';
@@ -32,6 +33,7 @@ interface NotificationItem {
   createdAt?: string;
   postId?: number;
   targetId?: number;
+  targetType?:string;
   requesterNickname?: string;
   requesterProfileImage?: string;
   requesterFreshness?: number;
@@ -86,7 +88,7 @@ function normalizeNotification(raw: any): NotificationItem {
     isRead: Boolean(raw.isRead || raw.read || raw.readAt || raw.status === 'READ'),
     createdAt: raw.createdAt || raw.createdDate || raw.sentAt || raw.regDate,
     postId,
-    targetId: getNumberValue(raw.targetId),
+    targetId: getNumberValue(raw.targetId), targetType:raw.targetType,
     requesterNickname:
       raw.requesterNickname ||
       raw.requester?.nickname ||
@@ -255,23 +257,25 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const unreadCount = useMemo(
-    () => notifications.filter((notification) => !notification.isRead).length,
-    [notifications]
-  );
+  const [unreadCount,setUnreadCount]=useState(0);
+  const [page,setPage]=useState(0);
+  const [hasMore,setHasMore]=useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
 
   useEffect(() => {
     loadNotifications();
   }, []);
 
-  const loadNotifications = async () => {
+  const loadNotifications = async (nextPage=0) => {
     setIsLoading(true);
     setErrorMessage('');
 
     try {
-      const response = await getNotifications();
-      setNotifications(getArrayPayload(response).map(normalizeNotification));
+      const response = await getNotifications(nextPage,30);
+      const rows=getArrayPayload(response).map(normalizeNotification);
+      setNotifications(prev=>nextPage===0?rows:[...prev,...rows.filter(r=>!prev.some(p=>p.id===r.id))]);
+      setPage(nextPage);setHasMore(!response.data?.last);
+      setUnreadCount(await getNotificationUnreadCount());
     } catch (error: any) {
       console.warn('알림 목록 조회에 실패했습니다.', error);
       setErrorMessage(error?.message || '알림을 불러오지 못했습니다.');
@@ -291,11 +295,16 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
 
       try {
         await readNotification(notification.id);
+        setUnreadCount(await getNotificationUnreadCount());
       } catch (error) {
         console.warn('알림 읽음 처리에 실패했습니다.', error);
+        setNotifications(prev=>prev.map(item=>item.id===notification.id?{...item,isRead:false}:item));
       }
     }
 
+    if(notification.targetType==='REVIEW'||notification.type==='REVIEW'){window.location.assign('/app?screen=profile&ratings=1');return;}
+    if(notification.targetType==='REPORT'){window.location.assign('/app?screen=profile&reports=1');return;}
+    if(notification.targetType==='CHAT_ROOM'&&notification.targetId){window.location.assign('/app?screen=chat&roomId='+notification.targetId);return;}
     if (notification.type === "SHOPPING_REMINDER") { const day=Number(notification.targetId); const week=Number.isFinite(day)&&day>0&&day<100000?new Date(day*86400000).toISOString().slice(0,10):''; window.location.assign('/app?screen=fridge&shopping=1'+(week?'&shoppingWeek='+week:'')); return; }
     if (notification.type === "FRIDGE_EXCHANGE") { window.location.assign("/app?screen=fridge&exchange=1"); return; }
     if (!isTradeNotification(notification) && notification.postId && onOpenPost) {
@@ -310,7 +319,7 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
     setDeletingAll(true);
     try {
       await deleteAllNotifications();
-      setNotifications([]);
+      setNotifications([]);setUnreadCount(0);setHasMore(false);
       window.dispatchEvent(new Event('notifications-changed'));
       showToast('모든 알림을 삭제했어요.');
     } catch (error: any) {
@@ -324,6 +333,7 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
 
     try {
       await deleteNotification(notificationId);
+      setUnreadCount(await getNotificationUnreadCount());
     } catch (error: any) {
       setNotifications(previousNotifications);
       showToast(error?.message || '알림 삭제에 실패했습니다.', 'error');
@@ -337,6 +347,7 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
         className="absolute right-4 top-16 flex max-h-[min(620px,calc(100vh-5rem))] w-[calc(100vw-2rem)] max-w-[420px] flex-col overflow-hidden rounded-2xl border border-[#e2e8f0] bg-[#f7fafc] shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
+        {hasMore&&<button disabled={isLoading} onClick={()=>void loadNotifications(page+1)} className="bg-white p-3 text-sm text-green-700">이전 알림 더 보기</button>}
         <div className="bg-white border-b border-[#e2e8f0] px-4 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-base text-[#1a202c]" style={{ fontWeight: 700 }}>알림</h1>

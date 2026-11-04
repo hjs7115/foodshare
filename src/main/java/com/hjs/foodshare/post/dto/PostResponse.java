@@ -56,7 +56,7 @@ public record PostResponse(
 ) {
 
     public static PostResponse from(Post post) {
-        return from(post, null, 0, 0, 4.5, false);
+        return from(post, null, 0, 0, 0.0, false);
     }
 
     public static PostResponse from(
@@ -72,7 +72,7 @@ public record PostResponse(
                 ? null
                 : ChronoUnit.DAYS.between(LocalDate.now(), post.getDeadlineDate().toLocalDate());
         boolean mine = currentUserId != null && post.getWriter().getId().equals(currentUserId);
-        double normalizedRating = writerRating <= 0 ? 4.5 : Math.round(writerRating * 10.0) / 10.0;
+        double normalizedRating = Math.round(writerRating * 10.0) / 10.0;
         double freshness = post.getWriter().getFreshnessScore();
         FreshnessGrade freshnessGrade = FreshnessGrade.fromScore(freshness);
 
@@ -93,12 +93,12 @@ public record PostResponse(
                 post.getIngredientName(),
                 post.getQuantity(),
                 post.getPrice(),
-                toPriceText(post.getPrice()),
-                post.getTradeLocation(),
+                post.isPriceNegotiable()?"가격 협의":toPriceText(post.getPrice()),
+                mine ? post.getTradeLocation() : toNeighborhood(post.getTradeLocation()),
                 toNeighborhood(post.getTradeLocation()),
                 post.getDistanceKm(),
-                post.getLatitude(),
-                post.getLongitude(),
+                post.getLatitude()==null?null:(mine?post.getLatitude():Math.round(post.getLatitude()*100)/100.0),
+                post.getLongitude()==null?null:(mine?post.getLongitude():Math.round(post.getLongitude()*100)/100.0),
                 post.getExpirationDate(),
                 daysUntilExpiration,
                 toExpirationText(daysUntilExpiration),
@@ -167,19 +167,19 @@ public record PostResponse(
 
     private static String toPriceText(Integer price) {
         if (price == null || price == 0) {
-            return "Free";
+            return "무료";
         }
-        return String.format("%,d KRW", price);
+        return String.format("%,d원", price);
     }
 
     private static String toExpirationText(long days) {
         if (days < 0) {
-            return "Expired";
+            return "기한 지남";
         }
         if (days == 0) {
-            return "Expires today";
+            return "오늘까지";
         }
-        return "Expires in " + days + " days";
+        return days + "일 남음";
     }
 
     private static String toDeadlineText(long days) {
@@ -202,7 +202,7 @@ public record PostResponse(
                 return parts[index];
             }
         }
-        return parts[parts.length - 1];
+        return String.join(" ",java.util.Arrays.stream(parts).limit(2).toList());
     }
 
     @JsonProperty("id")

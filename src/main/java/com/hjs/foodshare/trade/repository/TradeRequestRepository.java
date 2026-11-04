@@ -23,6 +23,15 @@ public interface TradeRequestRepository extends JpaRepository<TradeRequest, Long
 
     List<TradeRequest> findAllByPostIdAndStatus(Long postId, TradeRequestStatus status);
 
+    java.util.Optional<TradeRequest> findFirstByPostIdAndRequesterIdAndStatusInOrderByIdDesc(Long postId,Long userId,List<TradeRequestStatus> statuses);
+    long countByPostWriterIdAndStatus(Long userId,TradeRequestStatus status);
+    long countByRequesterId(Long userId);
+    long countByPostWriterId(Long userId);
+
+    @Query("select t from TradeRequest t join fetch t.post p join fetch p.writer join fetch t.requester where t.requester.id=:id and coalesce(t.requesterHistoryHidden,false)=false order by t.id desc")
+    org.springframework.data.domain.Page<TradeRequest> sentPage(@Param("id") Long id,org.springframework.data.domain.Pageable page);
+    @Query("select t from TradeRequest t join fetch t.post p join fetch p.writer join fetch t.requester where p.writer.id=:id and coalesce(t.writerHistoryHidden,false)=false order by t.id desc")
+    org.springframework.data.domain.Page<TradeRequest> receivedPage(@Param("id") Long id,org.springframework.data.domain.Pageable page);
     long countByStatus(TradeRequestStatus status);
 
     @Query("""

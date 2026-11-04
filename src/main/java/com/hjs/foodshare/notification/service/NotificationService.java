@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
 
     @org.springframework.beans.factory.annotation.Autowired private PushRetryService retries;
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
     private final UserFcmTokenRepository userFcmTokenRepository;
@@ -52,6 +53,7 @@ public class NotificationService {
     @Transactional
     public NotificationSettingsResponse updateSettings(Long userId, NotificationSettingsRequest request) {
         User user = getUser(userId);
+        user.setExpiryReminder(request.expiryReminder());
         user.updateNotificationSettings(
                 valueOrCurrent(request.newPost(), user.isNotificationNewPost()),
                 valueOrCurrent(request.comment(), user.isNotificationComment()),
@@ -71,7 +73,8 @@ public class NotificationService {
     }
 
     public PageResponse<NotificationResponse> getNotificationsPage(Long userId, int page, int size) {
-        return PageResponse.of(getNotifications(userId), page, size);
+        var result=notificationRepository.findAllByUserIdOrderByCreatedAtDesc(userId,org.springframework.data.domain.PageRequest.of(Math.max(0,page),Math.min(100,Math.max(1,size))));
+        return new PageResponse<>(result.getContent().stream().map(this::toResponse).toList(),result.getNumber(),result.getSize(),result.getTotalElements(),result.getTotalPages(),result.isFirst(),result.isLast());
     }
 
     public UnreadNotificationCountResponse getUnreadCount(Long userId) {
@@ -151,6 +154,12 @@ public class NotificationService {
     }
 
     @Transactional
+    public void sendChatPush(Long userId,Long senderId,String title,String body,Long roomId,Long messageId){
+        User user=getUser(userId);if(!user.isAvailable()||!user.isChatPushEnabled())return;
+        for(UserFcmToken token:userFcmTokenRepository.findAllByUser_Id(userId))retries.enqueueChat(userId,token.getId(),senderId,messageId,title,body,roomId);
+    }
+
+    @Transactional
     public boolean sendTestPush(Long userId, TestPushRequest request) {
         User user = getUser(userId);
         String title = request == null ? "FoodShare 테스트 알림" : request.titleValue();
@@ -159,25 +168,30 @@ public class NotificationService {
                 : request.messageValue();
 
         notificationRepository.save(Notification.create(user, "TEST_PUSH", title, message));
-        return sendPushToUser(userId, "TEST_PUSH", title, message, null, null);
+        return fcmPushService.isEnabled() && sendPushToUser(userId, "TEST_PUSH", title, message, null, null);
     }
 
     private boolean sendPushToUser(Long userId, String type, String title, String body,
                                    String targetType, Long targetId) {
-        if ("CHAT_MESSAGE".equals(type) && !getUser(userId).isChatPushEnabled()) return false;
-        boolean delivered = false;
-        Map<String, String> data = pushData(type, targetType, targetId);
-        for (UserFcmToken token : userFcmTokenRepository.findAllByUser_Id(userId)) {
-            FcmPushService.SendResult result = fcmPushService.sendPush(token.getToken(), title, body, data);
-            if (result == FcmPushService.SendResult.SENT) {
-                delivered = true;
-            } else if (result == FcmPushService.SendResult.INVALID_TOKEN) {
-                userFcmTokenRepository.delete(token);
-            } else if (result == FcmPushService.SendResult.FAILED) {
-                retries.enqueue(userId, token.getId(), type, title, body, targetType, targetId);
-            }
+        User user=getUser(userId);
+        if (!user.isAvailable() || ("CHAT_MESSAGE".equals(type) && !user.isChatPushEnabled())) return false;
+        boolean queued=false;
+        for (UserFcmToken token:userFcmTokenRepository.findAllByUser_Id(userId)) {
+            retries.enqueue(userId,token.getId(),type,title,body,targetType,targetId); queued=true;
         }
-        return delivered;
+        return queued;
+    }
+
+    @Transactional
+    public void notifyNearbyPost(com.hjs.foodshare.post.domain.Post post) {
+        if(post.getLatitude()==null || post.getLongitude()==null || post.isOpenFridgePost()) return;
+        var users=em.createQuery("select u from User u where u.id<>:id and coalesce(u.suspended,false)=false and u.withdrawnAt is null and coalesce(u.notificationNewPost,true)=true and u.latitude between :low and :high and u.longitude is not null and not exists(select b.id from UserBlock b where (b.blocker.id=u.id and b.blockedUser.id=:id) or (b.blocker.id=:id and b.blockedUser.id=u.id))",User.class)
+            .setParameter("id",post.getWriter().getId()).setParameter("low",post.getLatitude()-0.046).setParameter("high",post.getLatitude()+0.046).getResultList();
+        for(User u:users){
+            double x=Math.toRadians(post.getLatitude()-u.getLatitude()),y=Math.toRadians(post.getLongitude()-u.getLongitude());
+            double h=Math.sin(x/2)*Math.sin(x/2)+Math.cos(Math.toRadians(post.getLatitude()))*Math.cos(Math.toRadians(u.getLatitude()))*Math.sin(y/2)*Math.sin(y/2);
+            if(6371*2*Math.asin(Math.sqrt(Math.min(1,h)))<=5) createNotification(u.getId(),"NEW_POST","동네 새 게시글",post.getTitle(),"POST",post.getId());
+        }
     }
 
     private boolean valueOrCurrent(Boolean value, boolean current) {
@@ -197,19 +211,20 @@ public class NotificationService {
         if ("SHOPPING".equals(targetType)) return "/app?screen=fridge&shopping=1"+(targetId==null?"":"&shoppingWeek="+java.time.LocalDate.ofEpochDay(targetId));
         if ("FRIDGE_EXCHANGE".equals(targetType)) return "/app?screen=fridge&exchange=1";
         if ("CHAT_ROOM".equals(targetType) && targetId != null) {
-            return "/?screen=chat&roomId=" + targetId;
+            return "/app?screen=chat&roomId=" + targetId;
         }
         if ("TRADE_REQUEST".equals(targetType)) {
-            return "/?screen=tradeHistory";
+            return "/app?screen=tradeHistory";
         }
         if ("POST".equals(targetType) && targetId != null) {
-            return "/?screen=post&postId=" + targetId;
+            return "/app?screen=post&postId=" + targetId;
         }
+        if ("REPORT".equals(targetType)) return "/app?screen=profile&reports=1";
         if ("COMMENT".equals(type)) {
-            return "/?screen=notifications";
+            return "/app?screen=notifications";
         }
         if ("REVIEW".equals(type) || "RATING".equals(type)) {
-            return "/?screen=profile";
+            return "/app?screen=profile&ratings=1";
         }
         return "/";
     }

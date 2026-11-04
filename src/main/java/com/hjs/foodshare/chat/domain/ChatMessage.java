@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "chat_messages")
+@Table(name = "chat_messages",indexes=@jakarta.persistence.Index(name="idx_chat_room_message",columnList="chat_room_id,id"),uniqueConstraints=@jakarta.persistence.UniqueConstraint(name="uk_chat_client_message",columnNames={"chat_room_id","sender_id","client_message_id"}))
 public class ChatMessage {
 
     @Id
@@ -30,6 +30,10 @@ public class ChatMessage {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
+    @Column(name="client_message_id",length=80) private String clientMessageId;
+    public String getClientMessageId(){return clientMessageId;}
+    public void setClientMessageId(String id){clientMessageId=id;}
+
 
     @Column(nullable = false)
     private boolean systemMessage;

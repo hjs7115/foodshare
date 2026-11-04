@@ -64,6 +64,8 @@ public class TradeRequestService {
 
         User requester = userRepository.findById(requesterId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        if (!requester.isAvailable()) throw new BusinessException(HttpStatus.FORBIDDEN,"이용이 제한된 계정입니다.");
+        if (post.isOpenFridgePost()) validateFridgeDistance(requester, post.getWriter());
 
         TradeRequest savedRequest = tradeRequestRepository.save(TradeRequest.create(post, requester));
         if (post.getWriter().isNotificationTradeRequest()) {
@@ -95,33 +97,25 @@ public class TradeRequestService {
         }
     }
 
-    public List<TradeRequestResponse> getMyRequests(Long requesterId) {
-        return tradeRequestRepository.findAllByRequesterIdOrderByCreatedAtDesc(requesterId)
-                .stream()
-                .filter(request -> !request.isHistoryHiddenFor(requesterId))
-                .filter(this::isVisibleTradeRequest)
-                .map(this::toResponse)
-                .toList();
+    public List<TradeRequestResponse> getMyRequestForPost(Long id,Long postId){
+        return tradeRequestRepository.findFirstByPostIdAndRequesterIdAndStatusInOrderByIdDesc(postId,id,List.of(TradeRequestStatus.PENDING,TradeRequestStatus.ACCEPTED,TradeRequestStatus.COMPLETED)).map(this::toResponse).stream().toList();
     }
-
-    public List<TradeRequestResponse> getReceivedRequests(Long writerId) {
-        return tradeRequestRepository.findAllByPostWriterIdOrderByCreatedAtDesc(writerId)
-                .stream()
-                .filter(request -> !request.isHistoryHiddenFor(writerId))
-                .filter(this::isVisibleTradeRequest)
-                .map(this::toResponse)
-                .toList();
+    public List<TradeRequestResponse> getMyRequests(Long id){return responses(tradeRequestRepository.findAllByRequesterIdOrderByCreatedAtDesc(id).stream().filter(r->!r.isHistoryHiddenFor(id)).toList());}
+    public List<TradeRequestResponse> getReceivedRequests(Long id){return responses(tradeRequestRepository.findAllByPostWriterIdOrderByCreatedAtDesc(id).stream().filter(r->!r.isHistoryHiddenFor(id)).toList());}
+    public com.hjs.foodshare.global.response.PageResponse<TradeRequestResponse> historyPage(Long id,boolean received,int page,int size){
+        var request=org.springframework.data.domain.PageRequest.of(Math.max(0,page),Math.min(100,Math.max(1,size)));
+        var result=received?tradeRequestRepository.receivedPage(id,request):tradeRequestRepository.sentPage(id,request);
+        return new com.hjs.foodshare.global.response.PageResponse<>(responses(result.getContent()),result.getNumber(),result.getSize(),result.getTotalElements(),result.getTotalPages(),result.isFirst(),result.isLast());
     }
-
-    public List<TradeRequestResponse> getRequestsForPost(Long postId, Long writerId) {
-        Post post = getActivePost(postId);
-        if (!post.getWriter().getId().equals(writerId)) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "Only the post writer can view requests.");
-        }
-        return tradeRequestRepository.findAllByPostIdOrderByCreatedAtDesc(postId)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public List<TradeRequestResponse> getRequestsForPost(Long postId,Long writerId){
+        Post post=getActivePost(postId);if(!post.getWriter().getId().equals(writerId))throw new BusinessException(HttpStatus.FORBIDDEN,"작성자만 요청을 확인할 수 있습니다.");
+        return responses(tradeRequestRepository.findAllByPostIdOrderByCreatedAtDesc(postId));
+    }
+    private List<TradeRequestResponse> responses(List<TradeRequest> rows){
+        var stats=new java.util.HashMap<Long,long[]>();
+        java.util.function.Function<Long,long[]> get=id->stats.computeIfAbsent(id,k->new long[]{countShareCompleted(k),countSaleCompleted(k),countReceivedShare(k),countGroupBuyParticipation(k)});
+        return rows.stream().map(r->{var a=get.apply(r.getRequester().getId());var b=get.apply(r.getPost().getWriter().getId());
+            return TradeRequestResponse.from(r,a[0],a[1],a[2],a[3],b[0],b[1],b[2],b[3],chatService.findRoomIdByTradeRequestId(r.getId()));}).toList();
     }
 
     @Transactional
@@ -136,6 +130,9 @@ public class TradeRequestService {
         if (tradeRequest.getStatus() != TradeRequestStatus.PENDING)
             throw new BusinessException(HttpStatus.CONFLICT, "이미 처리된 요청입니다.");
         validateRequestablePost(tradeRequest.getPost());
+        if(!tradeRequest.getRequester().isAvailable())throw new BusinessException(HttpStatus.CONFLICT,"요청자의 계정이 이용 불가 상태입니다.");
+        validateNotBlocked(tradeRequest.getRequester().getId(), writerId);
+        if(tradeRequest.getPost().isOpenFridgePost())validateFridgeDistance(tradeRequest.getRequester(),tradeRequest.getPost().getWriter());
         tradeRequest.accept();
         ChatRoom chatRoom = applyAcceptedTradePolicy(tradeRequest);
         if (tradeRequest.getRequester().isNotificationTradeAccepted()) {
@@ -148,7 +145,7 @@ public class TradeRequestService {
                     tradeRequest.getId()
             );
         }
-        if (chatRoom != null) {
+        if (chatRoom != null && tradeRequest.getPost().getPostType() != PostType.GROUP_BUY) {
             notificationService.createNotification(
                 tradeRequest.getRequester().getId(),
                 "CHAT_ROOM_OPENED",
@@ -183,11 +180,20 @@ public class TradeRequestService {
         if (!isWriter && !isRequester) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Only trade participants can complete this request.");
         }
+        if(tradeRequest.getStatus()==TradeRequestStatus.COMPLETED)return toResponse(tradeRequest);
         if (tradeRequest.getStatus() != TradeRequestStatus.ACCEPTED) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Only accepted requests can be completed.");
         }
 
-        tradeRequest.complete();
+        if (tradeRequest.getPost().getPostType() == PostType.GROUP_BUY && tradeRequest.getPost().isOpen())
+            throw new BusinessException(HttpStatus.CONFLICT, "모집을 마감한 뒤 거래 완료를 확인해주세요.");
+        if((isWriter && tradeRequest.getWriterConfirmedAt()!=null) || (isRequester && tradeRequest.getRequesterConfirmedAt()!=null))return toResponse(tradeRequest);
+        boolean completed = tradeRequest.confirmCompletion(userId);
+        if (!completed) {
+            Long otherId = isWriter ? tradeRequest.getRequester().getId() : tradeRequest.getPost().getWriter().getId();
+            notificationService.createNotification(otherId,"TRADE_CONFIRMATION","거래 완료 확인 요청","상대가 거래 완료를 확인했습니다. 물품을 받은 뒤 완료를 확인해주세요.","TRADE_REQUEST",requestId);
+            return toResponse(tradeRequest);
+        }
         if (tradeRequest.getPost().getPostType() != PostType.GROUP_BUY) {
             tradeRequest.getPost().close();
         }
@@ -224,12 +230,14 @@ public class TradeRequestService {
         if (post.getTargetParticipantCount() == null || selectedRequests.size() + 1 > post.getTargetParticipantCount()) {
             throw new BusinessException(HttpStatus.CONFLICT, "참여 요청이 모집 정원을 초과했습니다. 거래 내역에서 참여자를 수락하거나 거절한 뒤 마감해주세요.");
         }
+        selectedRequests.forEach(request -> validateNotBlocked(request.getRequester().getId(), writerId));
         selectedRequests.stream()
                 .filter(request -> request.getStatus() == TradeRequestStatus.PENDING)
                 .forEach(TradeRequest::accept);
         post.updateParticipantCount(selectedRequests.size() + 1);
         post.close();
         ChatRoom chatRoom = chatService.openGroupRoomForTradeRequests(selectedRequests);
+        notifyRoomOpened(selectedRequests, chatRoom);
         return selectedRequests.stream()
                 .map(request -> toResponse(request, chatRoom.getId()))
                 .toList();
@@ -251,7 +259,8 @@ public class TradeRequestService {
     @Transactional
     public TradeRequestResponse cancelMarketTrade(Long requestId, Long userId, String reason) {
         TradeRequest request=lockTrade(requestId);
-        requireMarketTrade(request);
+        if (request.getExchangeDescription() != null)
+            throw new BusinessException(HttpStatus.CONFLICT,"맞교환 내역에서 취소해주세요.");
         boolean writer=request.getPost().getWriter().getId().equals(userId);
         boolean requester=request.getRequester().getId().equals(userId);
         if (!writer && !requester) throw new BusinessException(HttpStatus.FORBIDDEN, "거래 당사자만 취소할 수 있습니다.");
@@ -261,6 +270,11 @@ public class TradeRequestService {
         if (reason==null || !java.util.Set.of("생각이 바뀌었어요", "일정이 맞지 않아요", "연락이 닿지 않아요", "거래 조건이 달라요", "기타").contains(reason))
             throw new BusinessException(HttpStatus.BAD_REQUEST, "취소 사유를 선택해주세요.");
         request.cancel(userId,reason);
+        if (request.getPost().getPostType() == PostType.GROUP_BUY) {
+            var active = tradeRequestRepository.findAllByPostIdAndStatus(request.getPost().getId(),TradeRequestStatus.ACCEPTED);
+            request.getPost().updateParticipantCount(active.size()+tradeRequestRepository.findAllByPostIdAndStatus(request.getPost().getId(),TradeRequestStatus.COMPLETED).size()+1);
+            chatService.removeTradeParticipant(request.getId(), request.getRequester().getId());
+        }
         chatService.recordTradeCancellation(requestId,reason);
         Long otherId=writer?request.getRequester().getId():request.getPost().getWriter().getId();
         notificationService.createNotification(otherId,"TRADE_CANCELLED","거래 취소",
@@ -296,6 +310,11 @@ public class TradeRequestService {
     }
 
     private List<TradeRequestResponse> finishExpiredGroupBuy(Post post) {
+        for(var r:tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.ACCEPTED)){
+            if(userBlockRepository.blockedEitherWay(r.getRequester().getId(),post.getWriter().getId())||!r.getRequester().isAvailable()){
+                r.cancel(post.getWriter().getId(),"차단 또는 계정 상태 변경으로 참여 종료");notifyCancelled(r,"차단 또는 계정 상태 변경으로 공동구매 참여가 종료되었습니다.");
+            }
+        }
         var accepted = tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.ACCEPTED);
         tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.PENDING).forEach(request -> {
             request.reject();
@@ -330,7 +349,9 @@ public class TradeRequestService {
                 );
                 tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.PENDING)
                         .forEach(TradeRequest::reject);
-                return chatService.openGroupRoomForTradeRequests(acceptedRequests);
+                ChatRoom room = chatService.openGroupRoomForTradeRequests(acceptedRequests);
+                notifyRoomOpened(acceptedRequests, room);
+                return room;
             }
             return null;
         }
@@ -341,6 +362,37 @@ public class TradeRequestService {
                 .filter(request -> !request.getId().equals(acceptedRequest.getId()))
                 .forEach(TradeRequest::reject);
         return chatService.openRoomForTradeRequest(acceptedRequest);
+    }
+
+    private void notifyRoomOpened(List<TradeRequest> requests, ChatRoom room) {
+        var ids = new java.util.HashSet<Long>();
+        requests.forEach(r -> { ids.add(r.getRequester().getId()); ids.add(r.getPost().getWriter().getId()); });
+        ids.forEach(id -> notificationService.createNotification(id,"CHAT_ROOM_OPENED","채팅방 개설","거래 참여자 채팅방이 개설되었습니다.","CHAT_ROOM",room.getId()));
+    }
+
+    private void validateFridgeDistance(User a, User b) {
+        if (a.getLatitude()==null || a.getLongitude()==null || b.getLatitude()==null || b.getLongitude()==null)
+            throw new BusinessException(HttpStatus.BAD_REQUEST,"양쪽 모두 위치 설정이 필요합니다.");
+        double x=Math.toRadians(a.getLatitude()-b.getLatitude()), y=Math.toRadians(a.getLongitude()-b.getLongitude());
+        double h=Math.sin(x/2)*Math.sin(x/2)+Math.cos(Math.toRadians(a.getLatitude()))*Math.cos(Math.toRadians(b.getLatitude()))*Math.sin(y/2)*Math.sin(y/2);
+        if (6371*2*Math.asin(Math.sqrt(Math.min(1,h)))>5) throw new BusinessException(HttpStatus.FORBIDDEN,"5km 이내 이웃에게만 요청할 수 있습니다.");
+    }
+
+    @Transactional
+    public void cancelPostTrades(Long postId, Long writerId, String reason) {
+        Post post=getActivePost(postId);
+        if(reason==null || !java.util.Set.of("생각이 바뀌었어요","일정이 맞지 않아요","연락이 닿지 않아요","거래 조건이 달라요","기타").contains(reason))throw new BusinessException(HttpStatus.BAD_REQUEST,"취소 사유를 선택해주세요.");
+        entityManager.refresh(post,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (!post.getWriter().getId().equals(writerId)) throw new BusinessException(HttpStatus.FORBIDDEN,"작성자만 전체 취소할 수 있습니다.");
+        for (TradeRequest request:tradeRequestRepository.findAllByPostIdOrderByCreatedAtDesc(postId)) {
+            if (request.getStatus()==TradeRequestStatus.PENDING) { request.cancel(writerId,reason); notifyCancelled(request,reason); }
+            else if (request.getStatus()==TradeRequestStatus.ACCEPTED) cancelMarketTrade(request.getId(),writerId,reason);
+        }
+        post.close();
+    }
+
+    private void notifyCancelled(TradeRequest request,String reason) {
+        notificationService.createNotification(request.getRequester().getId(),"TRADE_CANCELLED","거래 요청 종료",reason,"TRADE_REQUEST",request.getId());
     }
 
     private boolean isGroupBuyFull(Post post) {
@@ -377,7 +429,7 @@ public class TradeRequestService {
     }
 
     private boolean isVisibleTradeRequest(TradeRequest tradeRequest) {
-        return !tradeRequest.getPost().isDeleted();
+        return true;
     }
 
     private TradeRequestResponse toResponse(TradeRequest tradeRequest, Long chatRoomId) {
@@ -430,16 +482,17 @@ public class TradeRequestService {
     }
 
     private void validateRequestablePost(Post post) {
-        if (!post.isOpen()) {
+        if (!post.isOpen() || post.getExpirationDate().isBefore(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")))) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Post is closed.");
         }
+        if (!post.getWriter().isAvailable()) throw new BusinessException(HttpStatus.CONFLICT,"이용할 수 없는 작성자입니다.");
         if (post.getPostType() == PostType.GROUP_BUY) {
             validateGroupBuyRequestable(post);
         }
     }
 
     private void validateNotBlocked(Long requesterId, Long writerId) {
-        if (userBlockRepository.existsByBlockerIdAndBlockedUserId(writerId, requesterId)) {
+        if (userBlockRepository.blockedEitherWay(writerId, requesterId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Blocked users cannot request this post.");
         }
     }

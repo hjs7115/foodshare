@@ -20,6 +20,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 @Component
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
+    @org.springframework.beans.factory.annotation.Autowired(required=false) private com.hjs.foodshare.auth.service.SessionAccessService access;
     private static final String USER_ID_ATTRIBUTE = "userId";
     private static final String ROOM_ID_ATTRIBUTE = "roomId";
 
@@ -44,6 +45,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
 
         AuthUser authUser = jwtTokenProvider.parseAuthUser(token);
+        if(access!=null)access.requireActive(authUser);
         session.getAttributes().put(USER_ID_ATTRIBUTE, authUser.userId());
         userSessions.computeIfAbsent(authUser.userId(), key -> ConcurrentHashMap.newKeySet()).add(session);
         send(session, Map.of("type", "CONNECTED"));
@@ -51,6 +53,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        AuthUser active=jwtTokenProvider.parseAuthUser(queryParam(session.getUri(),"token"));
+        if(access!=null)access.requireActive(active);
         WebSocketChatMessage payload = objectMapper.readValue(message.getPayload(), WebSocketChatMessage.class);
         Long userId = (Long) session.getAttributes().get(USER_ID_ATTRIBUTE);
 
@@ -74,7 +78,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         if ("READ".equalsIgnoreCase(payload.type())) {
             Long roomId = currentRoomId(session, payload.roomId());
             chatService.markAsRead(userId, roomId);
-            broadcast(roomId, Map.of("type", "READ", "roomId", roomId, "readerId", userId));
+            publishRead(userId,roomId);
         }
     }
 
@@ -148,6 +152,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             }
 
             Long sessionUserId = (Long) session.getAttributes().get(USER_ID_ATTRIBUTE);
+            if(!chatService.canReceiveFrom(sessionUserId,senderId))continue;
             ChatMessageResponse sessionResponse = responseForUser(response, sessionUserId, senderId, receiverId);
             send(session, Map.of("type", "MESSAGE", "roomId", roomId, "message", sessionResponse));
         }
@@ -172,7 +177,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             Long receiverId
     ) {
         boolean mine = response.senderId() != null && response.senderId().equals(currentUserId);
-        boolean unreadByPartner = mine && receiverId != null && !receiverId.equals(senderId);
+        boolean unreadByPartner = mine && response.unreadCount()>0;
 
         return new ChatMessageResponse(
                 response.messageId(),
@@ -184,7 +189,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 response.systemMessage(),
                 mine,
                 unreadByPartner,
-                response.createdAt()
+                response.createdAt(), mine?response.unreadCount():0,response.clientMessageId()
         );
     }
 
@@ -203,9 +208,35 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    public void publishSavedMessage(Long senderId,ChatMessageResponse response){
+        try{Long roomId=response.chatRoomId();broadcastMessage(roomId,response,senderId,chatService.findPartnerId(senderId,roomId));
+            for(Long id:chatService.notificationRecipientIds(senderId,roomId))sendNotificationToUser(id,roomId,response);
+        }catch(Exception e){org.slf4j.LoggerFactory.getLogger(getClass()).debug("Live message delivery deferred to history refresh");}
+    }
+    public void publishRead(Long userId,Long roomId){
+        if(!chatService.showsReadReceipt(userId))return;
+        try{broadcast(roomId,Map.of("type","READ","roomId",roomId,"readerId",userId,"throughMessageId",chatService.readCursor(userId,roomId)));}
+        catch(Exception e){org.slf4j.LoggerFactory.getLogger(getClass()).debug("Live read delivery deferred");}
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay=30000)
+    public void closeExpiredSessions(){
+        for(var group:userSessions.values())for(var session:group)try{
+            var principal=jwtTokenProvider.parseAuthUser(queryParam(session.getUri(),"token"));
+            if(access!=null)access.requireActive(principal);
+        }catch(Exception e){try{session.close(CloseStatus.POLICY_VIOLATION);}catch(java.io.IOException ignored){}afterConnectionClosed(session,CloseStatus.POLICY_VIOLATION);}
+    }
+
     private void send(WebSocketSession session, Map<String, Object> payload) throws Exception {
         synchronized (session) {
             if (!session.isOpen()) return;
+            try {
+                var principal=jwtTokenProvider.parseAuthUser(queryParam(session.getUri(),"token"));
+                if(access!=null)access.requireActive(principal);
+            } catch(com.hjs.foodshare.global.exception.BusinessException e) {
+                try{session.close(CloseStatus.POLICY_VIOLATION);}finally{afterConnectionClosed(session,CloseStatus.POLICY_VIOLATION);}
+                return;
+            }
             try { session.sendMessage(new TextMessage(objectMapper.writeValueAsString(payload))); }
             catch (java.io.IOException | IllegalStateException e) {
                 afterConnectionClosed(session, CloseStatus.SERVER_ERROR);

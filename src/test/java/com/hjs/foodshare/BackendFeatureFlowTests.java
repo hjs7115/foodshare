@@ -163,6 +163,7 @@ class BackendFeatureFlowTests {
         Long requestId = tradeRequestService.createRequest(postId, requester.getId()).requestId();
         tradeRequestService.accept(requestId, writer.getId());
         tradeRequestService.complete(requestId, writer.getId());
+        tradeRequestService.complete(requestId,requester.getId());
 
         assertEquals(1, myPageService.getMyPage(writer.getId()).groupBuyParticipationCount());
         assertEquals(1, myPageService.getMyPage(requester.getId()).groupBuyParticipationCount());
@@ -246,7 +247,7 @@ class BackendFeatureFlowTests {
     }
 
     @Test
-    void tradeHistoryDoesNotReturnRequestsForDeletedPosts() {
+    void deletedPostEndsPendingRequestsAndPreservesHistory() {
         User writer = saveUser("deleted_history_writer");
         User requester = saveUser("deleted_history_requester");
         Long postId = postService.createPost(writer.getId(), shareRequest("Deleted history apples")).postId();
@@ -254,8 +255,9 @@ class BackendFeatureFlowTests {
         tradeRequestService.createRequest(postId, requester.getId());
         postService.deletePost(postId, writer.getId());
 
-        assertEquals(0, tradeRequestService.getMyRequests(requester.getId()).size());
-        assertEquals(0, tradeRequestService.getReceivedRequests(writer.getId()).size());
+        assertEquals(1, tradeRequestService.getMyRequests(requester.getId()).size());
+        assertEquals(com.hjs.foodshare.trade.domain.TradeRequestStatus.REJECTED,tradeRequestService.getMyRequests(requester.getId()).getFirst().status());
+        assertEquals(1, tradeRequestService.getReceivedRequests(writer.getId()).size());
     }
 
     @Test

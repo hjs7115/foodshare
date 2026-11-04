@@ -25,6 +25,11 @@ public class ImageUploadService {
     @Transactional
     public ImageUploadResponse upload(MultipartFile file, Long ownerId) {
         if (ownerId == null) throw new BusinessException(HttpStatus.UNAUTHORIZED, "다시 로그인해주세요.");
+        var user=em.find(com.hjs.foodshare.user.domain.User.class,ownerId,LockModeType.PESSIMISTIC_WRITE);
+        if(user==null||!user.isAvailable())throw new BusinessException(HttpStatus.UNAUTHORIZED,"다시 로그인해주세요.");
+        long total=em.createQuery("select count(i) from UploadedImage i where i.ownerId=:id",Long.class).setParameter("id",ownerId).getSingleResult();
+        long recent=em.createQuery("select count(i) from UploadedImage i where i.ownerId=:id and i.createdAt>:since",Long.class).setParameter("id",ownerId).setParameter("since",java.time.LocalDateTime.now().minusDays(1)).getSingleResult();
+        if(total>=500||recent>=50)throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS,"사진은 하루 50장, 계정당 보관 500장까지 올릴 수 있어요. 사용하지 않는 사진은 자동 정리됩니다.");
         if (file == null || file.isEmpty() || file.getSize() > 10 * 1024 * 1024) throw invalid();
         Path target = null;
         try (var input = new MemoryCacheImageInputStream(file.getInputStream())) {
@@ -61,7 +66,11 @@ public class ImageUploadService {
                 params.setCompressionMode(ImageWriteParam.MODE_EXPLICIT); params.setCompressionQuality(0.85f);
                 writer.write(null, new IIOImage(clean, null, null), params);
             } finally { writer.dispose(); }
-            em.persist(new UploadedImage(filename, ownerId)); em.flush();
+            final Path written=target;
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization(){
+                @Override public void afterCompletion(int status){if(status!=STATUS_COMMITTED)try{Files.deleteIfExists(written);}catch(IOException ignored){}}
+            });
+            var tracked=new UploadedImage(filename,ownerId);tracked.setFingerprint(ImageFingerprint.of(file));em.persist(tracked);em.flush();
             return new ImageUploadResponse("/uploads/" + filename, file.getOriginalFilename(), Files.size(target));
         } catch (IOException | IllegalArgumentException e) {
             if (target != null) try { Files.deleteIfExists(target); } catch (IOException ignored) {}
@@ -71,11 +80,26 @@ public class ImageUploadService {
     public void requireOwned(String url, Long userId, String unchangedUrl) {
         if (url == null || url.isBlank() || Objects.equals(url, unchangedUrl)) return;
         if (!url.matches("/uploads/[a-f0-9-]{36}\\.jpg")) throw new BusinessException(HttpStatus.BAD_REQUEST, "사진을 다시 업로드해주세요.");
-        var image = em.find(UploadedImage.class, url.substring("/uploads/".length()));
+        var image = em.find(UploadedImage.class, url.substring("/uploads/".length()),LockModeType.PESSIMISTIC_READ);
         if (image == null || !image.getOwnerId().equals(userId)) throw new BusinessException(HttpStatus.FORBIDDEN, "내가 업로드한 사진만 사용할 수 있어요.");
     }
     public void deleteIfLocalUpload(String imageUrl) {
-        // Legacy posts/profiles can share URLs. Only an offline reference-aware cleanup may delete files.
+        // Reference-aware scheduled cleanup reclaims unused files after a two-day grace period.
+    }
+    @org.springframework.scheduling.annotation.Scheduled(cron="0 30 3 * * *",zone="Asia/Seoul")
+    @Transactional
+    public void cleanUnusedImages(){
+        var old=em.createQuery("select i from UploadedImage i where i.createdAt<:cutoff order by coalesce(i.checkedAt,i.createdAt),i.filename",UploadedImage.class).setParameter("cutoff",java.time.LocalDateTime.now().minusDays(2)).setMaxResults(1000).getResultList();
+        for(var img:old){
+            em.refresh(img,LockModeType.PESSIMISTIC_WRITE);img.checked();
+            String url="/uploads/"+img.getFilename();
+            if(!img.getFilename().matches("[a-f0-9-]{36}\\.jpg"))continue;
+            long references=em.createQuery("select count(p) from Post p where p.imageUrl=:url",Long.class).setParameter("url",url).getSingleResult()
+                +em.createQuery("select count(u) from User u where u.profileImage=:url or u.profileImage like :suffix",Long.class).setParameter("url",url).setParameter("suffix","%"+url).getSingleResult()
+                +em.createQuery("select count(f) from FridgeItem f where f.imageUrl=:url",Long.class).setParameter("url",url).getSingleResult()
+                +em.createQuery("select count(m) from ChatMessage m where m.content like :url",Long.class).setParameter("url","%"+url+"%").getSingleResult();
+            if(references==0){Path candidate=uploadPath.resolve(img.getFilename()).normalize();if(!candidate.getParent().equals(uploadPath))continue;try{Files.deleteIfExists(candidate);em.remove(img);}catch(IOException ignored){}}
+        }
     }
     private BusinessException invalid() { return new BusinessException(HttpStatus.BAD_REQUEST, "10MB 이하의 JPEG·PNG·WebP·GIF 사진을 선택해주세요. 사진 크기는 4천만 화소 이하로 올려주세요."); }
 }

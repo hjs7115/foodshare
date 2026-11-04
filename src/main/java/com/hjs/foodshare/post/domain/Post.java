@@ -57,6 +57,9 @@ public class Post {
 
     @Column(nullable = false)
     private Integer price;
+    private Boolean priceNegotiable;
+    public void setPriceNegotiable(boolean value){priceNegotiable=value;}
+    public boolean isPriceNegotiable(){return Boolean.TRUE.equals(priceNegotiable);}
 
     @Column(nullable = false, length = 100)
     private String tradeLocation;
@@ -211,6 +214,8 @@ public class Post {
         this.targetParticipantCount = targetParticipantCount;
         this.deadlineDate = deadlineDate;
     }
+
+    public void clearAnalysis() { ingredientAnalysis = null; }
 
     public void delete() {
         this.deleted = true;

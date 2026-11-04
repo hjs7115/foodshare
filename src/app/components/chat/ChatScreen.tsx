@@ -1,4 +1,4 @@
-import {type ChatMessage,applyReadReceipt,mergeMessages,mergeMessageList,hasEquivalentMessage,areMessageListsEqual} from '../../utils/chatMessages';
+import {type ChatMessage,createClientMessageId,applyReadReceipt,mergeMessages,mergeMessageList,hasEquivalentMessage,areMessageListsEqual} from '../../utils/chatMessages';
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Ban, Bell, BellOff, Camera, ChevronDown, ChevronUp, File as FileIcon, Flag, Image as ImageIcon, Leaf, Loader2, MapPin, MessageCircle, MoreVertical, Pencil, Pin, Plus, Search, Send, ShoppingCart, Snowflake, Trash2, User, X, type LucideIcon } from 'lucide-react';
 import { API_ENDPOINTS, WS_BASE_URL, apiRequest, blockUser, createReport, getNotifications, getNotificationUnreadCount, resolveImageUrl, uploadImage } from '../../api/config';
@@ -352,13 +352,14 @@ export default function ChatScreen({
     setIsMessagesLoading(true);
     try {
       await loadMessages(room, { markRead: true, replace: true });
+      if(activeRoomIdRef.current!==room.chatRoomId)return;
       setRooms((prev) => prev.map((item) => item.chatRoomId === room.chatRoomId ? { ...item, unreadCount: 0 } : item));
       onChatUnreadChange?.(Math.max(0, chatUnreadCount - room.unreadCount));
     } catch (error) {
       console.warn('채팅 메시지 조회 실패', error);
-      setMessages([]);
+      if(activeRoomIdRef.current===room.chatRoomId)setMessages([]);
     } finally {
-      setIsMessagesLoading(false);
+      if(activeRoomIdRef.current===room.chatRoomId)setIsMessagesLoading(false);
     }
   };
 
@@ -419,7 +420,7 @@ export default function ChatScreen({
     const room=selectedRoom,content=rawContent.trim();
     if(content.length>1000){showToast('메시지는 1000자 이내로 입력해주세요.');if(options.restoreInputOnFail)setMessageText(content);return false;}
     const previous=failedSendRef.current;
-    const clientId=previous?.roomId===room.chatRoomId&&previous.content===content?previous.clientId:crypto.randomUUID();
+    const clientId=previous?.roomId===room.chatRoomId&&previous.content===content?previous.clientId:createClientMessageId();
     try{
       const response=await apiRequest(API_ENDPOINTS.chatMessages(room.chatRoomId),{method:'POST',body:JSON.stringify({content,clientMessageId:clientId})});
       failedSendRef.current=null;

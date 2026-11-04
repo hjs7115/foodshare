@@ -35,7 +35,7 @@ public class ExpiringPostNotificationService {
     @Transactional
     public void notifyExpiringPosts() {
         LocalDate today = LocalDate.now();
-        closeExpiredGroupBuys(LocalDateTime.now());
+
 
         postRepository.findAllByDeletedFalseAndStatusAndExpirationDateBetween(
                         PostStatus.OPEN,
@@ -43,13 +43,6 @@ public class ExpiringPostNotificationService {
                         today.plusDays(3)
                 )
                 .forEach(this::notifyExpiringPostOnce);
-    }
-
-    private void closeExpiredGroupBuys(LocalDateTime now) {
-        postRepository.findAllByDeletedFalseAndStatusAndDeadlineDateBefore(PostStatus.OPEN, now)
-                .stream()
-                .filter(post -> post.getPostType() == PostType.GROUP_BUY)
-                .forEach(Post::close);
     }
 
     private void notifyExpiringPostOnce(Post post) {

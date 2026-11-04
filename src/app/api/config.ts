@@ -142,9 +142,12 @@ export const API_ENDPOINTS = {
 
 // 게시글 필터링 파라미터 타입
 export type PostType = 'SHARE' | 'SALE' | 'BUY' | 'GROUP_BUY';
-export type SortType = 'LATEST' | 'EXPIRING_SOON' | 'DISTANCE' | 'FRESHNESS' | 'PRICE_LOW';
+export type SortType = 'LATEST' | 'EXPIRING_SOON' | 'DISTANCE' | 'FRESHNESS' | 'PRICE_LOW' | 'DEADLINE' | 'PARTICIPATION';
 
 export interface PostQueryParams {
+  page?: number;
+  size?: number;
+  marketOnly?: boolean;
   postType?: PostType;
   keyword?: string;
   sort?: SortType;
@@ -165,8 +168,12 @@ export function buildPostsUrl(params?: PostQueryParams): string {
   if (params.lng !== undefined) searchParams.append('lng', String(params.lng));
   if (params.radiusKm !== undefined) searchParams.append('radiusKm', String(params.radiusKm));
 
+  if (params.page !== undefined) searchParams.set('page', String(params.page));
+  if (params.size !== undefined) searchParams.set('size', String(params.size));
+  if (params.marketOnly) searchParams.set('marketOnly', 'true');
+  const base = params.page !== undefined ? `${API_ENDPOINTS.posts}/page` : API_ENDPOINTS.posts;
   const queryString = searchParams.toString();
-  return queryString ? `${API_ENDPOINTS.posts}?${queryString}` : API_ENDPOINTS.posts;
+  return queryString ? `${base}?${queryString}` : base;
 }
 
 function isPublicAuthEndpoint(url: string): boolean {

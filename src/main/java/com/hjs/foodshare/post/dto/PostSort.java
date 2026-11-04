@@ -7,7 +7,7 @@ public enum PostSort {
     EXPIRING_SOON,
     FRESHNESS,
     DISTANCE,
-    PRICE_LOW;
+    PRICE_LOW, DEADLINE, PARTICIPATION;
 
     public static PostSort from(String value) {
         if (value == null || value.isBlank()) {
@@ -19,8 +19,10 @@ public enum PostSort {
                 .toUpperCase(Locale.ROOT);
 
         return switch (normalized) {
+            case "DEADLINE" -> DEADLINE;
+            case "PARTICIPATION" -> PARTICIPATION;
             case "LATEST", "LATEST_FIRST", "RECENT", "NEWEST" -> LATEST;
-            case "EXPIRING_SOON", "EXPIRY", "DEADLINE", "EXPIRATION" -> EXPIRING_SOON;
+            case "EXPIRING_SOON", "EXPIRY", "EXPIRATION" -> EXPIRING_SOON;
             case "FRESHNESS", "FRESHNESS_HIGH", "RATING", "RATING_HIGH" -> FRESHNESS;
             case "DISTANCE", "NEAREST", "NEAR" -> DISTANCE;
             case "PRICE_LOW", "PRICE", "LOW_PRICE", "PRICE_ASC" -> PRICE_LOW;

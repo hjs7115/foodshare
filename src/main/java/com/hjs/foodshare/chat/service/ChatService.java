@@ -264,6 +264,17 @@ public class ChatService {
                 tradeRequestRepository.countDistinctPostsByRequesterOrWriterAndPostTypeAndStatus(targetId, PostType.GROUP_BUY, TradeRequestStatus.COMPLETED));
     }
 
+    public List<Long> notificationRecipientIds(Long senderId, Long roomId) {
+        ChatRoom room = getParticipantRoom(senderId, roomId);
+        var members = chatRoomMemberRepository.findAllByChatRoom(room);
+        if (members.isEmpty()) {
+            User receiver = partner(room, senderId);
+            return receiver.getId().equals(senderId) || room.isMutedFor(receiver.getId()) ? List.of() : List.of(receiver.getId());
+        }
+        return members.stream().filter(ChatRoomMember::isActive).filter(member -> !member.isMuted())
+                .map(member -> member.getUser().getId()).filter(id -> !id.equals(senderId)).distinct().toList();
+    }
+
     public Long findPartnerId(Long userId, Long roomId) {
         return partner(getParticipantRoom(userId, roomId), userId).getId();
     }

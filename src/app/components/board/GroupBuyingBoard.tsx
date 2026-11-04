@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { Bell, ArrowUpDown, MapPin, MessageCircle, Snowflake, Leaf, User, ShoppingCart } from 'lucide-react';
 import CreatePostScreen from './CreatePostScreen';
 import BoardSwitchModal from './BoardSwitchModal';
@@ -49,6 +49,10 @@ export default function GroupBuyingBoard({
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
   const [groupItems, setGroupItems] = useState<GroupItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [nextPage, setNextPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const requestVersion = useRef(0);
   const [location, setLocation] = useState('위치 미정');
   const [sortType, setSortType] = useState<GroupSortType>('latest');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -64,22 +68,11 @@ export default function GroupBuyingBoard({
     loadUnreadNotifications();
   }, []);
 
-  // 서버에서 게시글 목록 불러오기
-  useEffect(() => {
-    loadPosts();
-  }, []);
-
-  // 정렬 타입 변경 시 재정렬
-  useEffect(() => {
-    if (groupItems.length > 0) {
-      setGroupItems(sortPosts(groupItems));
-    }
-  }, [sortType]);
 
   // 반경 필터 변경 시 새로고침
   useEffect(() => {
     loadPosts();
-  }, [radiusKm]);
+  }, [radiusKm, sortType]);
 
   useEffect(() => {
     const changed = () => { loadLocation(); void loadPosts(); };
@@ -145,13 +138,19 @@ export default function GroupBuyingBoard({
     return params;
   };
 
-  const loadPosts = async () => {
+  const loadPosts = async (page = 0) => {
+    const version = ++requestVersion.current;
     setIsLoading(true);
+    setLoadError(false);
 
     try {
-      const queryParams = getPostQueryParams();
+      const queryParams: any = { ...getPostQueryParams(), page, size: 20, postType: 'GROUP_BUY', sort: {latest:'LATEST',deadline:'DEADLINE',rating:'FRESHNESS',distance:'DISTANCE',participation:'PARTICIPATION'}[sortType] };
       const response = await apiRequest(buildPostsUrl(queryParams), { method: 'GET' });
-      const serverPosts = response.posts || response.data?.posts || response.data || response || [];
+      if (version !== requestVersion.current) return;
+      const pageData = response.data || response;
+      const serverPosts = pageData.content || [];
+      setHasMore(!pageData.last);
+      setNextPage(page + 1);
       const allPosts = Array.isArray(serverPosts) ? serverPosts : [];
 
       let filteredPosts = allPosts
@@ -181,13 +180,12 @@ export default function GroupBuyingBoard({
       if (queryParams.lat !== undefined && queryParams.lng !== undefined) {
         filteredPosts = filteredPosts.filter((post: any) => post.distanceValue <= radiusKm);
       }
-      filteredPosts = sortPosts(filteredPosts);
-      setGroupItems(filteredPosts);
+      setGroupItems(previous => page === 0 ? filteredPosts : [...previous, ...filteredPosts.filter((post: any) => !previous.some(item => item.id === post.id))]);
     } catch (error) {
       console.warn('공동구매 게시글 서버 조회에 실패했습니다.', error);
-      setGroupItems([]);
+      if (version === requestVersion.current) { setLoadError(true); if (page === 0) { setGroupItems([]); setNextPage(0); setHasMore(false); } }
     } finally {
-      setIsLoading(false);
+      if (version === requestVersion.current) setIsLoading(false);
     }
   };
   const sortPosts = (posts: GroupItem[]) => {
@@ -513,6 +511,12 @@ export default function GroupBuyingBoard({
           </div>
         )}
       </div>
+
+      {(hasMore || loadError || isLoading) && <div className="px-5 pb-28 text-center">
+        <button disabled={isLoading} onClick={() => loadPosts(loadError && !groupItems.length ? 0 : nextPage)} className="rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm disabled:opacity-50">
+          {isLoading ? '불러오는 중…' : loadError ? '다시 불러오기' : '더 보기'}
+        </button>
+      </div>}
 
       <button
         onClick={() => setShowCreatePost(true)}

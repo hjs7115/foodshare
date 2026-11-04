@@ -11,6 +11,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface PostRepository extends JpaRepository<Post, Long> {
+    @Query("select p.id from Post p where p.deleted=false and p.status=com.hjs.foodshare.post.domain.PostStatus.OPEN and p.postType=com.hjs.foodshare.post.domain.PostType.GROUP_BUY and p.deadlineDate<=:now")
+    List<Long> findExpiredGroupBuyIds(@Param("now") LocalDateTime now);
+
 
     List<Post> findAllByDeletedFalseAndStatusOrderByCreatedAtDesc(PostStatus status);
 

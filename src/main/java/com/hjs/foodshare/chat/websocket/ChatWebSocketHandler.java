@@ -65,7 +65,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             ChatMessageResponse response = chatService.sendMessage(userId, roomId, payload.content());
             Long receiverId = chatService.findPartnerId(userId, roomId);
             broadcastMessage(roomId, response, userId, receiverId);
-            sendNotificationToUser(receiverId, roomId, response);
+            for (Long recipientId : chatService.notificationRecipientIds(userId, roomId)) {
+                sendNotificationToUser(recipientId, roomId, response);
+            }
             return;
         }
 
@@ -131,7 +133,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         for (WebSocketSession session : sessions) {
             if (session.isOpen() && chatService.canAccessRoom(
                     (Long) session.getAttributes().get(USER_ID_ATTRIBUTE), roomId)) {
-                session.sendMessage(new TextMessage(json));
+                send(session, payload);
             }
         }
     }
@@ -196,13 +198,19 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         String json = objectMapper.writeValueAsString(payload);
         for (WebSocketSession session : sessions) {
             if (session.isOpen()) {
-                session.sendMessage(new TextMessage(json));
+                send(session, payload);
             }
         }
     }
 
     private void send(WebSocketSession session, Map<String, Object> payload) throws Exception {
-        session.sendMessage(new TextMessage(objectMapper.writeValueAsString(payload)));
+        synchronized (session) {
+            if (!session.isOpen()) return;
+            try { session.sendMessage(new TextMessage(objectMapper.writeValueAsString(payload))); }
+            catch (java.io.IOException | IllegalStateException e) {
+                afterConnectionClosed(session, CloseStatus.SERVER_ERROR);
+            }
+        }
     }
 
     private String queryParam(URI uri, String key) {

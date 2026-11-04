@@ -132,6 +132,9 @@ public class TradeRequestService {
         }
         entityManager.flush();
         entityManager.refresh(tradeRequest.getPost(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(tradeRequest);
+        if (tradeRequest.getStatus() != TradeRequestStatus.PENDING)
+            throw new BusinessException(HttpStatus.CONFLICT, "이미 처리된 요청입니다.");
         validateRequestablePost(tradeRequest.getPost());
         tradeRequest.accept();
         ChatRoom chatRoom = applyAcceptedTradePolicy(tradeRequest);
@@ -161,6 +164,8 @@ public class TradeRequestService {
     @Transactional
     public TradeRequestResponse reject(Long requestId, Long writerId) {
         TradeRequest tradeRequest = getRequestForWriter(requestId, writerId);
+        entityManager.refresh(tradeRequest.getPost(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(tradeRequest);
         if (tradeRequest.getStatus() != TradeRequestStatus.PENDING) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Only pending requests can be rejected.");
         }
@@ -199,7 +204,13 @@ public class TradeRequestService {
         if (post.getPostType() != PostType.GROUP_BUY) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Only group buy posts can close recruitment.");
         }
-        validateGroupBuyDeadline(post);
+        entityManager.refresh(post, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (post.getStatus() != com.hjs.foodshare.post.domain.PostStatus.OPEN) {
+            throw new BusinessException(HttpStatus.CONFLICT, "이미 모집이 마감되었습니다.");
+        }
+        if (post.getDeadlineDate() != null && !post.getDeadlineDate().isAfter(LocalDateTime.now())) {
+            return finishExpiredGroupBuy(post);
+        }
 
         List<TradeRequest> selectedRequests = tradeRequestRepository.findAllByPostIdOrderByCreatedAtDesc(postId)
                 .stream()
@@ -210,6 +221,9 @@ public class TradeRequestService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "No group buy participants are waiting.");
         }
 
+        if (post.getTargetParticipantCount() == null || selectedRequests.size() + 1 > post.getTargetParticipantCount()) {
+            throw new BusinessException(HttpStatus.CONFLICT, "참여 요청이 모집 정원을 초과했습니다. 거래 내역에서 참여자를 수락하거나 거절한 뒤 마감해주세요.");
+        }
         selectedRequests.stream()
                 .filter(request -> request.getStatus() == TradeRequestStatus.PENDING)
                 .forEach(TradeRequest::accept);
@@ -219,6 +233,38 @@ public class TradeRequestService {
         return selectedRequests.stream()
                 .map(request -> toResponse(request, chatRoom.getId()))
                 .toList();
+    }
+
+    @Transactional
+    public void expireGroupBuy(Long postId) {
+        Post post = entityManager.find(Post.class, postId, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (post == null || post.isDeleted() || post.getPostType() != PostType.GROUP_BUY
+                || post.getStatus() != com.hjs.foodshare.post.domain.PostStatus.OPEN
+                || post.getDeadlineDate() == null || post.getDeadlineDate().isAfter(LocalDateTime.now())) return;
+        finishExpiredGroupBuy(post);
+    }
+
+    private List<TradeRequestResponse> finishExpiredGroupBuy(Post post) {
+        var accepted = tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.ACCEPTED);
+        tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.PENDING).forEach(request -> {
+            request.reject();
+            notificationService.createNotification(request.getRequester().getId(), "GROUP_BUY_CLOSED",
+                    "공동구매 모집 종료", "'" + post.getTitle() + "' 모집이 마감되어 미수락 요청이 종료되었습니다.", "TRADE_REQUEST", request.getId());
+        });
+        post.updateParticipantCount(accepted.size() + 1);
+        post.close();
+        if (accepted.isEmpty()) {
+            notificationService.createNotification(post.getWriter().getId(), "GROUP_BUY_CLOSED",
+                    "공동구매 모집 종료", "'" + post.getTitle() + "' 모집이 참여 확정 없이 종료되었습니다.", "POST", post.getId());
+            return List.of();
+        }
+        ChatRoom room = chatService.openGroupRoomForTradeRequests(accepted);
+        var members = new java.util.HashSet<Long>();
+        members.add(post.getWriter().getId());
+        accepted.forEach(request -> members.add(request.getRequester().getId()));
+        members.forEach(id -> notificationService.createNotification(id, "CHAT_ROOM_OPENED", "공동구매 모집 마감",
+                "'" + post.getTitle() + "'의 수락된 참여자들과 채팅방이 개설되었습니다.", "CHAT_ROOM", room.getId()));
+        return accepted.stream().map(request -> toResponse(request, room.getId())).toList();
     }
 
     private ChatRoom applyAcceptedTradePolicy(TradeRequest acceptedRequest) {

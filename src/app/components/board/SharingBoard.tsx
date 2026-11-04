@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { Bell, ArrowUpDown, MapPin, MessageCircle, Heart, Snowflake, ShoppingCart, User, Leaf } from 'lucide-react';
 import CreatePostScreen from './CreatePostScreen';
 import BoardSwitchModal from './BoardSwitchModal';
@@ -65,6 +65,10 @@ export default function SharingBoard({
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [nextPage, setNextPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const requestVersion = useRef(0);
   const [location, setLocation] = useState('위치 미정');
   const [sortType, setSortType] = useState<SortType>('latest');
   const [tradeType, setTradeType] = useState<TradeType>('ALL');
@@ -89,17 +93,10 @@ export default function SharingBoard({
   }, []);
 
   // 서버에서 게시글 목록 불러오기
-  // 정렬 타입 변경 시 재정렬
-  useEffect(() => {
-    if (foodItems.length > 0) {
-      setFoodItems(sortPosts(foodItems));
-    }
-  }, [sortType]);
-
   // 반경 필터 변경 시 새로고침
   useEffect(() => {
     loadPosts();
-  }, [radiusKm, tradeType]);
+  }, [radiusKm, tradeType, sortType]);
 
   useEffect(() => {
     const changed = () => { loadLocation(); void loadPosts(); };
@@ -165,13 +162,19 @@ export default function SharingBoard({
     return params;
   };
 
-  const loadPosts = async () => {
+  const loadPosts = async (page = 0) => {
+    const version = ++requestVersion.current;
     setIsLoading(true);
+    setLoadError(false);
 
     try {
-      const queryParams = getPostQueryParams();
+      const queryParams: any = { ...getPostQueryParams(), page, size: 20, marketOnly: true, postType: tradeType === 'ALL' ? undefined : tradeType, sort: {latest:'LATEST',expiry:'EXPIRING_SOON',rating:'FRESHNESS',distance:'DISTANCE',price:'PRICE_LOW'}[sortType] };
       const response = await apiRequest(buildPostsUrl(queryParams), { method: 'GET' });
-      const serverPosts = response.posts || response.data?.posts || response.data || response || [];
+      if (version !== requestVersion.current) return;
+      const pageData = response.data || response;
+      const serverPosts = pageData.content || [];
+      setHasMore(!pageData.last);
+      setNextPage(page + 1);
       const allPosts = Array.isArray(serverPosts) ? serverPosts : [];
 
       let filteredPosts = allPosts
@@ -210,13 +213,12 @@ export default function SharingBoard({
       if (queryParams.lat !== undefined && queryParams.lng !== undefined) {
         filteredPosts = filteredPosts.filter((post: any) => post.distanceValue <= radiusKm);
       }
-      filteredPosts = sortPosts(filteredPosts);
-      setFoodItems(filteredPosts);
+      setFoodItems(previous => page === 0 ? filteredPosts : [...previous, ...filteredPosts.filter((post: any) => !previous.some(item => item.id === post.id))]);
     } catch (error) {
       console.warn('게시글 서버 조회에 실패했습니다.', error);
-      setFoodItems([]);
+      if (version === requestVersion.current) { setLoadError(true); if (page === 0) { setFoodItems([]); setNextPage(0); setHasMore(false); } }
     } finally {
-      setIsLoading(false);
+      if (version === requestVersion.current) setIsLoading(false);
     }
   };
   const sortPosts = (posts: any[]) => {
@@ -662,6 +664,12 @@ export default function SharingBoard({
           </div>
         )}
       </div>
+
+      {(hasMore || loadError || isLoading) && <div className="px-5 pb-28 text-center">
+        <button disabled={isLoading} onClick={() => loadPosts(loadError && !foodItems.length ? 0 : nextPage)} className="rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm disabled:opacity-50">
+          {isLoading ? '불러오는 중…' : loadError ? '다시 불러오기' : '더 보기'}
+        </button>
+      </div>}
 
       <button
         onClick={() => setShowCreatePost(true)}

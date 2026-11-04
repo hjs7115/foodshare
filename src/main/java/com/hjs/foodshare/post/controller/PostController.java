@@ -83,13 +83,14 @@ public class PostController {
             @RequestParam(required = false, defaultValue = "LATEST") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "false") boolean marketOnly,
             @AuthenticationPrincipal AuthUser authUser
     ) {
         Double distanceFilter = maxDistanceKm != null ? maxDistanceKm : radiusKm;
         Long currentUserId = authUser == null ? null : authUser.userId();
         return ResponseEntity.ok(ApiResponse.ok("Posts found.",
                 postService.searchPostsPage(postType, keyword, distanceFilter, lat, lng, expiringSoon, PostSort.from(sort),
-                        currentUserId, page, size)));
+                        currentUserId, page, size, marketOnly)));
     }
 
     @GetMapping("/{postId}")

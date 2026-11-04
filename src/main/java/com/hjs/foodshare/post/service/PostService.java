@@ -34,6 +34,8 @@ public class PostService {
     @org.springframework.beans.factory.annotation.Autowired
     private com.hjs.foodshare.demo.DemoVisibility demo;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.hjs.foodshare.post.repository.PostPageQuery pages;
     private final PostRepository postRepository;
     private final UserRepository userRepository;
     private final CommentRepository commentRepository;
@@ -115,31 +117,27 @@ public class PostService {
     public PageResponse<PostResponse> searchPostsPage(PostType postType, String keyword, Double maxDistanceKm,
                                                        Double latitude, Double longitude, Boolean expiringSoon,
                                                        PostSort sort, Long currentUserId, int page, int size) {
-        return PageResponse.of(
-                searchPosts(postType, keyword, maxDistanceKm, latitude, longitude, expiringSoon, sort, currentUserId),
-                page,
-                size
-        );
+        return searchPostsPage(postType, keyword, maxDistanceKm, latitude, longitude, expiringSoon, sort, currentUserId, page, size, false);
     }
 
-    @Transactional
+    public PageResponse<PostResponse> searchPostsPage(PostType postType, String keyword, Double maxDistanceKm,
+            Double latitude, Double longitude, Boolean expiringSoon, PostSort sort, Long currentUserId,
+            int page, int size, boolean marketOnly) {
+        int safePage = Math.max(page, 0), safeSize = Math.min(Math.max(size, 1), 100);
+        long offset = (long)safePage * safeSize;
+        var result = pages.search(postType, keyword, maxDistanceKm, latitude, longitude,
+                Boolean.TRUE.equals(expiringSoon), sort, currentUserId, marketOnly, (int)Math.min(offset, Integer.MAX_VALUE), safeSize);
+        var content = result.posts().stream().map(post -> toResponse(post,currentUserId)
+                .withDistance(resolveDistanceKm(post,latitude,longitude))).toList();
+        int totalPages=(int)Math.ceil((double)result.total()/safeSize);
+        return new PageResponse<>(content,safePage,safeSize,result.total(),totalPages,safePage==0,totalPages==0 || safePage>=totalPages-1);
+    }
+
     public List<PostResponse> searchPosts(PostType postType, String keyword, Double maxDistanceKm, Double latitude,
                                           Double longitude, Boolean expiringSoon, PostSort sort, Long currentUserId) {
-        var hidden = demo.hiddenPostIds();
-        String normalizedKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
-        PostSort normalizedSort = sort == null ? PostSort.LATEST : sort;
-
-        return postRepository.searchPosts(PostStatus.OPEN, postType, normalizedKeyword)
-                .stream()
-                .filter(this::keepVisibleOrCloseExpired)
-                .filter(Post::isOpen)
-                .filter(post -> !post.isOpenFridgePost() && !hidden.contains(post.getId()))
-                .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
-                .filter(post -> !Boolean.TRUE.equals(expiringSoon) || isExpiringSoon(post))
-                .map(post -> toResponse(post, currentUserId).withDistance(resolveDistanceKm(post, latitude, longitude)))
-                .filter(response -> isInsideDistance(response, maxDistanceKm, latitude, longitude))
-                .sorted(getPostResponseComparator(normalizedSort))
-                .toList();
+        return pages.search(postType,keyword,maxDistanceKm,latitude,longitude,Boolean.TRUE.equals(expiringSoon),
+                sort,currentUserId,false,0,Integer.MAX_VALUE).posts().stream()
+                .map(post -> toResponse(post,currentUserId).withDistance(resolveDistanceKm(post,latitude,longitude))).toList();
     }
 
     public PostResponse getPost(Long postId, Long currentUserId) {
@@ -209,41 +207,6 @@ public class PostService {
         if (!post.getWriter().getId().equals(userId)) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "Only the writer can change this post.");
         }
-    }
-
-    private Comparator<PostResponse> getPostResponseComparator(PostSort sort) {
-        return switch (sort) {
-            case EXPIRING_SOON -> Comparator.comparing(PostResponse::expirationDate)
-                    .thenComparing(PostResponse::createdAt, Comparator.reverseOrder());
-            case DISTANCE -> Comparator.comparing(
-                            PostResponse::distanceKm,
-                            Comparator.nullsLast(Double::compareTo)
-                    )
-                    .thenComparing(PostResponse::createdAt, Comparator.reverseOrder());
-            case FRESHNESS -> Comparator.comparing(PostResponse::freshness)
-                    .reversed()
-                    .thenComparing(PostResponse::createdAt, Comparator.reverseOrder());
-            case PRICE_LOW -> Comparator.comparing(
-                            PostResponse::price,
-                            Comparator.nullsLast(Integer::compareTo)
-                    )
-                    .thenComparing(PostResponse::createdAt, Comparator.reverseOrder());
-            case LATEST -> Comparator.comparing(PostResponse::createdAt).reversed();
-        };
-    }
-
-    private boolean isExpiringSoon(Post post) {
-        LocalDate today = LocalDate.now();
-        return !post.getExpirationDate().isBefore(today)
-                && !post.getExpirationDate().isAfter(today.plusDays(3));
-    }
-
-    private boolean keepVisibleOrCloseExpired(Post post) {
-        if (post.getExpirationDate().isBefore(LocalDate.now())) {
-            post.close();
-            return false;
-        }
-        return true;
     }
 
     private Double resolveDistanceKm(Post post, Double latitude, Double longitude) {

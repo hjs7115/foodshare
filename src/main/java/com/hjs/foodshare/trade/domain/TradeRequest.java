@@ -42,6 +42,16 @@ public class TradeRequest {
 
     private LocalDateTime completedAt;
 
+    private Long cancelledBy;
+    @Column(length=100) private String cancellationReason;
+    private Boolean cancelledAfterAcceptance;
+    public Long getCancelledBy(){return cancelledBy;}
+    public String getCancellationReason(){return cancellationReason;}
+    public boolean isCancelledAfterAcceptance(){return Boolean.TRUE.equals(cancelledAfterAcceptance);}
+    public void cancel(Long userId, String reason){
+        cancelledAfterAcceptance = status == TradeRequestStatus.ACCEPTED;
+        cancelledBy=userId; cancellationReason=reason; cancel();
+    }
     private Boolean requesterHistoryHidden;
     private Boolean writerHistoryHidden;
 

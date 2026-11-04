@@ -594,7 +594,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
         .filter((request) => request.postId === postId && !['REJECTED','CANCELLED'].includes(request.status))
         .sort((a, b) => b.requestId - a.requestId)[0];
 
-      setTradeRequestStatus(existingRequest?.status || null);
+      setTradeRequestStatus(existingRequest && ['PENDING','ACCEPTED','COMPLETED'].includes(existingRequest.status) ? existingRequest.status : null);
     } catch (error) {
       console.warn('내 거래 요청 상태 조회에 실패했습니다.', error);
       setTradeRequestStatus(null);

@@ -264,6 +264,14 @@ public class ChatService {
                 tradeRequestRepository.countDistinctPostsByRequesterOrWriterAndPostTypeAndStatus(targetId, PostType.GROUP_BUY, TradeRequestStatus.COMPLETED));
     }
 
+    @Transactional
+    public void recordTradeCancellation(Long requestId, String reason) {
+        findRoomForTradeRequest(requestId).ifPresent(room -> {
+            chatMessageRepository.save(ChatMessage.system(room, "거래가 취소되었습니다. 사유: " + reason));
+            room.touch();
+        });
+    }
+
     public List<Long> notificationRecipientIds(Long senderId, Long roomId) {
         ChatRoom room = getParticipantRoom(senderId, roomId);
         var members = chatRoomMemberRepository.findAllByChatRoom(room);

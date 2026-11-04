@@ -217,6 +217,8 @@ public class Post {
         this.status = PostStatus.CLOSED;
     }
 
+    public void reopen() { this.status = PostStatus.OPEN; }
+
     public void close() {
         this.status = PostStatus.CLOSED;
     }

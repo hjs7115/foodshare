@@ -1,3 +1,4 @@
+import MarketTradeActionDialog from './MarketTradeActionDialog';
 import { useEffect, useMemo, useState } from 'react';
 import { X, ArrowDownLeft, ArrowUpRight, CheckCircle2, XCircle, RefreshCw, User } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl } from '../../api/config';
@@ -15,6 +16,11 @@ type TradeStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED' | 'COMPLETE
 
 interface TradeRequest {
   requestId: number;
+  cancelledBy?: number;
+  cancellationReason?: string;
+  marketTrade?: boolean;
+  reopenCandidate?: boolean;
+  expirationDate?: string;
   postId: number;
   postTitle: string;
   requesterId: number;
@@ -91,6 +97,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [processingGroupKey, setProcessingGroupKey] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [marketAction,setMarketAction] = useState<{request:TradeRequest; action:'cancel'|'reopen'}|null>(null);
 
   useNestedBack(Boolean(selectedProfile), () => setSelectedProfile(null));
 
@@ -100,6 +107,11 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
 
   const normalizeRequest = (request: any): TradeRequest => ({
     requestId: Number(request.requestId ?? request.id ?? request.tradeRequestId),
+    cancelledBy: request.cancelledBy,
+    cancellationReason: request.cancellationReason,
+    marketTrade: request.marketTrade === true,
+    reopenCandidate: request.reopenCandidate === true,
+    expirationDate: request.expirationDate,
     postId: Number(request.postId ?? request.post?.id),
     postTitle: request.postTitle ?? request.post?.title ?? '게시글 제목 없음',
     requesterId: Number(request.requesterId ?? request.requester?.id),
@@ -491,16 +503,16 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     }
 
     if (request.status === 'ACCEPTED') {
-      return (
-        <button
-          onClick={() => handleRequestAction(request.requestId, 'complete')}
-          disabled={isProcessing}
-          className="mt-3 w-full rounded-xl bg-[#bef264] py-2.5 text-sm text-[#0a0a0a] disabled:opacity-50"
-          style={{ fontWeight: 600 }}
-        >
-          거래 완료
-        </button>
-      );
+      return <div className="mt-3 flex gap-2">
+        <button onClick={() => handleRequestAction(request.requestId, 'complete')} disabled={isProcessing} className="flex-1 rounded-xl bg-[#bef264] py-2.5 text-sm font-semibold disabled:opacity-50">거래 완료</button>
+        {request.marketTrade && <button onClick={()=>setMarketAction({request,action:'cancel'})} disabled={isProcessing} className="flex-1 rounded-xl border border-red-200 py-2.5 text-sm text-red-700">거래 취소</button>}
+      </div>;
+    }
+    if (request.marketTrade && request.status==='PENDING' && request.requesterId===currentUserId) {
+      return <button onClick={()=>setMarketAction({request,action:'cancel'})} className="mt-3 w-full rounded-xl border border-red-200 py-2.5 text-sm text-red-700">요청 취소</button>;
+    }
+    if (request.marketTrade && request.reopenCandidate && request.writerId===currentUserId) {
+      return <button onClick={()=>setMarketAction({request,action:'reopen'})} className="mt-3 w-full rounded-xl bg-[#bef264] py-2.5 text-sm font-semibold">다시 모집하기</button>;
     }
 
     return null;
@@ -653,6 +665,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
                       <h3 className="text-sm text-[#2d3748] mb-1 truncate pr-7" style={{ fontWeight: 600 }}>
                         {group.postTitle || '게시글 제목 없음'}
                       </h3>
+                      {group.requests.filter(request=>request.cancellationReason).map(request=><p key={request.requestId} className="mt-2 text-xs text-gray-600">{request.cancelledBy===currentUserId?'내가 취소':'상대방이 취소'} · {request.cancellationReason}</p>)}
                       <div className="mt-3 space-y-2">
                         {group.requests.map((request) => {
                           const partner = getPartner(request);
@@ -701,6 +714,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         </div>
       </div>
 
+      {marketAction && <MarketTradeActionDialog requestId={marketAction.request.requestId} title={marketAction.request.postTitle} action={marketAction.action} expirationDate={marketAction.request.expirationDate} onClose={()=>setMarketAction(null)} onDone={()=>{setMarketAction(null);void loadTradeRequests();}} />}
       {selectedProfile && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 px-4" onClick={() => setSelectedProfile(null)}>
           <div

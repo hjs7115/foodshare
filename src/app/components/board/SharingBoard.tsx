@@ -102,7 +102,8 @@ export default function SharingBoard({
     const changed = () => { loadLocation(); void loadPosts(); };
     window.addEventListener('location-updated', changed);
     window.addEventListener('demo-mode-changed', changed);
-    return () => {window.removeEventListener('location-updated', changed);window.removeEventListener('demo-mode-changed', changed);};
+    window.addEventListener('market-posts-changed', changed);
+    return () => {window.removeEventListener('location-updated', changed);window.removeEventListener('demo-mode-changed', changed);window.removeEventListener('market-posts-changed', changed);};
   }, [radiusKm, tradeType, sortType]);
 
   const loadLocation = () => {

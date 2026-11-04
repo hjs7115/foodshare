@@ -33,6 +33,23 @@ public class TradeRequestController {
         return ResponseEntity.ok(ApiResponse.ok("Trade history deleted.", null));
     }
 
+    public record CancelRequest(@jakarta.validation.constraints.NotBlank String reason) {}
+    public record ReopenRequest(boolean confirmed) {}
+
+    @PostMapping("/trade-requests/{requestId}/cancel")
+    public ResponseEntity<ApiResponse<TradeRequestResponse>> cancel(
+            @PathVariable Long requestId, @AuthenticationPrincipal AuthUser authUser,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody CancelRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("거래가 취소되었습니다.", tradeRequestService.cancelMarketTrade(requestId,authUser.userId(),request.reason())));
+    }
+
+    @PostMapping("/trade-requests/{requestId}/reopen")
+    public ResponseEntity<ApiResponse<TradeRequestResponse>> reopen(
+            @PathVariable Long requestId, @AuthenticationPrincipal AuthUser authUser,
+            @org.springframework.web.bind.annotation.RequestBody ReopenRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("다시 모집합니다.", tradeRequestService.reopenMarketTrade(requestId,authUser.userId(),request.confirmed())));
+    }
+
     @PostMapping("/posts/{postId}/requests")
     public ResponseEntity<ApiResponse<TradeRequestResponse>> createRequest(
             @PathVariable Long postId,

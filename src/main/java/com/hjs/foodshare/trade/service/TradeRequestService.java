@@ -58,7 +58,7 @@ public class TradeRequestService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "You cannot request your own post.");
         }
         validateNotBlocked(requesterId, post.getWriter().getId());
-        if (tradeRequestRepository.existsByPostIdAndRequesterId(postId, requesterId)) {
+        if (tradeRequestRepository.existsByPostIdAndRequesterIdAndStatusIn(postId, requesterId, List.of(TradeRequestStatus.PENDING, TradeRequestStatus.ACCEPTED, TradeRequestStatus.COMPLETED))) {
             throw new BusinessException(HttpStatus.CONFLICT, "You already requested this post.");
         }
 
@@ -175,7 +175,7 @@ public class TradeRequestService {
 
     @Transactional
     public TradeRequestResponse complete(Long requestId, Long userId) {
-        TradeRequest tradeRequest = entityManager.find(TradeRequest.class, requestId, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        TradeRequest tradeRequest = lockTrade(requestId);
         if (tradeRequest == null) throw new BusinessException(HttpStatus.NOT_FOUND, "Trade request not found.");
         if (entityManager.createQuery("select count(e) from FridgeExchange e where e.trade.id=:id and e.cancelRequestedBy is not null", Long.class).setParameter("id",requestId).getSingleResult()>0) throw new BusinessException(HttpStatus.CONFLICT,"취소 요청을 먼저 처리해주세요.");
         boolean isWriter = tradeRequest.getPost().getWriter().getId().equals(userId);
@@ -233,6 +233,57 @@ public class TradeRequestService {
         return selectedRequests.stream()
                 .map(request -> toResponse(request, chatRoom.getId()))
                 .toList();
+    }
+
+    private TradeRequest lockTrade(Long requestId) {
+        TradeRequest request = tradeRequestRepository.findById(requestId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "거래 요청을 찾을 수 없습니다."));
+        entityManager.refresh(request.getPost(), jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(request, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        return request;
+    }
+
+    private void requireMarketTrade(TradeRequest request) {
+        if (request.getPost().getPostType()==PostType.GROUP_BUY || request.getPost().isOpenFridgePost() || request.getExchangeDescription()!=null)
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "일반 시장 거래에서만 사용할 수 있습니다.");
+    }
+
+    @Transactional
+    public TradeRequestResponse cancelMarketTrade(Long requestId, Long userId, String reason) {
+        TradeRequest request=lockTrade(requestId);
+        requireMarketTrade(request);
+        boolean writer=request.getPost().getWriter().getId().equals(userId);
+        boolean requester=request.getRequester().getId().equals(userId);
+        if (!writer && !requester) throw new BusinessException(HttpStatus.FORBIDDEN, "거래 당사자만 취소할 수 있습니다.");
+        if (request.getStatus()==TradeRequestStatus.CANCELLED) return toResponse(request);
+        if (request.getStatus()!=TradeRequestStatus.ACCEPTED && !(requester && request.getStatus()==TradeRequestStatus.PENDING))
+            throw new BusinessException(HttpStatus.CONFLICT, "대기 중인 내 요청이나 수락된 거래만 취소할 수 있습니다.");
+        if (reason==null || !java.util.Set.of("생각이 바뀌었어요", "일정이 맞지 않아요", "연락이 닿지 않아요", "거래 조건이 달라요", "기타").contains(reason))
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "취소 사유를 선택해주세요.");
+        request.cancel(userId,reason);
+        chatService.recordTradeCancellation(requestId,reason);
+        Long otherId=writer?request.getRequester().getId():request.getPost().getWriter().getId();
+        notificationService.createNotification(otherId,"TRADE_CANCELLED","거래 취소",
+                "'"+request.getPost().getTitle()+"' 거래가 취소되었습니다. 사유: "+reason,"TRADE_REQUEST",requestId);
+        return toResponse(request);
+    }
+
+    @Transactional
+    public TradeRequestResponse reopenMarketTrade(Long requestId, Long userId, boolean confirmed) {
+        TradeRequest request=lockTrade(requestId);
+        Post post=request.getPost();
+        requireMarketTrade(request);
+        if (!post.getWriter().getId().equals(userId)) throw new BusinessException(HttpStatus.FORBIDDEN,"작성자만 다시 모집할 수 있습니다.");
+        if (!confirmed) throw new BusinessException(HttpStatus.BAD_REQUEST,"재료 상태와 날짜를 확인해주세요.");
+        if (post.isDeleted() || request.getStatus()!=TradeRequestStatus.CANCELLED || !request.isCancelledAfterAcceptance())
+            throw new BusinessException(HttpStatus.CONFLICT,"수락 후 취소된 거래만 다시 모집할 수 있습니다.");
+        if (post.getExpirationDate().isBefore(java.time.LocalDate.now()))
+            throw new BusinessException(HttpStatus.CONFLICT,"등록된 날짜가 지났습니다. 재료 상태를 확인하고 새 글을 작성해주세요.");
+        if (tradeRequestRepository.existsByPostIdAndStatusIn(post.getId(),List.of(TradeRequestStatus.ACCEPTED,TradeRequestStatus.COMPLETED)))
+            throw new BusinessException(HttpStatus.CONFLICT,"진행 중이거나 완료된 거래가 있어 다시 모집할 수 없습니다.");
+        demo.requireVisible(post.getId());
+        post.reopen();
+        return toResponse(request);
     }
 
     @Transactional

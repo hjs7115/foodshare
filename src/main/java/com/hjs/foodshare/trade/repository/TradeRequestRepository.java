@@ -12,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 public interface TradeRequestRepository extends JpaRepository<TradeRequest, Long> {
 
     boolean existsByPostIdAndRequesterId(Long postId, Long requesterId);
+    boolean existsByPostIdAndRequesterIdAndStatusIn(Long postId, Long requesterId, List<TradeRequestStatus> statuses);
+    boolean existsByPostIdAndStatusIn(Long postId, List<TradeRequestStatus> statuses);
 
     List<TradeRequest> findAllByRequesterIdOrderByCreatedAtDesc(Long requesterId);
 

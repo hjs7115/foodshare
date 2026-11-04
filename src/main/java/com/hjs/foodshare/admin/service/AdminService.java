@@ -27,6 +27,7 @@ public class AdminService {
 
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
     @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.notification.service.NotificationService notifications;
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.chat.service.ChatService chats;
     private final String adminToken;
     private final UserRepository userRepository;
     private final PostRepository postRepository;
@@ -112,6 +113,13 @@ public class AdminService {
         var trade=tradeRequestRepository.findById(report.getTargetId()).orElseThrow();
         em.refresh(trade.getPost(),jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);em.refresh(trade,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         trade.cancel(report.getReporter().getId(),"운영자 조정: "+reason.substring(0,Math.min(70,reason.length())));
+        if (trade.getPost().getPostType() == com.hjs.foodshare.post.domain.PostType.GROUP_BUY) {
+            long active = tradeRequestRepository.findAllByPostIdAndStatus(trade.getPost().getId(), TradeRequestStatus.ACCEPTED).size();
+            long completed = tradeRequestRepository.findAllByPostIdAndStatus(trade.getPost().getId(), TradeRequestStatus.COMPLETED).size();
+            trade.getPost().updateParticipantCount(Math.toIntExact(active + completed + 1));
+            chats.removeTradeParticipant(trade.getId(), trade.getRequester().getId());
+        }
+        chats.recordTradeCancellation(trade.getId(), "운영자 조정: " + reason.substring(0, Math.min(70, reason.length())));
         em.createQuery("select e from FridgeExchange e where e.trade.id=:id",com.hjs.foodshare.fridge.exchange.FridgeExchange.class).setParameter("id",trade.getId()).getResultList().forEach(e->{e.end("CANCELLED");e.clearCancellation();});
         var reviews=em.createQuery("select r from Review r where r.tradeRequest.id=:id",com.hjs.foodshare.review.domain.Review.class).setParameter("id",trade.getId()).getResultList();
         reviews.forEach(em::remove);em.flush();

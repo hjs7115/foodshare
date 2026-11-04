@@ -52,6 +52,24 @@ import static org.mockito.Mockito.*;
 
 @SpringBootTest @Transactional
 class WorkflowSafetyTests {
+ @Test void adminGroupCancellationRemovesParticipantAndKeepsOtherMembers() {
+     var owner = user("admin-owner");
+     var buyer = user("admin-buyer");
+     var other = user("admin-other");
+     var group = post(owner, PostType.GROUP_BUY);
+     Long id = trades.createRequest(group.getId(), buyer.getId()).requestId();
+     trades.createRequest(group.getId(), other.getId());
+     Long room = trades.closeGroupBuyRecruitment(group.getId(), owner.getId()).getFirst().chatRoomId();
+     trades.complete(id, owner.getId());
+     trades.complete(id, buyer.getId());
+     var report = moderation.createReport(buyer.getId(), new ReportCreateRequest(ReportTargetType.TRADE_REQUEST, id, "미수령", null));
+     admin.updateReportStatus("test-admin-key-with-at-least-32-characters", report.reportId(),
+             new ReportStatusUpdateRequest(ReportStatus.REVIEWED, "CANCEL_TRADE", "분쟁 조정 취소"));
+     assertEquals(2, group.getCurrentParticipantCount());
+     assertFalse(chats.canAccessRoom(buyer.getId(), room));
+     assertTrue(chats.canAccessRoom(owner.getId(), room));
+     assertTrue(chats.canAccessRoom(other.getId(), room));
+ }
  @Autowired UserRepository users;
  @Autowired PostRepository posts;
  @Autowired PostService market;

@@ -62,7 +62,8 @@ public class TradeRequest {
     public String getCancellationReason(){return cancellationReason;}
     public boolean isCancelledAfterAcceptance(){return Boolean.TRUE.equals(cancelledAfterAcceptance);}
     public void cancel(Long userId, String reason){
-        cancelledAfterAcceptance = status == TradeRequestStatus.ACCEPTED;
+        cancelledAfterAcceptance = isCancelledAfterAcceptance()
+                || status == TradeRequestStatus.ACCEPTED || status == TradeRequestStatus.COMPLETED;
         cancelledBy=userId; cancellationReason=reason; cancel();
     }
     private Boolean requesterHistoryHidden;

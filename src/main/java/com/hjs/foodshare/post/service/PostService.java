@@ -69,12 +69,8 @@ public class PostService {
         imageUploadService.requireOwned(request.imageUrlValue(), userId, null);
         User writer = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
-        validatePostRequest(
-                request.postType(),
-                request.currentParticipantCount(),
-                request.targetParticipantCount(),
-                request.deadlineDateValue()
-        );
+        var deadline = normalizeDeadlineDate(request.deadlineDateValue());
+        validatePostRequest(request.postType(), request.targetParticipantCount(), deadline);
         IngredientAnalysis ingredientAnalysis = request.postType() == PostType.GROUP_BUY
                 ? null
                 : ingredientAnalysisService.claimForPost(request.analysisId(), userId,request.imageUrlValue());
@@ -88,14 +84,14 @@ public class PostService {
                 request.priceValue(),
                 request.tradeLocation(),
                 request.distanceKm() == null ? 0.0 : request.distanceKm(),
-                request.postType()==PostType.GROUP_BUY ? request.deadlineDateValue().toLocalDate() : request.expirationDateValue(),
+                usesDeadlineAsExpiration(request.postType(), deadline) ? deadline.toLocalDate() : request.expirationDateValue(),
                 request.latitude(),
                 request.longitude(),
                 request.imageUrlValue(),
                 request.content(),
                 normalizeCurrentParticipantCount(request.postType(), request.currentParticipantCount()),
                 normalizeTargetParticipantCount(request.postType(), request.targetParticipantCount()),
-                normalizeDeadlineDate(request.postType(), request.deadlineDateValue()),
+                deadline,
                 ingredientAnalysis
         );
 
@@ -115,6 +111,7 @@ public class PostService {
                 .stream()
                 .filter(Post::isOpen)
                 .filter(post -> !post.hasPassedDeadline())
+                .filter(post -> !post.getEffectiveExpirationDate().isBefore(LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))))
                 .filter(post -> !post.isOpenFridgePost() && !hidden.contains(post.getId()))
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .map(post -> toResponse(post, currentUserId))
@@ -167,12 +164,8 @@ public class PostService {
         com.hjs.foodshare.post.dto.PostValues.coordinates(request.latitude(),request.longitude());
         String previousImageUrl = post.getImageUrl();
         imageUploadService.requireOwned(request.imageUrlValue(), userId, previousImageUrl);
-        validatePostRequest(
-                request.postType(),
-                request.currentParticipantCount(),
-                request.targetParticipantCount(),
-                request.deadlineDateValue()
-        );
+        var deadline = normalizeDeadlineDate(request.deadlineDateValue());
+        validatePostRequest(request.postType(), request.targetParticipantCount(), deadline);
 
         post.clearAnalysis();
         post.update(
@@ -183,14 +176,14 @@ public class PostService {
                 request.priceValue(),
                 request.tradeLocation(),
                 request.distanceKm() == null ? 0.0 : request.distanceKm(),
-                request.postType()==PostType.GROUP_BUY ? request.deadlineDateValue().toLocalDate() : request.expirationDateValue(),
+                usesDeadlineAsExpiration(request.postType(), deadline) ? deadline.toLocalDate() : request.expirationDateValue(),
                 request.latitude(),
                 request.longitude(),
                 request.imageUrlValue(),
                 request.content(),
                 normalizeCurrentParticipantCount(request.postType(), request.currentParticipantCount()),
                 normalizeTargetParticipantCount(request.postType(), request.targetParticipantCount()),
-                normalizeDeadlineDate(request.postType(), request.deadlineDateValue())
+                deadline
         );
 
         post.setPriceNegotiable(request.priceNegotiable());
@@ -262,13 +255,11 @@ public class PostService {
 
     private void validatePostRequest(
             PostType postType,
-            Integer currentParticipantCount,
             Integer targetParticipantCount,
             LocalDateTime deadlineDate
     ) {
-        // Reject deadlines already in the past for market listings as well as group buys.
-        if (deadlineDate != null && deadlineDate.isBefore(LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")))) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "거래 마감일은 현재 이후로 설정해주세요.");
+        if (deadlineDate != null && !deadlineDate.isAfter(LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")))) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "마감 시간은 현재보다 이후로 설정해주세요.");
         }
         if (postType != PostType.GROUP_BUY) {
             return;
@@ -282,9 +273,6 @@ public class PostService {
         }
         if (deadlineDate == null) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "deadlineDate is required for group buy posts.");
-        }
-        if (deadlineDate.withMinute(0).withSecond(0).withNano(0).isBefore(LocalDateTime.now())) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "deadlineDate must be now or later.");
         }
     }
 
@@ -312,7 +300,11 @@ public class PostService {
         return postType == PostType.GROUP_BUY ? targetParticipantCount : null;
     }
 
-    private LocalDateTime normalizeDeadlineDate(PostType postType, LocalDateTime deadlineDate) {
+    private boolean usesDeadlineAsExpiration(PostType postType, LocalDateTime deadline) {
+        return deadline != null && (postType == PostType.BUY || postType == PostType.GROUP_BUY);
+    }
+
+    private LocalDateTime normalizeDeadlineDate(LocalDateTime deadlineDate) {
         if (deadlineDate == null) {
             return null;
         }

@@ -108,7 +108,7 @@ public record TradeRequestResponse(
                         ? !tradeRequest.getPost().hasPassedDeadline()
                         : tradeRequest.getPost().getCurrentParticipantCount()!=null && tradeRequest.getPost().getTargetParticipantCount()!=null
                             && tradeRequest.getPost().getCurrentParticipantCount()<tradeRequest.getPost().getTargetParticipantCount()),
-                tradeRequest.getPost().getExpirationDate(),
+                tradeRequest.getPost().getEffectiveExpirationDate(),
                 tradeRequest.getWriterConfirmedAt(), tradeRequest.getRequesterConfirmedAt(),
                 tradeRequest.getExchangeDescription()!=null, tradeRequest.getPost().isOpen()
                     && (tradeRequest.getPost().getPostType()==PostType.GROUP_BUY || !tradeRequest.getPost().hasPassedDeadline())

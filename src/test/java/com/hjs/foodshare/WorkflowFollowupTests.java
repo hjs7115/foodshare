@@ -4,6 +4,7 @@ import com.hjs.foodshare.user.domain.*;
 import com.hjs.foodshare.user.repository.*;
 import com.hjs.foodshare.post.domain.*;
 import com.hjs.foodshare.post.dto.PostCreateRequest;
+import com.hjs.foodshare.post.dto.PostSort;
 import com.hjs.foodshare.post.dto.PostUpdateRequest;
 import com.hjs.foodshare.post.repository.*;
 import com.hjs.foodshare.post.service.PostService;
@@ -58,6 +59,21 @@ class WorkflowFollowupTests {
   var created = market.createPost(owner.getId(), payload);
   assertEquals(PostType.BUY, created.postType());
   assertEquals(LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(7), created.expirationDate());
+ }
+
+ @Test void existingPurchaseDeadlineOverridesOldDefaultExpiration() {
+  var owner = user("purchase-deadline-owner");
+  var seller = user("purchase-deadline-seller");
+  var now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+  var deadline = now.plusDays(20).withMinute(0).withSecond(0).withNano(0);
+  var existing = posts.save(Post.create(owner, PostType.BUY, "기존 구매글", "두부", "1개",
+          1000, "서울", 0.0, now.toLocalDate().minusDays(1), 37.5, 127.0,
+          null, "두부를 구매합니다.", null, null, deadline));
+  var results = market.searchPostsPage(PostType.BUY, "기존 구매글", null, null, null, false,
+          PostSort.EXPIRING_SOON, seller.getId(), 0, 30);
+  assertEquals(existing.getId(), results.content().getFirst().postId());
+  assertEquals(deadline.toLocalDate(), results.content().getFirst().expirationDate());
+  assertEquals(TradeRequestStatus.PENDING, trades.createRequest(existing.getId(), seller.getId()).status());
  }
 
  @Test void purchasePostExpiresOnRequestedDeadlineRatherThanSevenDays() {

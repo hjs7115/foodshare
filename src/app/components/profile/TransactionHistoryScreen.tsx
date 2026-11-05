@@ -283,7 +283,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     const loadPages = async (endpoint: string) => {
       const requests = new Map<number, TradeRequest>();
       let hasMore = true;
-      for (let page = 0; page <= (background ? historyPage : 0) && hasMore; page++) {
+      for (let page = 0; page <= (background ? 0 : historyPage) && hasMore; page++) {
         const response = await apiRequest(`${endpoint}/page?page=${page}&size=30`);
         extractRequests(response).forEach(request => requests.set(request.requestId, request));
         hasMore = !response.data?.last;
@@ -291,21 +291,27 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       return { requests: [...requests.values()], hasMore };
     };
 
+    const mergeLatest = (latest: TradeRequest[], previous: TradeRequest[]) => {
+      if (!background || historyPage === 0) return latest;
+      const latestIds = new Set(latest.map(request => request.requestId));
+      return [...latest, ...previous.filter(request => !latestIds.has(request.requestId))];
+    };
     try {
       const [sent, received, profile] = await Promise.allSettled([
         loadPages(API_ENDPOINTS.mypageTradeRequests),
         loadPages(API_ENDPOINTS.mypageReceivedTradeRequests),
-        background ? Promise.resolve(null) : apiRequest(API_ENDPOINTS.getProfile),
+        background ? null : apiRequest(API_ENDPOINTS.getProfile),
       ]);
       if (historyLoadRef.current !== load) return;
 
-      if (!background) setHistoryPage(0);
-      if (sent.status === 'fulfilled') setSentRequests(sent.value.requests);
-      if (received.status === 'fulfilled') setReceivedRequests(received.value.requests);
-      setMoreHistory(previous => ({
-        sent: sent.status === 'fulfilled' ? sent.value.hasMore : background && previous.sent,
-        received: received.status === 'fulfilled' ? received.value.hasMore : background && previous.received,
-      }));
+      if (sent.status === 'fulfilled') setSentRequests(previous => mergeLatest(sent.value.requests, previous));
+      if (received.status === 'fulfilled') setReceivedRequests(previous => mergeLatest(received.value.requests, previous));
+      if (!background || historyPage === 0) {
+        setMoreHistory(previous => ({
+          sent: sent.status === 'fulfilled' ? sent.value.hasMore : previous.sent,
+          received: received.status === 'fulfilled' ? received.value.hasMore : previous.received,
+        }));
+      }
       if (profile.status === 'fulfilled' && profile.value) {
         setLifetimeCompleted(Number((profile.value.data || profile.value).completedTradeCount || 0));
       }

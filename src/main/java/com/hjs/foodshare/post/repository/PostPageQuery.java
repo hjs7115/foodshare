@@ -14,9 +14,13 @@ public class PostPageQuery {
     public Result search(PostType type, String keyword, Double radius, Double lat, Double lng,
                          boolean expiring, PostSort sort, Long userId, boolean marketOnly, int offset, int limit) {
         var params = new HashMap<String,Object>();
-        params.put("today", LocalDate.now());
-        params.put("now", LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")));
-        var where = new StringBuilder(" where p.deleted=false and coalesce(p.writer.suspended,false)=false and p.writer.withdrawnAt is null and p.status=com.hjs.foodshare.post.domain.PostStatus.OPEN and p.openFridgeValidUntil is null and p.expirationDate>=:today");
+        var now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        params.put("today", now.toLocalDate());
+        params.put("now", now);
+        var expiration = "(case when p.postType=com.hjs.foodshare.post.domain.PostType.BUY and p.deadlineDate is not null"
+                + " then cast(p.deadlineDate as LocalDate) else p.expirationDate end)";
+        var where = new StringBuilder(" where p.deleted=false and coalesce(p.writer.suspended,false)=false and p.writer.withdrawnAt is null and p.status=com.hjs.foodshare.post.domain.PostStatus.OPEN and p.openFridgeValidUntil is null");
+        where.append(" and ").append(expiration).append(">=:today");
         where.append(" and (p.deadlineDate is null or p.deadlineDate>:now)");
         where.append(" and (not exists (select d.postId from DemoPost d where d.postId=p.id) or exists (select ds.id from DemoState ds where ds.id=1 and ds.enabled=true))");
         if (marketOnly) where.append(" and p.postType<>com.hjs.foodshare.post.domain.PostType.GROUP_BUY");
@@ -26,7 +30,10 @@ public class PostPageQuery {
             params.put("keyword","%"+keyword.trim().toLowerCase(Locale.ROOT)+"%");
         }
         if(userId!=null){where.append(" and not exists(select b.id from UserBlock b where ((b.blocker.id=p.writer.id and b.blockedUser.id=:viewer) or (b.blockedUser.id=p.writer.id and b.blocker.id=:viewer)))");params.put("viewer",userId);}
-        if(expiring){where.append(" and p.expirationDate<=:soon");params.put("soon",LocalDate.now().plusDays(3));}
+        if (expiring) {
+            where.append(" and ").append(expiration).append("<=:soon");
+            params.put("soon", now.toLocalDate().plusDays(3));
+        }
         boolean coordinates=lat!=null && lng!=null && Double.isFinite(lat) && Double.isFinite(lng) && Math.abs(lat)<=90 && Math.abs(lng)<=180;
         String distance="p.distanceKm";
         if(coordinates) {
@@ -38,7 +45,7 @@ public class PostPageQuery {
         }
         String order=switch(sort==null?PostSort.LATEST:sort){
             case LATEST -> "p.createdAt desc";
-            case EXPIRING_SOON -> "p.expirationDate asc, p.createdAt desc";
+            case EXPIRING_SOON -> expiration + " asc, p.createdAt desc";
             case DEADLINE -> "p.deadlineDate asc nulls last, p.createdAt desc";
             case PARTICIPATION -> "(1.0*p.currentParticipantCount/nullif(p.targetParticipantCount,0)) desc nulls last, p.createdAt desc";
             case FRESHNESS -> "p.writer.freshnessScore desc, p.createdAt desc";

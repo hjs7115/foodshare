@@ -175,6 +175,9 @@ public class Post {
     public Double getLongitude() { return longitude; }
 
     public LocalDate getExpirationDate() { return expirationDate; }
+    public LocalDate getEffectiveExpirationDate() {
+        return postType == PostType.BUY && deadlineDate != null ? deadlineDate.toLocalDate() : expirationDate;
+    }
 
     public String getImageUrl() { return imageUrl; }
 

@@ -67,7 +67,7 @@ public record PostResponse(
             double writerRating,
             boolean favorite
     ) {
-        long daysUntilExpiration = ChronoUnit.DAYS.between(LocalDate.now(), post.getExpirationDate());
+        long daysUntilExpiration = ChronoUnit.DAYS.between(LocalDate.now(java.time.ZoneId.of("Asia/Seoul")), post.getEffectiveExpirationDate());
         Long daysUntilDeadline = post.getDeadlineDate() == null
                 ? null
                 : ChronoUnit.DAYS.between(LocalDate.now(), post.getDeadlineDate().toLocalDate());
@@ -99,7 +99,7 @@ public record PostResponse(
                 post.getDistanceKm(),
                 post.getLatitude()==null?null:(mine?post.getLatitude():Math.round(post.getLatitude()*100)/100.0),
                 post.getLongitude()==null?null:(mine?post.getLongitude():Math.round(post.getLongitude()*100)/100.0),
-                post.getExpirationDate(),
+                post.getEffectiveExpirationDate(),
                 daysUntilExpiration,
                 toExpirationText(daysUntilExpiration),
                 post.getImageUrl(),

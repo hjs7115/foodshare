@@ -266,6 +266,10 @@ public class PostService {
             Integer targetParticipantCount,
             LocalDateTime deadlineDate
     ) {
+        // Reject deadlines already in the past for market listings as well as group buys.
+        if (deadlineDate != null && deadlineDate.isBefore(LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")))) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "거래 마감일은 현재 이후로 설정해주세요.");
+        }
         if (postType != PostType.GROUP_BUY) {
             return;
         }

@@ -4,6 +4,7 @@ import com.hjs.foodshare.user.domain.*;
 import com.hjs.foodshare.user.repository.*;
 import com.hjs.foodshare.post.domain.*;
 import com.hjs.foodshare.post.dto.PostCreateRequest;
+import com.hjs.foodshare.post.dto.PostUpdateRequest;
 import com.hjs.foodshare.post.repository.*;
 import com.hjs.foodshare.post.service.PostService;
 import com.hjs.foodshare.trade.domain.*;
@@ -57,6 +58,36 @@ class WorkflowFollowupTests {
   var created = market.createPost(owner.getId(), payload);
   assertEquals(PostType.BUY, created.postType());
   assertEquals(LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(7), created.expirationDate());
+ }
+
+ @Test void purchasePostExpiresOnRequestedDeadlineRatherThanSevenDays() {
+  var owner = user("buyer-deadline-owner");
+  var deadline = LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(20).withSecond(0).withNano(0);
+  var payload = new PostCreateRequest(PostType.BUY, "두부 구매", "두부", "1개", "희망가 협의",
+          "서울 강남구 역삼동", 0.0, 37.5, 127.0, "", null, "두부를 구매합니다.", null, null, deadline);
+  var created = market.createPost(owner.getId(), payload);
+  assertEquals(deadline.toLocalDate(), created.expirationDate());
+  assertTrue(market.getPosts(owner.getId()).stream().anyMatch(row -> row.postId().equals(created.postId())));
+
+  var update = new PostUpdateRequest(PostType.BUY, "두부 구매 수정", "두부", "2개", "희망가 협의",
+          "서울 강남구 역삼동", 0.0, 37.5, 127.0, "", null, "수정한 구매글", null, null, deadline);
+  var updated = market.updatePost(created.postId(), owner.getId(), update);
+  assertEquals(deadline.toLocalDate(), updated.expirationDate());
+ }
+
+ @Test void expiredMarketDeadlinesAreRejectedOnCreateAndUpdate() {
+  var owner = user("expired-market-owner");
+  var past = LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(10);
+  var attempted = new PostCreateRequest(PostType.BUY, "두부 구매", "두부", "1개", "희망가 협의",
+          "서울 강남구 역삼동", 0.0, 37.5, 127.0, "", null, "내용", null, null, past);
+  assertThrows(BusinessException.class, () -> market.createPost(owner.getId(), attempted));
+
+  var valid = new PostCreateRequest(PostType.BUY, "두부 구매", "두부", "1개", "희망가 협의",
+          "서울 강남구 역삼동", 0.0, 37.5, 127.0, "", null, "내용", null, null, null);
+  var created = market.createPost(owner.getId(), valid);
+  var update = new PostUpdateRequest(PostType.BUY, "수정", "두부", "1개", "희망가 협의",
+          "서울 강남구 역삼동", 0.0, 37.5, 127.0, "", null, "내용", null, null, past);
+  assertThrows(BusinessException.class, () -> market.updatePost(created.postId(), owner.getId(), update));
  }
 
  @Test void marketDeadlineClosesListingAndBlocksNewRequestsAndAcceptance() {

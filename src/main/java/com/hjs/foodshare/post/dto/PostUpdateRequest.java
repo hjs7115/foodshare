@@ -74,8 +74,12 @@ public record PostUpdateRequest(
         if (tradeLocation == null || tradeLocation.isBlank()) {
             tradeLocation = "거래 위치 미정";
         }
-        if (expirationDate == null) {
-            expirationDate = LocalDate.now().plusDays(7);
+        if (expirationDate == null || (expirationDate instanceof String date && date.isBlank())) {
+            // BUY listings use the requested purchase deadline when no ingredient expiry is supplied.
+            LocalDateTime purchaseDeadline = postType == PostType.BUY ? PostValues.deadline(deadlineDate) : null;
+            expirationDate = purchaseDeadline == null
+                    ? LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).plusDays(7)
+                    : purchaseDeadline.toLocalDate();
         }
         if (content == null || content.isBlank()) {
             content = title;

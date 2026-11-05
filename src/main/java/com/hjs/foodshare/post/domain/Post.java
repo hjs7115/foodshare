@@ -194,6 +194,10 @@ public class Post {
 
     public boolean isOpen() { return status == PostStatus.OPEN && !deleted && (openFridgeValidUntil == null || openFridgeValidUntil.isAfter(LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")))); }
 
+    public boolean hasPassedDeadline() {
+        return deadlineDate != null && !deadlineDate.isAfter(LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")));
+    }
+
     public void update(PostType postType, String title, String ingredientName, String quantity,
                        Integer price, String tradeLocation, Double distanceKm, LocalDate expirationDate,
                        Double latitude, Double longitude, String imageUrl, String content, Integer currentParticipantCount,

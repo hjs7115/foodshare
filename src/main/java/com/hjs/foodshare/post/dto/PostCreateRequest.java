@@ -98,8 +98,8 @@ public record PostCreateRequest(
         if (tradeLocation == null || tradeLocation.isBlank()) {
             tradeLocation = "거래 위치 미정";
         }
-        if (expirationDate == null) {
-            expirationDate = LocalDate.now().plusDays(7);
+        if (expirationDate == null || (expirationDate instanceof String date && date.isBlank())) {
+            expirationDate = LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).plusDays(7);
         }
         if (content == null || content.isBlank()) {
             content = title;

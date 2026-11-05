@@ -193,7 +193,7 @@ function getTypeIcon(type: string) {
 
 function isTradeNotification(notification: NotificationItem): boolean {
   const normalizedType = notification.type.toUpperCase();
-  return normalizedType.includes('TRADE') || notification.title.includes('거래');
+  return notification.targetType === 'TRADE_REQUEST' || normalizedType.includes('TRADE') || notification.title.includes('거래');
 }
 
 function hasRequesterProfile(notification: NotificationItem): boolean {
@@ -307,7 +307,12 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
     if(notification.targetType==='CHAT_ROOM'&&notification.targetId){window.location.assign('/app?screen=chat&roomId='+notification.targetId);return;}
     if (notification.type === "SHOPPING_REMINDER") { const day=Number(notification.targetId); const week=Number.isFinite(day)&&day>0&&day<100000?new Date(day*86400000).toISOString().slice(0,10):''; window.location.assign('/app?screen=fridge&shopping=1'+(week?'&shoppingWeek='+week:'')); return; }
     if (notification.type === "FRIDGE_EXCHANGE") { window.location.assign("/app?screen=fridge&exchange=1"); return; }
-    if (!isTradeNotification(notification) && notification.postId && onOpenPost) {
+    if (isTradeNotification(notification) && onOpenTradeHistory) {
+      onOpenTradeHistory();
+      onClose();
+      return;
+    }
+    if (notification.postId && onOpenPost) {
       onOpenPost(notification.postId);
       onClose();
     }
@@ -504,9 +509,7 @@ export default function NotificationsScreen({ onClose, onOpenPost, onOpenTradeHi
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
-                            handleNotificationClick(notification);
-                            onOpenTradeHistory();
-                            onClose();
+                            void handleNotificationClick(notification);
                           }}
                           className={`mt-3 w-full rounded-xl px-4 py-2.5 text-sm text-[#0a0a0a] transition-colors ${tone.actionButton}`}
                           style={{ fontWeight: 700 }}

@@ -1,5 +1,5 @@
 import { showToast } from '../../utils/feedback';
-﻿import { useState, useRef } from 'react';
+﻿import { useEffect, useState, useRef } from 'react';
 import { X, Camera } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl, uploadImage } from '../../api/config';
 import type { IngredientAnalysisResult } from '../../api/ingredientAnalysis';
@@ -22,8 +22,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
   const [expiry, setExpiry] = useState(initialIngredient?.expiryDate || '');
   const [targetCount, setTargetCount] = useState('');
   const [deadline, setDeadline] = useState('');
-  const [images, setImages] = useState<string[]>([]);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [photo, setPhoto] = useState<{ file: File; previewUrl: string } | null>(null);
   const [imageError, setImageError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<IngredientAnalysisResult | null>(null);
@@ -33,12 +32,28 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
   const isSale = category === '판매';
   const isBuy = category === '구매';
 
-  const handleImageSelect=(e:React.ChangeEvent<HTMLInputElement>)=>{
-    const file=e.target.files?.[0];if(!file)return;
-    setAiAnalysis(null);setImageFiles([file]);setImages([]);setImageError('');
-    const reader=new FileReader();reader.onloadend=()=>setImages([String(reader.result)]);reader.readAsDataURL(file);
+  useEffect(() => {
+    if (photo) return () => URL.revokeObjectURL(photo.previewUrl);
+  }, [photo]);
+
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setImageError('사진은 10MB 이하로 첨부해주세요.');
+      return;
+    }
+    setAiAnalysis(null);
+    setPhoto({ file, previewUrl: URL.createObjectURL(file) });
+    setImageError('');
   };
-  const handleRemoveImage=(_index:number)=>{setAiAnalysis(null);setImages([]);setImageFiles([]);};
+
+  const handleRemoveImage = () => {
+    setPhoto(null);
+    setAiAnalysis(null);
+    setImageError('');
+  };
 
   const getAuthorLocation = () => {
     const tradeLocation = localStorage.getItem('userLocation') || '';
@@ -148,7 +163,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
       showToast('나눔, 판매, 구매 중 하나를 선택해주세요.');
       return;
     }
-    if (!isBuy && images.length === 0) {
+    if (!isBuy && !photo) {
       const message = '게시글 사진을 1장 첨부해주세요.';
       setImageError(message);
       showToast(message);
@@ -164,8 +179,8 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
     setIsSubmitting(true);
 
     try {
-      const uploadedImageUrl = imageFiles[0]
-        ? await uploadImage(imageFiles[0])
+      const uploadedImageUrl = !isBuy && photo
+        ? await uploadImage(photo.file)
         : '/assets/food-placeholder.png';
 
       const postData = {
@@ -179,9 +194,9 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
         category: isMarketBoard ? category : '공동구매',
         image: uploadedImageUrl,
         imageUrl: uploadedImageUrl,
-        analysisId: aiAnalysis?.analysisMode === 'AI' ? aiAnalysis.analysisId : null,
+        analysisId: !isBuy && aiAnalysis?.analysisMode === 'AI' ? aiAnalysis.analysisId : null,
         ...authorLocation,
-        ...(isMarketBoard && { expiry, deadline }),
+        ...(isMarketBoard && { deadline, ...(!isBuy && expiry ? { expiry } : {}) }),
         ...(currentBoard === '공동구매' && {
           targetCount: parseInt(targetCount) || 5,
           currentCount: 1,
@@ -368,27 +383,27 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
                 >
                   <Camera size={24} className="text-[#cbd5e0] mb-1" />
                   <span className="text-xs text-[#718096]">
-                    {images.length}/1
+                    {photo ? 1 : 0}/1
                   </span>
                 </button>
 
                 {/* Image Preview */}
-                {images.map((image, index) => (
-                  <div key={index} className="relative w-24 h-24 rounded-2xl shrink-0">
+                {photo && (
+                  <div className="relative w-24 h-24 rounded-2xl shrink-0">
                     <img
-                      src={image}
-                      alt={`preview ${index + 1}`}
+                      src={photo.previewUrl}
+                      alt="선택한 사진"
                       className="w-full h-full object-cover rounded-2xl"
                     />
                     <button
                       type="button"
-                      onClick={() => handleRemoveImage(index)}
+                      onClick={handleRemoveImage}
                       className="absolute -top-2 -right-2 w-6 h-6 bg-[#2d3748] text-white rounded-full flex items-center justify-center hover:bg-[#1a202c] transition-colors"
                     >
                       <X size={14} />
                     </button>
                   </div>
-                ))}
+                )}
               </div>
               {imageError && (
                 <p className="text-sm text-[#e53e3e] -mt-3">
@@ -415,7 +430,7 @@ export default function CreatePostScreen({ onClose, currentBoard, onCreatePost, 
 
           {isMarketBoard && !isBuy && (
             <IngredientAiAnalysisPanel
-              imageFile={imageFiles[0]}
+              imageFile={photo?.file}
               amount={amount}
               category={category}
               onApply={handleApplyAiAnalysis}

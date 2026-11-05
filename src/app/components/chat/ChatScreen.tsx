@@ -85,7 +85,7 @@ export default function ChatScreen({
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const activeRoomIdRef = useRef<number | null>(null);
-  const refreshInFlightRef = useRef<number | null>(null);
+  const messageSyncRef = useRef<{roomId: number; cursor: number | null; loading: boolean} | null>(null);
   const failedSendRef = useRef<{roomId:number;content:string;clientId:string}|null>(null);
   const [hasOlderMessages,setHasOlderMessages] = useState(false);
   const [loadingOlder,setLoadingOlder] = useState(false);
@@ -144,7 +144,13 @@ export default function ChatScreen({
       });
     };
 
-    const moderationChanged=()=>{messagesRef.current=[];setMessages([]);void loadMessages(selectedRoom,{replace:true});void loadRooms(activeFilter);};
+    const moderationChanged = () => {
+      messageSyncRef.current = { roomId: selectedRoom.chatRoomId, cursor: null, loading: false };
+      messagesRef.current = [];
+      setMessages([]);
+      void loadMessages(selectedRoom).catch(error => console.warn('채팅 메시지 갱신 실패', error));
+      void loadRooms(activeFilter);
+    };
     window.addEventListener('moderation-changed',moderationChanged);
     const timer = window.setInterval(refreshOpenRoom, 5000);
     window.addEventListener('focus', refreshOpenRoom);
@@ -342,6 +348,8 @@ export default function ChatScreen({
 
   const openRoom = async (room: ChatRoom) => {
     activeRoomIdRef.current=room.chatRoomId;
+    const sync = { roomId: room.chatRoomId, cursor: null, loading: false };
+    messageSyncRef.current = sync;
     messagesRef.current=[]; setMessages([]); setMessageText(''); setHasOlderMessages(false);
     setSelectedRoom(room);
     setShowRoomMenu(false);
@@ -351,15 +359,12 @@ export default function ChatScreen({
     setActiveSearchMatchIndex(0);
     setIsMessagesLoading(true);
     try {
-      await loadMessages(room, { markRead: true, replace: true });
-      if(activeRoomIdRef.current!==room.chatRoomId)return;
+      await loadMessages(room, { markRead: true });
+      if (messageSyncRef.current !== sync) return;
       setRooms((prev) => prev.map((item) => item.chatRoomId === room.chatRoomId ? { ...item, unreadCount: 0 } : item));
       onChatUnreadChange?.(Math.max(0, chatUnreadCount - room.unreadCount));
     } catch (error) {
       console.warn('채팅 메시지 조회 실패', error);
-      if(activeRoomIdRef.current===room.chatRoomId)setMessages([]);
-    } finally {
-      if(activeRoomIdRef.current===room.chatRoomId)setIsMessagesLoading(false);
     }
   };
 
@@ -373,24 +378,33 @@ export default function ChatScreen({
     onInitialRoomHandled?.();
   }, [initialRoomId, isLoading, rooms]);
 
-  const loadMessages = async (room:ChatRoom, options:{markRead?:boolean;replace?:boolean}={}) => {
-    if(refreshInFlightRef.current===room.chatRoomId)return;
-    refreshInFlightRef.current=room.chatRoomId;
+  const loadMessages = async (room: ChatRoom, options: { markRead?: boolean } = {}) => {
+    const sync = messageSyncRef.current;
+    if (!sync || sync.roomId !== room.chatRoomId || sync.loading) return;
+    sync.loading = true;
+    const last = sync.cursor;
     try {
-      const last=options.replace?0:Math.max(0,...messagesRef.current.map(m=>m.messageId));
-      const response=await apiRequest(API_ENDPOINTS.chatMessages(room.chatRoomId)+(last?`?after=${last}&size=100`:'?size=100'));
-      if(activeRoomIdRef.current!==room.chatRoomId)return;
+      // Only a REST page confirms what has been fetched through this cursor.
+      const query = last === null ? '?size=100' : `?after=${last}&size=100`;
+      const response = await apiRequest(API_ENDPOINTS.chatMessages(room.chatRoomId) + query);
+      if (messageSyncRef.current !== sync) return;
       const raw=response?.data?.content||response?.data||response?.messages||response;
       const normalized=Array.isArray(raw)?raw.map(m=>normalizeMessage(m,room)):[];
-      if(options.replace)setHasOlderMessages(normalized.length===100);
+      if (last === null) setHasOlderMessages(normalized.length === 100);
+      sync.cursor = Math.max(last ?? 0, ...normalized.map(m => m.messageId));
       setMessages(prev=>{
-        const next=mergeMessageList([...(options.replace?[]:prev),...normalized],currentUserId);
+        const next=mergeMessageList([...prev,...normalized],currentUserId);
         messagesRef.current=next;
         return areMessageListsEqual(prev,next)?prev:next;
       });
       if(options.markRead || normalized.some(m=>!m.mine))await markRoomRead(room.chatRoomId);
-      if(options.replace || (normalized.length && shouldStickToBottomRef.current))window.requestAnimationFrame(()=>scrollMessagesToBottom('auto'));
-    } finally {if(refreshInFlightRef.current===room.chatRoomId)refreshInFlightRef.current=null;}
+      if (messageSyncRef.current === sync && (last === null || (normalized.length && shouldStickToBottomRef.current))) {
+        window.requestAnimationFrame(() => scrollMessagesToBottom('auto'));
+      }
+    } finally {
+      sync.loading = false;
+      if (messageSyncRef.current === sync && last === null) setIsMessagesLoading(false);
+    }
   };
 
   const loadOlderMessages=async()=>{
@@ -560,6 +574,7 @@ export default function ChatScreen({
   }, [activeSearchMessageId, isSearchingMessages]);
 
   const closeSelectedRoom = () => {
+    messageSyncRef.current = null;
     activeRoomIdRef.current=null; messagesRef.current=[]; setMessages([]); setMessageText('');
     setSelectedRoom(null);
     setShowRoomMenu(false);

@@ -114,6 +114,7 @@ public class PostService {
         return postRepository.findAllByDeletedFalseAndStatusOrderByCreatedAtDesc(PostStatus.OPEN)
                 .stream()
                 .filter(Post::isOpen)
+                .filter(post -> !post.hasPassedDeadline())
                 .filter(post -> !post.isOpenFridgePost() && !hidden.contains(post.getId()))
                 .filter(post -> canViewWriter(currentUserId, post.getWriter().getId()))
                 .map(post -> toResponse(post, currentUserId))

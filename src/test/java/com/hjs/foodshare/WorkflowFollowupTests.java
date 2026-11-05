@@ -3,7 +3,9 @@ package com.hjs.foodshare;
 import com.hjs.foodshare.user.domain.*;
 import com.hjs.foodshare.user.repository.*;
 import com.hjs.foodshare.post.domain.*;
+import com.hjs.foodshare.post.dto.PostCreateRequest;
 import com.hjs.foodshare.post.repository.*;
+import com.hjs.foodshare.post.service.PostService;
 import com.hjs.foodshare.trade.domain.*;
 import com.hjs.foodshare.trade.service.*;
 import com.hjs.foodshare.trade.repository.*;
@@ -33,6 +35,7 @@ import static org.mockito.Mockito.*;
 class WorkflowFollowupTests {
  @Autowired UserRepository users;
  @Autowired PostRepository posts;
+ @Autowired PostService market;
  @Autowired TradeRequestService trades;
  @Autowired TradeRequestRepository requests;
  @Autowired ChatService chats;
@@ -46,6 +49,32 @@ class WorkflowFollowupTests {
  User user(String n){var u=users.save(User.create(n,n,n+"@audit.local","unused",String.format("010%08d",Math.abs(n.hashCode()%100000000)),"서울 강남구 역삼동"));u.updateLocation("서울 강남구 역삼동",37.50123,127.01234);return u;}
  Post post(User u,PostType type){return posts.save(Post.create(u,type,"두부","두부","1개",1000,"서울 강남구 역삼동",0.0,LocalDate.now().plusDays(3),37.50123,127.01234,null,"조건",type==PostType.GROUP_BUY?1:null,type==PostType.GROUP_BUY?2:null,type==PostType.GROUP_BUY?LocalDateTime.now().plusDays(1):null));}
  FridgeItem item(User u){return fridge.save(FridgeItem.create(u,"두부","1개",LocalDate.now().plusDays(3),"냉장",""));}
+
+ @Test void purchasePostAcceptsLegacyBlankExpirationFromHiddenField() {
+  var owner = user("buyer-post-owner");
+  var payload = new PostCreateRequest(PostType.BUY, "두부 구매", "두부", "1개", "희망가 협의",
+          "서울 강남구 역삼동", 0.0, 37.5, 127.0, "", null, "두부를 구매합니다.", null, null, null);
+  var created = market.createPost(owner.getId(), payload);
+  assertEquals(PostType.BUY, created.postType());
+  assertEquals(LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(7), created.expirationDate());
+ }
+
+ @Test void marketDeadlineClosesListingAndBlocksNewRequestsAndAcceptance() {
+  var owner = user("market-deadline-owner");
+  var buyer = user("market-deadline-buyer");
+  var other = user("market-deadline-other");
+  var p = post(owner, PostType.SALE);
+  var pending = trades.createRequest(p.getId(), buyer.getId());
+  org.springframework.test.util.ReflectionTestUtils.setField(
+          p, "deadlineDate", LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1));
+  em.flush();
+
+  assertEquals(PostStatus.CLOSED, market.getPost(p.getId(), buyer.getId()).status());
+  assertTrue(market.getPosts(buyer.getId()).stream().noneMatch(row -> row.postId().equals(p.getId())));
+  assertThrows(BusinessException.class, () -> trades.createRequest(p.getId(), other.getId()));
+  assertThrows(BusinessException.class, () -> trades.accept(pending.requestId(), owner.getId()));
+  assertEquals(TradeRequestStatus.PENDING, requests.findById(pending.requestId()).orElseThrow().getStatus());
+ }
  @Test void cancelledFridgeRequestAllowsRetryInListAndApi(){
   var owner=user("owner");var buyer=user("buyer");var f=item(owner);open.publish(owner.getId(),f.getId(),"1개");
   var first=open.request(buyer.getId(),f.getId());trades.cancelMarketTrade(first.requestId(),buyer.getId(),"기타");

@@ -15,9 +15,9 @@ public class PostPageQuery {
                          boolean expiring, PostSort sort, Long userId, boolean marketOnly, int offset, int limit) {
         var params = new HashMap<String,Object>();
         params.put("today", LocalDate.now());
-        params.put("now", LocalDateTime.now());
+        params.put("now", LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")));
         var where = new StringBuilder(" where p.deleted=false and coalesce(p.writer.suspended,false)=false and p.writer.withdrawnAt is null and p.status=com.hjs.foodshare.post.domain.PostStatus.OPEN and p.openFridgeValidUntil is null and p.expirationDate>=:today");
-        where.append(" and (p.postType<>com.hjs.foodshare.post.domain.PostType.GROUP_BUY or p.deadlineDate is null or p.deadlineDate>:now)");
+        where.append(" and (p.deadlineDate is null or p.deadlineDate>:now)");
         where.append(" and (not exists (select d.postId from DemoPost d where d.postId=p.id) or exists (select ds.id from DemoState ds where ds.id=1 and ds.enabled=true))");
         if (marketOnly) where.append(" and p.postType<>com.hjs.foodshare.post.domain.PostType.GROUP_BUY");
         if(type!=null){where.append(" and p.postType=:type");params.put("type",type);}

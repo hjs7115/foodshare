@@ -292,7 +292,7 @@ public class TradeRequestService {
         if (!confirmed) throw new BusinessException(HttpStatus.BAD_REQUEST,"재료 상태와 날짜를 확인해주세요.");
         if (post.isDeleted() || request.getStatus()!=TradeRequestStatus.CANCELLED || !request.isCancelledAfterAcceptance())
             throw new BusinessException(HttpStatus.CONFLICT,"수락 후 취소된 거래만 다시 모집할 수 있습니다.");
-        if (post.getExpirationDate().isBefore(java.time.LocalDate.now()))
+        if (post.hasPassedDeadline() || post.getExpirationDate().isBefore(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))))
             throw new BusinessException(HttpStatus.CONFLICT,"등록된 날짜가 지났습니다. 재료 상태를 확인하고 새 글을 작성해주세요.");
         if (tradeRequestRepository.existsByPostIdAndStatusIn(post.getId(),List.of(TradeRequestStatus.ACCEPTED,TradeRequestStatus.COMPLETED)))
             throw new BusinessException(HttpStatus.CONFLICT,"진행 중이거나 완료된 거래가 있어 다시 모집할 수 없습니다.");
@@ -526,6 +526,8 @@ public class TradeRequestService {
         if (!post.getWriter().isAvailable()) throw new BusinessException(HttpStatus.CONFLICT,"이용할 수 없는 작성자입니다.");
         if (post.getPostType() == PostType.GROUP_BUY) {
             validateGroupBuyRequestable(post);
+        } else if (post.hasPassedDeadline()) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "거래 마감 시간이 지났습니다.");
         }
     }
 

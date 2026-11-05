@@ -88,7 +88,7 @@ public record PostResponse(
                 freshnessGrade.getIcon(),
                 freshnessGrade.getLabel(),
                 post.getPostType(),
-                post.getStatus(),
+                post.getPostType() != PostType.GROUP_BUY && post.hasPassedDeadline() ? PostStatus.CLOSED : post.getStatus(),
                 post.getTitle(),
                 post.getIngredientName(),
                 post.getQuantity(),

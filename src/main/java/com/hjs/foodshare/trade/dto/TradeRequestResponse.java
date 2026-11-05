@@ -105,11 +105,13 @@ public record TradeRequestResponse(
                 tradeRequest.getStatus()==TradeRequestStatus.CANCELLED && tradeRequest.isCancelledAfterAcceptance()
                     && tradeRequest.getPost().getStatus()==com.hjs.foodshare.post.domain.PostStatus.CLOSED && !tradeRequest.getPost().isDeleted()
                     && (tradeRequest.getPost().getPostType()!=PostType.GROUP_BUY
-                        || (tradeRequest.getPost().getCurrentParticipantCount()!=null && tradeRequest.getPost().getTargetParticipantCount()!=null
-                            && tradeRequest.getPost().getCurrentParticipantCount()<tradeRequest.getPost().getTargetParticipantCount())),
+                        ? !tradeRequest.getPost().hasPassedDeadline()
+                        : tradeRequest.getPost().getCurrentParticipantCount()!=null && tradeRequest.getPost().getTargetParticipantCount()!=null
+                            && tradeRequest.getPost().getCurrentParticipantCount()<tradeRequest.getPost().getTargetParticipantCount()),
                 tradeRequest.getPost().getExpirationDate(),
                 tradeRequest.getWriterConfirmedAt(), tradeRequest.getRequesterConfirmedAt(),
                 tradeRequest.getExchangeDescription()!=null, tradeRequest.getPost().isOpen()
+                    && (tradeRequest.getPost().getPostType()==PostType.GROUP_BUY || !tradeRequest.getPost().hasPassedDeadline())
         );
     }
 }

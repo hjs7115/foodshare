@@ -2,7 +2,7 @@ import TradeChatReportDialog from './TradeChatReportDialog';
 import GroupReopenDialog from './GroupReopenDialog';
 import MarketTradeActionDialog from './MarketTradeActionDialog';
 import ReviewDialog from './ReviewDialog';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ArrowDownLeft, ArrowUpRight, CheckCircle2, XCircle, RefreshCw, User } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl, createReport } from '../../api/config';
 import BackendImage from '../common/BackendImage';
@@ -99,6 +99,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
   const [moreHistory,setMoreHistory]=useState({sent:false,received:false});
   const [historyPage,setHistoryPage]=useState(0);
   const [loadingMore,setLoadingMore]=useState(false);
+  const historyLoadRef = useRef<symbol | null>(null);
   const [reviewTarget,setReviewTarget]=useState<TradeRequest|null>(null);
   const [reviewed,setReviewed]=useState<Set<number>>(new Set());
   const [lifetimeCompleted,setLifetimeCompleted]=useState(0);
@@ -118,7 +119,6 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
 
   useEffect(() => {
     loadTradeRequests();
-    apiRequest(API_ENDPOINTS.getProfile).then(r=>setLifetimeCompleted(Number((r.data||r).completedTradeCount||0))).catch(()=>{});
     apiRequest(API_ENDPOINTS.posts.replace(/\/posts$/,'')+'/mypage/reviews').then(r=>setReviewed(new Set((r.data||[]).map((v:any)=>Number(v.tradeRequestId))))).catch(()=>{});
   }, []);
 
@@ -274,66 +274,88 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     return Array.isArray(rawRequests) ? rawRequests.map(normalizeRequest) : [];
   };
 
-  const loadTradeRequests = async () => {
-    setIsLoading(true);
-    setLoadError('');
+  const loadTradeRequests = async (background = false) => {
+    if (background && historyLoadRef.current) return;
+    const load = Symbol();
+    historyLoadRef.current = load;
+    if (!background) setIsLoading(true);
+
+    const loadPages = async (endpoint: string) => {
+      const requests = new Map<number, TradeRequest>();
+      let hasMore = true;
+      for (let page = 0; page <= (background ? historyPage : 0) && hasMore; page++) {
+        const response = await apiRequest(`${endpoint}/page?page=${page}&size=30`);
+        extractRequests(response).forEach(request => requests.set(request.requestId, request));
+        hasMore = !response.data?.last;
+      }
+      return { requests: [...requests.values()], hasMore };
+    };
 
     try {
-      const sentResult = await apiRequest(API_ENDPOINTS.mypageTradeRequests+'/page?page=0&size=30', { method: 'GET' })
-        .then((response) => ({ ok: true as const, response }))
-        .catch((error) => ({ ok: false as const, error }));
+      const [sent, received, profile] = await Promise.allSettled([
+        loadPages(API_ENDPOINTS.mypageTradeRequests),
+        loadPages(API_ENDPOINTS.mypageReceivedTradeRequests),
+        apiRequest(API_ENDPOINTS.getProfile),
+      ]);
+      if (historyLoadRef.current !== load) return;
 
-      const receivedResult = await apiRequest(API_ENDPOINTS.mypageReceivedTradeRequests+'/page?page=0&size=30', { method: 'GET' })
-        .then((response) => ({ ok: true as const, response }))
-        .catch((error) => ({ ok: false as const, error }));
-
-      setHistoryPage(0);
-      setMoreHistory({sent:sentResult.ok&&!sentResult.response.data?.last,received:receivedResult.ok&&!receivedResult.response.data?.last});
-      if (sentResult.ok) {
-        setSentRequests(extractRequests(sentResult.response));
-      } else {
-        console.warn('보낸 거래 요청 목록 조회에 실패했습니다.', sentResult.error);
-        setSentRequests([]);
+      if (!background) setHistoryPage(0);
+      if (sent.status === 'fulfilled') setSentRequests(sent.value.requests);
+      if (received.status === 'fulfilled') setReceivedRequests(received.value.requests);
+      setMoreHistory(previous => ({
+        sent: sent.status === 'fulfilled' ? sent.value.hasMore : background && previous.sent,
+        received: received.status === 'fulfilled' ? received.value.hasMore : background && previous.received,
+      }));
+      if (profile.status === 'fulfilled') {
+        setLifetimeCompleted(Number((profile.value.data || profile.value).completedTradeCount || 0));
       }
-
-      if (receivedResult.ok) {
-        setReceivedRequests(extractRequests(receivedResult.response));
-      } else {
-        console.warn('받은 거래 요청 목록 조회에 실패했습니다.', receivedResult.error);
-        setReceivedRequests([]);
+      const failed = [sent.status === 'rejected' && '보낸 요청', received.status === 'rejected' && '받은 요청'].filter(Boolean);
+      if (!background || !failed.length) {
+        setLoadError(failed.length ? `${failed.join(', ')}을 불러오지 못했습니다. 잠시 후 새로고침해주세요.` : '');
       }
-
-      if (!sentResult.ok || !receivedResult.ok) {
-        const failedTargets = [
-          !sentResult.ok ? '보낸 요청' : '',
-          !receivedResult.ok ? '받은 요청' : '',
-        ].filter(Boolean).join(', ');
-        setLoadError(`${failedTargets}을 불러오지 못했습니다. 잠시 후 새로고침해주세요.`);
-      }
-    } catch (error: any) {
-      console.warn('거래 요청 목록 조회에 실패했습니다.', error);
-      setLoadError(error.message || '거래 요청 목록을 불러오지 못했습니다.');
-      setSentRequests([]);
-      setReceivedRequests([]);
     } finally {
-      setIsLoading(false);
+      if (historyLoadRef.current === load) {
+        historyLoadRef.current = null;
+        if (!background) setIsLoading(false);
+      }
     }
   };
 
   const loadMoreHistory=async()=>{
-    if(loadingMore)return;setLoadingMore(true);
+    if (loadingMore || isLoading) return;
+    const load = Symbol();
+    historyLoadRef.current = load;
+    setLoadingMore(true);
     try{
       const page=historyPage+1;
       const [sent,received]=await Promise.all([
         moreHistory.sent?apiRequest(API_ENDPOINTS.mypageTradeRequests+`/page?page=${page}&size=30`):null,
         moreHistory.received?apiRequest(API_ENDPOINTS.mypageReceivedTradeRequests+`/page?page=${page}&size=30`):null
       ]);
+      if (historyLoadRef.current !== load) return;
       if(sent)setSentRequests(prev=>[...prev,...extractRequests(sent).filter(r=>!prev.some(p=>p.requestId===r.requestId))]);
       if(received)setReceivedRequests(prev=>[...prev,...extractRequests(received).filter(r=>!prev.some(p=>p.requestId===r.requestId))]);
       setMoreHistory({sent:Boolean(sent&&!sent.data?.last),received:Boolean(received&&!received.data?.last)});setHistoryPage(page);
-    }catch(e:any){showToast(e.message||'이전 내역을 불러오지 못했습니다.');}finally{setLoadingMore(false);}
+    } catch (e: any) {
+      showToast(e.message || '이전 내역을 불러오지 못했습니다.');
+    } finally {
+      if (historyLoadRef.current === load) historyLoadRef.current = null;
+      setLoadingMore(false);
+    }
   };
   const [deletingHistory, setDeletingHistory] = useState(false);
+  useEffect(() => {
+    if (isLoading || loadingMore || processingId !== null || processingGroupKey || deletingHistory) return;
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadTradeRequests(true);
+    };
+    const timer = window.setInterval(refresh, 5000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [historyPage, isLoading, loadingMore, processingId, processingGroupKey, deletingHistory]);
   const canDeleteHistory = (group: TradeRequestGroup) => group.requests.every(
     request => ['COMPLETED', 'REJECTED', 'CANCELLED'].includes(request.status)
   );
@@ -345,6 +367,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       await apiRequest(API_ENDPOINTS.deleteTradeHistory, {
         method: 'DELETE', body: JSON.stringify(group.requests.map(request => request.requestId)),
       });
+      historyLoadRef.current = null;
       const ids = new Set(group.requests.map(request => request.requestId));
       setSentRequests(current => current.filter(request => !ids.has(request.requestId)));
       setReceivedRequests(current => current.filter(request => !ids.has(request.requestId)));
@@ -416,7 +439,6 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         showToast(`${actionLabel} 처리했습니다.`);
       }
       await loadTradeRequests();
-      apiRequest(API_ENDPOINTS.getProfile).then(r=>setLifetimeCompleted(Number((r.data||r).completedTradeCount||0))).catch(()=>{});
     } catch (error: any) {
       showToast(error.message || `${actionLabel} 처리에 실패했습니다.`);
     } finally {
@@ -447,7 +469,6 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         showToast('거래 완료 처리했습니다.');
       }
       await loadTradeRequests();
-      apiRequest(API_ENDPOINTS.getProfile).then(r=>setLifetimeCompleted(Number((r.data||r).completedTradeCount||0))).catch(()=>{});
     } catch (error: any) {
       showToast(error.message || `${actionLabel} 처리에 실패했습니다.`);
     } finally {
@@ -520,12 +541,12 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         <div className="grid grid-cols-2 gap-2 mt-3">
           <button
             onClick={() => handleRequestAction(request.requestId, 'accept')}
-            disabled={isProcessing}
+            disabled={isProcessing || !request.postOpen}
             className="flex items-center justify-center gap-1 rounded-xl bg-[#bef264] py-2 text-sm text-[#0a0a0a] disabled:opacity-50"
             style={{ fontWeight: 600 }}
           >
             <CheckCircle2 size={16} />
-            수락
+            {request.postOpen ? '수락' : '모집 종료'}
           </button>
           <button
             onClick={() => handleRequestAction(request.requestId, 'reject')}
@@ -586,7 +607,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         <h1 className="text-lg text-[#2d3748]" style={{ fontWeight: 600 }}>
           거래 내역
         </h1>
-        <button onClick={loadTradeRequests} className="text-[#2d3748]" disabled={isLoading}>
+        <button onClick={() => void loadTradeRequests()} className="text-[#2d3748]" disabled={isLoading || loadingMore || deletingHistory}>
           <RefreshCw size={20} className={isLoading ? 'animate-spin' : ''} />
         </button>
       </div>

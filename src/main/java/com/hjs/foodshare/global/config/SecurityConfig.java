@@ -34,6 +34,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/").permitAll()
+                        // Logout must not report success for an anonymous caller.
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users/check-nickname").permitAll()

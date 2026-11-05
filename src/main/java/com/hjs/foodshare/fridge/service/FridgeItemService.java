@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class FridgeItemService {
 
     @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.upload.service.ImageUploadService images;
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.trade.service.TradeRequestService trades;
     private final FridgeItemRepository fridgeItemRepository;
     private final UserRepository userRepository;
     private final com.hjs.foodshare.trade.repository.TradeRequestRepository tradeRequests;
@@ -81,7 +82,7 @@ public class FridgeItemService {
         if(item.getSharedPost()!=null){
             entityManager.flush();
             entityManager.refresh(item.getSharedPost(),jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
-            tradeRequests.findAllByPostIdAndStatus(item.getSharedPost().getId(),com.hjs.foodshare.trade.domain.TradeRequestStatus.PENDING).forEach(r->r.reject());
+            trades.rejectPendingRequests(item.getSharedPost(),"냉장고 재료가 수정·삭제되어 요청이 종료되었습니다.");
         }
         item.hideShare();
     }

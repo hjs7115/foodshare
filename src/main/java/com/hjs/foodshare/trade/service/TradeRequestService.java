@@ -167,6 +167,7 @@ public class TradeRequestService {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "Only pending requests can be rejected.");
         }
         tradeRequest.reject();
+        notifyRejected(tradeRequest, "작성자가 요청을 거절했습니다.");
         return toResponse(tradeRequest);
     }
 
@@ -348,7 +349,7 @@ public class TradeRequestService {
                         TradeRequestStatus.ACCEPTED
                 );
                 tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.PENDING)
-                        .forEach(TradeRequest::reject);
+                        .forEach(r -> { r.reject(); notifyRejected(r, "공동구매 정원이 차서 참여 요청이 종료되었습니다."); });
                 ChatRoom room = chatService.openGroupRoomForTradeRequests(acceptedRequests);
                 notifyRoomOpened(acceptedRequests, room);
                 return room;
@@ -360,7 +361,7 @@ public class TradeRequestService {
         tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.PENDING)
                 .stream()
                 .filter(request -> !request.getId().equals(acceptedRequest.getId()))
-                .forEach(TradeRequest::reject);
+                .forEach(r -> { r.reject(); notifyRejected(r, "다른 분과 거래가 확정되어 요청이 종료되었습니다."); });
         return chatService.openRoomForTradeRequest(acceptedRequest);
     }
 
@@ -393,6 +394,43 @@ public class TradeRequestService {
 
     private void notifyCancelled(TradeRequest request,String reason) {
         notificationService.createNotification(request.getRequester().getId(),"TRADE_CANCELLED","거래 요청 종료",reason,"TRADE_REQUEST",request.getId());
+    }
+
+    private void notifyRejected(TradeRequest request, String reason) {
+        notificationService.createNotification(request.getRequester().getId(), "TRADE_REJECTED", "거래 요청 종료",
+                "'" + request.getPost().getTitle() + "' " + reason, "TRADE_REQUEST", request.getId());
+    }
+
+    @Transactional
+    public void rejectPendingRequests(Post post, String reason) {
+        tradeRequestRepository.findAllByPostIdAndStatus(post.getId(), TradeRequestStatus.PENDING)
+                .forEach(r -> { r.reject(); notifyRejected(r, reason); });
+    }
+
+    @Transactional
+    public void reopenGroupBuy(Long postId, Long writerId, boolean notOrdered, LocalDateTime deadline) {
+        Post post = getActivePost(postId);
+        entityManager.flush();
+        entityManager.refresh(post, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (!post.getWriter().getId().equals(writerId)) throw new BusinessException(HttpStatus.FORBIDDEN, "작성자만 재모집할 수 있습니다.");
+        if (post.getPostType() != PostType.GROUP_BUY || post.isDeleted()) throw new BusinessException(HttpStatus.BAD_REQUEST, "공동구매 글에서만 재모집할 수 있습니다.");
+        if (!notOrdered) throw new BusinessException(HttpStatus.BAD_REQUEST, "아직 주문·결제 전인지 확인해주세요.");
+        var now = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+        if (deadline == null || !deadline.isAfter(now) || deadline.isAfter(now.plusDays(30)))
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "30일 이내의 앞으로의 마감 시간을 선택해주세요.");
+        var all = tradeRequestRepository.findAllByPostIdOrderByCreatedAtDesc(postId);
+        if (all.stream().anyMatch(r -> r.getStatus() == TradeRequestStatus.COMPLETED ||
+                (r.getStatus() == TradeRequestStatus.ACCEPTED && (r.getWriterConfirmedAt() != null || r.getRequesterConfirmedAt() != null))))
+            throw new BusinessException(HttpStatus.CONFLICT, "완료 확인을 시작한 공동구매는 재모집할 수 없습니다.");
+        var accepted = all.stream().filter(r -> r.getStatus() == TradeRequestStatus.ACCEPTED).toList();
+        int count = accepted.size() + 1;
+        if (post.getTargetParticipantCount() == null || count >= post.getTargetParticipantCount())
+            throw new BusinessException(HttpStatus.CONFLICT, "빈자리가 있는 공동구매만 재모집할 수 있습니다.");
+        if (post.isOpen()) return;
+        post.updateParticipantCount(count);
+        post.reopenGroupBuy(deadline);
+        accepted.forEach(r -> notificationService.createNotification(r.getRequester().getId(), "GROUP_BUY_REOPENED", "공동구매 재모집",
+                "'" + post.getTitle() + "'의 빈자리를 다시 모집합니다. 새 마감: " + deadline.toString().replace('T', ' '), "TRADE_REQUEST", r.getId()));
     }
 
     private boolean isGroupBuyFull(Post post) {

@@ -224,6 +224,12 @@ public class Post {
 
     public void reopen() { this.status = PostStatus.OPEN; }
 
+    public void reopenGroupBuy(LocalDateTime deadline) {
+        this.deadlineDate = deadline;
+        this.expirationDate = deadline.toLocalDate();
+        this.status = PostStatus.OPEN;
+    }
+
     public void close() {
         this.status = PostStatus.CLOSED;
     }

@@ -87,7 +87,12 @@ public class ChatService {
             room.markAsGroupRoom();
         }
         addMemberIfAbsent(room, primaryRequest.getPost().getWriter(), 0);
-        tradeRequests.forEach(request -> addMemberIfAbsent(room, request.getRequester(), 1));
+        tradeRequests.forEach(request -> {
+            addMemberIfAbsent(room, request.getRequester(), 1);
+            chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), request.getRequester().getId())
+                    .filter(m -> !m.isActive() && request.getCreatedAt().isAfter(m.getLeftAt()))
+                    .ifPresent(ChatRoomMember::rejoin);
+        });
         if (newlyPromotedGroupRoom) {
             chatMessageRepository.save(ChatMessage.system(room, "채팅방이 개설되었습니다."));
         }
@@ -242,6 +247,34 @@ public class ChatService {
         if (userId == null || roomId == null) return false;
         return chatRoomRepository.findById(roomId)
                 .map(room -> isActiveParticipant(room, userId)).orElse(false);
+    }
+
+    private record ReportWindow(java.time.LocalDateTime from, java.time.LocalDateTime until) {}
+
+    private ReportWindow reportWindow(Long userId, ChatRoom room) {
+        var member = chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId);
+        if (member.isPresent()) return new ReportWindow(member.get().getJoinedAt(), member.get().getLeftAt());
+        if (room.getWriter().getId().equals(userId) || room.getRequester().getId().equals(userId))
+            return new ReportWindow(room.getCreatedAt(), null);
+        throw new BusinessException(HttpStatus.FORBIDDEN, "참여했던 채팅만 신고할 수 있습니다.");
+    }
+
+    public boolean canReportMessage(Long userId, ChatMessage message) {
+        var window = reportWindow(userId, message.getChatRoom());
+        return !message.getCreatedAt().isBefore(window.from())
+                && (window.until() == null || !message.getCreatedAt().isAfter(window.until()));
+    }
+
+    public List<ChatMessageResponse> reportableMessages(Long userId, Long requestId, Long before) {
+        var trade = tradeRequestRepository.findById(requestId).orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "거래를 찾지 못했습니다."));
+        if (!trade.getRequester().getId().equals(userId) && !trade.getPost().getWriter().getId().equals(userId))
+            throw new BusinessException(HttpStatus.FORBIDDEN, "참여한 거래만 확인할 수 있습니다.");
+        var room = findRoomForTradeRequest(requestId).orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "채팅방을 찾지 못했습니다."));
+        var window = reportWindow(userId, room);
+        return em.createQuery("select m from ChatMessage m join fetch m.sender where m.chatRoom.id=:room and m.sender.id<>:user and m.createdAt>=:joined and (:left is null or m.createdAt<=:left) and (:before is null or m.id<:before) order by m.id desc", ChatMessage.class)
+                .setParameter("room", room.getId()).setParameter("user", userId).setParameter("joined", window.from())
+                .setParameter("left", window.until()).setParameter("before", before).setMaxResults(100).getResultList()
+                .stream().map(m -> ChatMessageResponse.from(m, userId)).toList();
     }
 
     private boolean isActiveParticipant(ChatRoom room, Long userId) {

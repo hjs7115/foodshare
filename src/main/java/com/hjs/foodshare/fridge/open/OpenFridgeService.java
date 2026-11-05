@@ -44,7 +44,7 @@ public class OpenFridgeService {
    .setParameter("me",id).setParameter("since",now().minusDays(7)).setParameter("today",now().toLocalDate()).setParameter("now",now()).setParameter("lat",me.getLatitude()).setParameter("lng",me.getLongitude()).setParameter("minLat",me.getLatitude()-0.046).setParameter("maxLat",me.getLatitude()+0.046).setParameter("minLng",me.getLongitude()-lng).setParameter("maxLng",me.getLongitude()+lng).setParameter("key",key).setMaxResults(500).getResultList();
   Map<Long,List<FridgeItem>> grouped=new LinkedHashMap<>();
   found.forEach(f->grouped.computeIfAbsent(f.getUser().getId(),k->new ArrayList<>()).add(f));
-  Set<Long> requested=found.isEmpty()?Set.of():new HashSet<>(em.createQuery("select distinct t.post.id from TradeRequest t where t.requester.id=:id and t.post.id in :posts",Long.class).setParameter("id",id).setParameter("posts",found.stream().map(f->f.getSharedPost().getId()).toList()).getResultList());
+  Set<Long> requested=found.isEmpty()?Set.of():new HashSet<>(em.createQuery("select distinct t.post.id from TradeRequest t where t.requester.id=:id and t.status in (com.hjs.foodshare.trade.domain.TradeRequestStatus.PENDING,com.hjs.foodshare.trade.domain.TradeRequestStatus.ACCEPTED,com.hjs.foodshare.trade.domain.TradeRequestStatus.COMPLETED) and t.post.id in :posts",Long.class).setParameter("id",id).setParameter("posts",found.stream().map(f->f.getSharedPost().getId()).toList()).getResultList());
   List<Neighbor> result=new ArrayList<>();for(var entry:grouped.entrySet()){User owner=entry.getValue().getFirst().getUser();double d=distance(me,owner);result.add(new Neighbor(owner.getId(),owner.getNickname(),owner.getProfileImage(),area(owner),Math.round(d*10)/10.0,entry.getValue().stream().map(f->{var v=view(f);return new SharedItem(v.itemId(),v.postId(),v.name(),v.amount(),v.expiryDate(),v.confirmedAt(),v.state(),requested.contains(v.postId()),v.imageUrl());}).toList()));}
   return new Nearby(false,result.stream().sorted(Comparator.comparingDouble(Neighbor::distanceKm)).limit(50).toList());
  }
@@ -56,7 +56,7 @@ public class OpenFridgeService {
   if(p!=null){em.flush();em.refresh(p,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
    if(exchanges.reserved(p.getId())||!requests.findAllByPostIdAndStatus(p.getId(),TradeRequestStatus.ACCEPTED).isEmpty()||!requests.findAllByPostIdAndStatus(p.getId(),TradeRequestStatus.COMPLETED).isEmpty())throw new BusinessException(HttpStatus.CONFLICT,"이미 거래 중이거나 완료된 재료예요. 남은 재료를 확인한 뒤 새로 등록해주세요.");
    if(available(f)&&p.getQuantity().equals(amount)){f.share(p);p.setOpenFridgeValidUntil(until(f));return view(f);}
-   p.close();requests.findAllByPostIdAndStatus(p.getId(),TradeRequestStatus.PENDING).forEach(r->r.reject());
+   p.close();trades.rejectPendingRequests(p,"재료의 공개 조건이 변경되어 요청이 종료되었습니다.");
   }
   String title=f.getName().substring(0,Math.min(90,f.getName().length()))+" 나눔해요";
   p=posts.save(Post.create(me,PostType.SHARE,title,f.getName(),amount,0,area(me),0.0,f.getExpiryDate(),Math.round(me.getLatitude()*100)/100.0,Math.round(me.getLongitude()*100)/100.0,f.getImageUrl(),"열린 냉장고에서 나누는 재료예요. 나눌 수량: "+amount+". 보관 상태와 만날 장소는 수락 후 채팅으로 확인해주세요.",null,null,null));
@@ -69,6 +69,6 @@ public class OpenFridgeService {
   return view(f);
  }
  private LocalDateTime until(FridgeItem f){LocalDateTime a=now().plusDays(7),b=f.getExpiryDate().plusDays(1).atStartOfDay();return a.isBefore(b)?a:b;}
- @Transactional public void hide(Long id,Long itemId){var f=items.lockOwned(itemId,id).orElseThrow(()->new BusinessException(HttpStatus.NOT_FOUND,"재료를 찾지 못했어요."));if(f.getSharedPost()!=null){em.flush();em.refresh(f.getSharedPost(),jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);requests.findAllByPostIdAndStatus(f.getSharedPost().getId(),TradeRequestStatus.PENDING).forEach(r->r.reject());}f.hideShare();}
+ @Transactional public void hide(Long id,Long itemId){var f=items.lockOwned(itemId,id).orElseThrow(()->new BusinessException(HttpStatus.NOT_FOUND,"재료를 찾지 못했어요."));if(f.getSharedPost()!=null){em.flush();em.refresh(f.getSharedPost(),jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);trades.rejectPendingRequests(f.getSharedPost(),"재료의 공개가 종료되었습니다.");}f.hideShare();}
  @Transactional public TradeRequestResponse request(Long id,Long itemId){var f=items.findById(itemId).orElseThrow(()->new BusinessException(HttpStatus.NOT_FOUND,"공개 재료를 찾지 못했어요."));if(!available(f))throw new BusinessException(HttpStatus.CONFLICT,"공개가 종료됐어요. 목록을 새로고침해주세요.");User me=user(id);if(!located(me)||!located(f.getUser())||distance(me,f.getUser())>5)throw new BusinessException(HttpStatus.BAD_REQUEST,"내 위치를 확인해주세요. 5km 이내 이웃에게 요청할 수 있어요.");if(blocked(id,f.getUser().getId()))throw new BusinessException(HttpStatus.FORBIDDEN,"요청할 수 없는 사용자예요.");return trades.createRequest(f.getSharedPost().getId(),id);}
 }

@@ -51,7 +51,7 @@ public class ModerationService {
         String evidence=null;
         if(request.targetType()==ReportTargetType.CHAT_MESSAGE){
             var message=em.find(com.hjs.foodshare.chat.domain.ChatMessage.class,request.targetId());
-            if(!chatService.canAccessRoom(reporterId,message.getChatRoom().getId()))throw new BusinessException(HttpStatus.FORBIDDEN,"참여한 채팅만 신고할 수 있습니다.");
+            if(!chatService.canReportMessage(reporterId,message))throw new BusinessException(HttpStatus.FORBIDDEN,"참여하던 시점의 메시지만 신고할 수 있습니다.");
             evidence="room="+message.getChatRoom().getId()+", sender="+targetUser.getId()+", at="+message.getCreatedAt()+"\n"+message.getContent();
         }
         if(request.targetType()==ReportTargetType.TRADE_REQUEST){

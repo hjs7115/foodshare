@@ -63,7 +63,7 @@ public class FridgeExchangeService {
   if("cancel".equals(action)&&sender){e.end("CANCELLED");notifyResult(e,e.getWanted().getWriter(),"맞교환 제안 취소","상대가 맞교환 제안을 취소했어요.");return view(e,id);}if("reject".equals(action)&&receiver){e.end("REJECTED");notifyResult(e,e.getOffered().getWriter(),"맞교환 제안 거절","상대가 맞교환 제안을 거절했어요.");return view(e,id);}if(!"accept".equals(action)||!receiver)throw new BusinessException(HttpStatus.FORBIDDEN,"상대에게 받은 제안만 수락할 수 있어요.");
   Post a=e.getOffered(),b=e.getWanted();lockPosts(a,b);participants(a.getWriter(),b.getWriter());if(!available(a)||!available(b))throw error("재료의 공개나 거래 상태가 바뀌었어요. 다시 확인해주세요.");
   var trade=requests.save(TradeRequest.exchange(b,a.getWriter(),"맞교환: "+a.getIngredientName()+" ↔ "+b.getIngredientName()));trade.accept();a.close();b.close();
-  for(Post p:List.of(a,b))requests.findAllByPostIdAndStatus(p.getId(),TradeRequestStatus.PENDING).forEach(r->r.reject());
+  for(Post p:List.of(a,b))trades.rejectPendingRequests(p,"맞교환이 확정되어 나눔 요청이 종료되었습니다.");
   var room=chats.openRoomForTradeRequest(trade);e.accept(trade,room.getId());messages.save(ChatMessage.system(room,"맞교환이 수락됐어요. "+a.getWriter().getNickname()+": "+a.getIngredientName()+" "+a.getQuantity()+" ↔ "+b.getWriter().getNickname()+": "+b.getIngredientName()+" "+b.getQuantity()+". 상태와 만날 시간·장소를 확인해주세요."));
   for(User u:List.of(a.getWriter(),b.getWriter()))if(u.isNotificationTradeAccepted())notifications.createNotification(u.getId(),"FRIDGE_EXCHANGE","맞교환 수락","두 재료의 공개를 종료하고 채팅방을 열었어요.","CHAT_ROOM",room.getId());return view(e,id);
  }

@@ -11,6 +11,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,6 +36,14 @@ public class TradeRequestController {
 
     public record CancelRequest(@jakarta.validation.constraints.NotBlank String reason) {}
     public record ReopenRequest(boolean confirmed) {}
+    public record ReopenGroupRequest(boolean notOrdered, java.time.LocalDateTime deadline) {}
+
+    @PostMapping("/posts/{postId}/group-buy/reopen")
+    public Object reopenGroup(@PathVariable Long postId, @AuthenticationPrincipal AuthUser user,
+            @RequestBody ReopenGroupRequest request) {
+        tradeRequestService.reopenGroupBuy(postId, user.userId(), request.notOrdered(), request.deadline());
+        return ApiResponse.ok("빈자리 모집을 다시 시작했습니다.", null);
+    }
 
     @PostMapping("/trade-requests/{requestId}/cancel")
     public ResponseEntity<ApiResponse<TradeRequestResponse>> cancel(

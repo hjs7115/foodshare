@@ -1,3 +1,5 @@
+import TradeChatReportDialog from './TradeChatReportDialog';
+import GroupReopenDialog from './GroupReopenDialog';
 import MarketTradeActionDialog from './MarketTradeActionDialog';
 import ReviewDialog from './ReviewDialog';
 import { useEffect, useMemo, useState } from 'react';
@@ -108,6 +110,8 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [processingGroupKey, setProcessingGroupKey] = useState<string | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [reportTrade,setReportTrade] = useState<number|null>(null);
+  const [reopenGroup,setReopenGroup] = useState<number|null>(null);
   const [marketAction,setMarketAction] = useState<{request:TradeRequest; action:'cancel'|'reopen'}|null>(null);
 
   useNestedBack(Boolean(selectedProfile), () => setSelectedProfile(null));
@@ -560,10 +564,11 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     const recruiting=group.requests.some(r=>r.postOpen);
     const groupOwner=activeTab==='received'&&group.boardType==='group';
     return <div className="space-y-3">
-      {group.requests.map(r=><div key={r.requestId}>{group.requests.length>1&&<p className="mt-3 text-xs text-gray-600">{r.requesterNickname} · {getStatusLabel(r.status)}</p>}{renderActions(r)}{['ACCEPTED','COMPLETED','CANCELLED'].includes(r.status)&&<button className="mt-2 text-xs text-gray-600" onClick={async()=>{
+      {group.requests.map(r=><div key={r.requestId}>{group.requests.length>1&&<p className="mt-3 text-xs text-gray-600">{r.requesterNickname} · {getStatusLabel(r.status)}</p>}{renderActions(r)}{r.chatRoomId&&<button className="mt-2 mr-3 text-xs text-red-700" onClick={()=>setReportTrade(r.requestId)}>지난 대화 신고</button>}{['ACCEPTED','COMPLETED','CANCELLED'].includes(r.status)&&<button className="mt-2 text-xs text-gray-600" onClick={async()=>{
         const reason=await showPrompt('물품 미수령·잘못된 완료 처리 등 사유를 입력해주세요.','거래 신고·분쟁 접수');if(!reason?.trim())return;
         try{await createReport({targetType:'TRADE_REQUEST',targetId:r.requestId,reason:reason.trim()});showToast('거래 기록과 함께 접수했습니다. 설정의 내 신고 내역에서 처리 결과를 확인할 수 있습니다.');}catch(e:any){showToast(e.message);}
       }}>신고·분쟁 접수</button>}</div>)}
+      {groupOwner&&!recruiting&&group.requests.some(r=>r.status==='CANCELLED')&&!group.requests.some(r=>r.status==='COMPLETED'||(r.status==='ACCEPTED'&&(r.writerConfirmedAt||r.requesterConfirmedAt)))&&<button className="w-full rounded-xl bg-lime-200 py-3 text-sm" onClick={()=>setReopenGroup(group.postId)}>빈자리 다시 모집</button>}
       {groupOwner&&active&&recruiting&&<button disabled={processingGroupKey===group.key} onClick={()=>handleGroupAction(group,'closeRecruitment')} className="mt-3 w-full rounded-xl bg-lime-200 py-3 text-sm">남은 대기 요청도 수락하고 모집마감</button>}
       {groupOwner&&active&&<button className="w-full rounded-xl border border-red-200 py-2 text-sm text-red-700" onClick={async()=>{
         if(!await showConfirm('진행 중인 참여 요청을 모두 취소하고 모집을 닫을까요? 송금 금액은 자동 환불되지 않습니다.','공동구매 전체 취소','전체 취소'))return;
@@ -731,6 +736,8 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       </div>
 
       {(moreHistory.sent||moreHistory.received)&&<button disabled={loadingMore} onClick={()=>void loadMoreHistory()} className="w-full bg-white p-3 text-sm">{loadingMore?'불러오는 중…':'이전 거래 내역 더 보기'}</button>}
+      {reportTrade!==null&&<TradeChatReportDialog requestId={reportTrade} onClose={()=>setReportTrade(null)}/>}
+      {reopenGroup!==null&&<GroupReopenDialog postId={reopenGroup} onClose={()=>setReopenGroup(null)} onDone={()=>{setReopenGroup(null);void loadTradeRequests();showToast('빈자리 모집을 다시 시작했습니다.');}}/>}
       {reviewTarget&&<ReviewDialog requestId={reviewTarget.requestId} title={reviewTarget.postTitle} onClose={()=>setReviewTarget(null)} onDone={()=>{setReviewed(prev=>new Set([...prev,reviewTarget.requestId]));setReviewTarget(null);}}/>}
       {marketAction && <MarketTradeActionDialog requestId={marketAction.request.requestId} title={marketAction.request.postTitle} action={marketAction.action} expirationDate={marketAction.request.expirationDate} onClose={()=>setMarketAction(null)} onDone={()=>{setMarketAction(null);void loadTradeRequests();}} />}
       {selectedProfile && (

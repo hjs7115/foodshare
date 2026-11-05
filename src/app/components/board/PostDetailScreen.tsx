@@ -794,7 +794,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
             {getPostTypeBadge()}
             {isPostClosed && (
               <span className="bg-[#e2e8f0] text-[#475569] px-3 py-1 rounded-full text-sm" style={{ fontWeight: 600 }}>
-                거래완료
+                모집 종료
               </span>
             )}
             <span className="text-xs text-[#a0aec0]">

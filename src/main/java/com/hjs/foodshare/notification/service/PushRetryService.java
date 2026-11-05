@@ -52,7 +52,7 @@ public class PushRetryService {
   if("NEW_POST".equals(type))return user.isNotificationNewPost();
   if("EXPIRING_SOON".equals(type))return user.isExpiryReminder();
   if("COMMENT".equals(type))return user.isNotificationComment();
-  if("TRADE_ACCEPTED".equals(type))return user.isNotificationTradeAccepted();
+  if("TRADE_ACCEPTED".equals(type)||"CHAT_ROOM_OPENED".equals(type))return user.isNotificationTradeAccepted();
   return true;
  }
 }

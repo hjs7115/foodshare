@@ -56,6 +56,12 @@ public class ChatController {
                 chatService.getParticipantProfile(authUser.userId(), roomId, targetId)));
     }
 
+    @GetMapping("/rooms/by-trade-request/{tradeRequestId}/reportable-messages")
+    public Object reportableMessages(@AuthenticationPrincipal AuthUser user, @PathVariable Long tradeRequestId,
+            @RequestParam(required = false) Long before) {
+        return ApiResponse.ok("신고 가능한 대화", chatService.reportableMessages(user.userId(), tradeRequestId, before));
+    }
+
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<ApiResponse<List<ChatMessageResponse>>> getMessages(
             @AuthenticationPrincipal AuthUser authUser,

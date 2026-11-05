@@ -213,7 +213,7 @@ export default function MyPostsScreen({ onClose }: { onClose: () => void }) {
                             className="ml-1 inline-block px-2 py-0.5 rounded-md text-xs mb-2 bg-[#e2e8f0] text-[#475569]"
                             style={{ fontWeight: 600 }}
                           >
-                            거래완료
+                            모집 종료
                           </span>
                         )}
                         <h3 className="text-[#2d3748] mb-1 truncate" style={{ fontWeight: 600 }}>

@@ -57,6 +57,7 @@ public class ChatRoomMember {
     public boolean isActive() { return leftAt == null; }
 
     public void leave() {
+        if (leftAt != null) return;
         leftAt = LocalDateTime.now();
         unreadCount = 0;
         pinned = false;
@@ -123,4 +124,6 @@ public class ChatRoomMember {
     public LocalDateTime getJoinedAt() {
         return joinedAt;
     }
+    public LocalDateTime getLeftAt() { return leftAt; }
+    public void rejoin() { leftAt = null; muted = false; unreadCount = 0; }
 }

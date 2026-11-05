@@ -61,9 +61,17 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(@AuthenticationPrincipal AuthUser authUser, @RequestBody(required = false) java.util.Map<String, String> request) {
-        if (authUser != null) {
-            if (request != null) authService.logoutDevice(authUser.userId(), request.get("refreshToken"));
-            else authService.logout(authUser.userId());
+        if (authUser == null) {
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "Authentication is required.");
+        }
+        if (request == null) {
+            authService.logout(authUser.userId());
+        } else {
+            String refreshToken = request.get("refreshToken");
+            if (refreshToken == null || refreshToken.isBlank()) {
+                throw new BusinessException(HttpStatus.BAD_REQUEST, "refreshToken is required for device logout.");
+            }
+            authService.logoutDevice(authUser.userId(), refreshToken);
         }
         return ResponseEntity.ok(ApiResponse.ok("Logout completed.", null));
     }

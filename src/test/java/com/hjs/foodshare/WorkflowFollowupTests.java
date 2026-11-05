@@ -52,6 +52,56 @@ class WorkflowFollowupTests {
  Post post(User u,PostType type){return posts.save(Post.create(u,type,"두부","두부","1개",1000,"서울 강남구 역삼동",0.0,LocalDate.now().plusDays(3),37.50123,127.01234,null,"조건",type==PostType.GROUP_BUY?1:null,type==PostType.GROUP_BUY?2:null,type==PostType.GROUP_BUY?LocalDateTime.now().plusDays(1):null));}
  FridgeItem item(User u){return fridge.save(FridgeItem.create(u,"두부","1개",LocalDate.now().plusDays(3),"냉장",""));}
 
+ @Test void onlyRequesterCanWithdrawPendingRequestAndApplyAgain() {
+  var owner = user("withdraw-owner");
+  var buyer = user("withdraw-buyer");
+  var p = post(owner, PostType.SHARE);
+  var first = trades.createRequest(p.getId(), buyer.getId());
+  assertThrows(BusinessException.class, () -> trades.withdrawTradeRequest(first.requestId(), owner.getId()));
+  assertEquals(TradeRequestStatus.CANCELLED, trades.withdrawTradeRequest(first.requestId(), buyer.getId()).status());
+  assertEquals(TradeRequestStatus.CANCELLED, trades.withdrawTradeRequest(first.requestId(), buyer.getId()).status());
+  assertThrows(BusinessException.class, () -> trades.accept(first.requestId(), owner.getId()));
+  var second = trades.createRequest(p.getId(), buyer.getId());
+  assertNotEquals(first.requestId(), second.requestId());
+  trades.accept(second.requestId(), owner.getId());
+  assertThrows(BusinessException.class, () -> trades.withdrawTradeRequest(second.requestId(), buyer.getId()));
+  assertEquals(TradeRequestStatus.ACCEPTED, requests.findById(second.requestId()).orElseThrow().getStatus());
+ }
+
+ @Test void cancelledDirectChatDisablesBothSidesAndRetainsReportEvidence() {
+  var owner = user("cancel-chat-owner");
+  var buyer = user("cancel-chat-buyer");
+  var p = post(owner, PostType.SALE);
+  var pending = trades.createRequest(p.getId(), buyer.getId());
+  var roomId = trades.accept(pending.requestId(), owner.getId()).chatRoomId();
+  var message = chats.sendMessage(owner.getId(), roomId, "신고할 메시지");
+  assertTrue(chats.canAccessRoom(buyer.getId(), roomId));
+  trades.cancelMarketTrade(pending.requestId(), buyer.getId(), "기타");
+  for (var participant : java.util.List.of(owner, buyer)) {
+   assertFalse(chats.canAccessRoom(participant.getId(), roomId));
+   assertTrue(chats.getRooms(participant.getId(), "ALL").isEmpty());
+   assertThrows(BusinessException.class, () -> chats.getMessages(participant.getId(), roomId));
+   assertThrows(BusinessException.class, () -> chats.sendMessage(participant.getId(), roomId, "새 메시지"));
+  }
+  assertEquals(roomId, chats.findRoomIdByTradeRequestId(pending.requestId()));
+  assertEquals(message.messageId(), chats.reportableMessages(buyer.getId(), pending.requestId(), null).getFirst().messageId());
+  var report = moderation.createReport(buyer.getId(), new ReportCreateRequest(
+          ReportTargetType.CHAT_MESSAGE, message.messageId(), "욕설", null));
+  assertTrue(report.evidence().contains("신고할 메시지"));
+ }
+
+ @Test void groupChatClosesWhenLastAcceptedSeatIsCancelled() {
+  var owner = user("cancel-group-owner");
+  var buyer = user("cancel-group-buyer");
+  var p = post(owner, PostType.GROUP_BUY);
+  var request = trades.createRequest(p.getId(), buyer.getId());
+  var roomId = trades.accept(request.requestId(), owner.getId()).chatRoomId();
+  trades.cancelMarketTrade(request.requestId(), buyer.getId(), "기타");
+  assertFalse(chats.canAccessRoom(owner.getId(), roomId));
+  assertFalse(chats.canAccessRoom(buyer.getId(), roomId));
+  assertEquals(roomId, chats.findRoomIdByTradeRequestId(request.requestId()));
+ }
+
  @Test void purchasePostAcceptsLegacyBlankExpirationFromHiddenField() {
   var owner = user("buyer-post-owner");
   var payload = new PostCreateRequest(PostType.BUY, "두부 구매", "두부", "1개", "희망가 협의",

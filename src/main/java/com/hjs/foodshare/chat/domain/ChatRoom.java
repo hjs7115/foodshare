@@ -165,6 +165,10 @@ public class ChatRoom {
         return tradeRequest;
     }
 
+    public boolean isCancelledDirectTrade() {
+        return !isGroupRoom() && tradeRequest.getStatus() == com.hjs.foodshare.trade.domain.TradeRequestStatus.CANCELLED;
+    }
+
     public User getWriter() {
         return writer;
     }

@@ -106,7 +106,10 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   const [editingContent, setEditingContent] = useState('');
   const [showMenuForComment, setShowMenuForComment] = useState<number | null>(null);
   const [isCommentSubmitting, setIsCommentSubmitting] = useState(false);
-  const [tradeRequestStatus, setTradeRequestStatus] = useState<TradeRequestStatus | null>(null);
+  const [myTradeRequest, setMyTradeRequest] = useState<TradeRequestSummary | null>(null);
+  const [checkedTradePostId, setCheckedTradePostId] = useState<number | null>(null);
+  const currentRequest = myTradeRequest?.postId === postId ? myTradeRequest : null;
+  const tradeRequestStatus = currentRequest?.status ?? null;
   const [isTradeRequestSubmitting, setIsTradeRequestSubmitting] = useState(false);
   const [isClosingRecruitment, setIsClosingRecruitment] = useState(false);
   const [isSafetyActionSubmitting, setIsSafetyActionSubmitting] = useState(false);
@@ -594,15 +597,16 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
         .filter((request) => request.postId === postId && !['REJECTED','CANCELLED'].includes(request.status))
         .sort((a, b) => b.requestId - a.requestId)[0];
 
-      setTradeRequestStatus(existingRequest && ['PENDING','ACCEPTED','COMPLETED'].includes(existingRequest.status) ? existingRequest.status : null);
+      setMyTradeRequest(existingRequest && ['PENDING','ACCEPTED','COMPLETED'].includes(existingRequest.status) ? existingRequest : null);
     } catch (error) {
       console.warn('내 거래 요청 상태 조회에 실패했습니다.', error);
-      setTradeRequestStatus(null);
+    } finally {
+      setCheckedTradePostId(postId);
     }
   };
 
   const handleTradeRequest = async () => {
-    if (!post) return;
+    if (!post || checkedTradePostId !== postId || isTradeRequestSubmitting) return;
     if (post.status === 'CLOSED') {
       showToast('모집이 종료된 게시글입니다.');
       return;
@@ -649,7 +653,12 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       const response = await apiRequest(API_ENDPOINTS.createTradeRequest(postId), { method: 'POST' });
       const tradeRequest = response?.data || response?.tradeRequest || response;
       const nextStatus = tradeRequest?.status || 'PENDING';
-      setTradeRequestStatus(nextStatus);
+      const requestId = Number(tradeRequest?.requestId ?? tradeRequest?.id);
+      if (Number.isSafeInteger(requestId) && requestId > 0) {
+        setMyTradeRequest({ requestId, postId, status: nextStatus });
+      } else {
+        await checkMyTradeRequest();
+      }
       await loadPost();
       if (nextStatus === 'ACCEPTED' && tradeRequest?.chatRoomId) {
         showToast('채팅방이 개설되었습니다.');
@@ -658,9 +667,27 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       }
     } catch (error: any) {
       if (error.message === '이미 이 게시글에 거래 요청을 보냈습니다.') {
-        setTradeRequestStatus('PENDING');
+        await checkMyTradeRequest();
       }
       showToast(error.message || `${typeLabel} 요청에 실패했습니다.`);
+    } finally {
+      setIsTradeRequestSubmitting(false);
+    }
+  };
+
+  const handleWithdrawTradeRequest = async () => {
+    if (currentRequest?.status !== 'PENDING' || isTradeRequestSubmitting) return;
+    setIsTradeRequestSubmitting(true);
+    try {
+      if (!(await showConfirm('보낸 요청을 취소할까요?', '거래 요청 취소', '요청 취소'))) return;
+      await apiRequest(API_ENDPOINTS.withdrawTradeRequest(currentRequest.requestId), { method: 'POST' });
+      setMyTradeRequest(null);
+      showToast('보낸 요청을 취소했습니다.');
+      await loadPost();
+    } catch (error: any) {
+      showToast(error.message || '요청을 취소하지 못했습니다.');
+      await checkMyTradeRequest();
+      await loadPost();
     } finally {
       setIsTradeRequestSubmitting(false);
     }
@@ -684,16 +711,17 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
   };
 
   const getTradeButtonLabel = () => {
-    if (post?.status === 'CLOSED') return '모집 종료';
+    if (checkedTradePostId !== postId) return '요청 상태 확인 중…';
     if (isTradeRequestSubmitting) return '요청 중';
     switch (tradeRequestStatus) {
       case 'PENDING':
-        return '요청 완료';
+        return '수락 대기 중';
       case 'ACCEPTED':
         return '거래 수락됨';
       case 'COMPLETED':
         return '거래 완료됨';
       default:
+        if (post?.status === 'CLOSED') return '모집 종료';
         if (post?.postType === 'SHARE') return '나눔 요청하기';
         if (post?.postType === 'SALE') return '구매 요청하기';
         if (post?.postType === 'BUY') return '판매 제안하기';
@@ -1109,10 +1137,22 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
               내 게시글입니다
             </div>
           )
+        ) : tradeRequestStatus === 'PENDING' ? (
+          <div className="flex items-center gap-3">
+            <span className="flex-1 text-center text-sm font-semibold text-[#475569]" role="status">수락 대기 중</span>
+            <button
+              type="button"
+              onClick={() => void handleWithdrawTradeRequest()}
+              disabled={isTradeRequestSubmitting}
+              className="flex-1 rounded-2xl border border-red-200 bg-white py-4 font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+            >
+              {isTradeRequestSubmitting ? '처리 중…' : '요청 취소'}
+            </button>
+          </div>
         ) : (
           <button
             onClick={handleTradeRequest}
-            disabled={isPostClosed || Boolean(tradeRequestStatus) || isTradeRequestSubmitting}
+            disabled={checkedTradePostId !== postId || isPostClosed || Boolean(tradeRequestStatus) || isTradeRequestSubmitting}
             className="w-full bg-[#bef264] text-[#0a0a0a] py-4 rounded-2xl hover:bg-[#a3e635] disabled:bg-[#e2e8f0] disabled:text-[#718096] disabled:cursor-not-allowed transition-colors shadow-sm"
             style={{ fontWeight: 600 }}
           >

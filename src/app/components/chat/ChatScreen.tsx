@@ -401,6 +401,15 @@ export default function ChatScreen({
       if (messageSyncRef.current === sync && (last === null || (normalized.length && shouldStickToBottomRef.current))) {
         window.requestAnimationFrame(() => scrollMessagesToBottom('auto'));
       }
+    } catch (error) {
+      const status = (error as { status?: number }).status;
+      if (messageSyncRef.current === sync && (status === 403 || status === 404)) {
+        closeSelectedRoom();
+        setRooms(previous => previous.filter(item => item.chatRoomId !== room.chatRoomId));
+        showToast('더 이상 이용할 수 없는 채팅방입니다.');
+        return;
+      }
+      throw error;
     } finally {
       sync.loading = false;
       if (messageSyncRef.current === sync && last === null) setIsMessagesLoading(false);

@@ -278,6 +278,11 @@ public class ChatService {
     }
 
     private boolean isActiveParticipant(ChatRoom room, Long userId) {
+        if (room.isCancelledDirectTrade()) return false;
+        if (room.isGroupRoom() && room.getWriter().getId().equals(userId)
+                && room.getTradeRequest().getStatus() == TradeRequestStatus.CANCELLED
+                && !tradeRequestRepository.existsByPostIdAndStatusIn(room.getTradeRequest().getPost().getId(),
+                        List.of(TradeRequestStatus.ACCEPTED, TradeRequestStatus.COMPLETED))) return false;
         if(!room.isGroupRoom() && blocks.blockedEitherWay(room.getWriter().getId(),room.getRequester().getId())) return false;
         return chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId)
                 .map(ChatRoomMember::isActive)

@@ -34,6 +34,13 @@ public class PushRetryService {
   var token=em.find(UserFcmToken.class,job.tokenId);
   var user=em.find(User.class,job.userId);
   if(token==null||user==null||!user.isAvailable()||!token.getUser().getId().equals(job.userId)||!allowed(user,job.type)||Instant.now().isAfter(job.expiresAt)){em.remove(job);return;}
+  if ("CHAT_ROOM".equals(job.targetType)) {
+   var room = em.find(com.hjs.foodshare.chat.domain.ChatRoom.class, job.targetId);
+   if (room == null || room.isCancelledDirectTrade()) {
+    em.remove(job);
+    return;
+   }
+  }
   if("CHAT_MESSAGE".equals(job.type)){
    var member=em.createQuery("select m from ChatRoomMember m where m.chatRoom.id=:room and m.user.id=:user",com.hjs.foodshare.chat.domain.ChatRoomMember.class).setParameter("room",job.targetId).setParameter("user",job.userId).getResultList();
    boolean blocked=job.sourceUserId==null || em.createQuery("select count(b) from UserBlock b where (b.blocker.id=:a and b.blockedUser.id=:b) or (b.blocker.id=:b and b.blockedUser.id=:a)",Long.class).setParameter("a",job.userId).setParameter("b",job.sourceUserId).getSingleResult()>0;

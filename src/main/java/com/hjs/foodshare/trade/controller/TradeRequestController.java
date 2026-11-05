@@ -59,6 +59,12 @@ public class TradeRequestController {
         return ResponseEntity.ok(ApiResponse.ok("다시 모집합니다.", tradeRequestService.reopenMarketTrade(requestId,authUser.userId(),request.confirmed())));
     }
 
+    @PostMapping("/trade-requests/{requestId}/withdraw")
+    public ApiResponse<TradeRequestResponse> withdraw(
+            @PathVariable Long requestId, @AuthenticationPrincipal AuthUser user) {
+        return ApiResponse.ok("요청을 취소했습니다.", tradeRequestService.withdrawTradeRequest(requestId, user.userId()));
+    }
+
     @PostMapping("/posts/{postId}/cancel-trades")
     public ResponseEntity<ApiResponse<Void>> cancelPost(@PathVariable Long postId,@AuthenticationPrincipal AuthUser user,
             @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody CancelRequest request) {

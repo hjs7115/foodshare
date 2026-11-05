@@ -76,6 +76,7 @@ export const API_ENDPOINTS = {
 
   // ========== 거래 요청 ==========
   createTradeRequest: (postId: number) => `${API_BASE_URL}/api/posts/${postId}/trade-requests`,
+  withdrawTradeRequest: (requestId: number) => `${API_BASE_URL}/api/trade-requests/${requestId}/withdraw`,
   getTradeRequests: (postId: number) => `${API_BASE_URL}/api/posts/${postId}/trade-requests`,
   acceptTradeRequest: (tradeRequestId: number) => `${API_BASE_URL}/api/trade-requests/${tradeRequestId}/accept`,
   rejectTradeRequest: (tradeRequestId: number) => `${API_BASE_URL}/api/trade-requests/${tradeRequestId}/reject`,
@@ -294,7 +295,7 @@ export async function apiRequest(
 
     if(response.status===403){
       const detail=await response.json().catch(()=>null);
-      throw new Error(detail?.message||'이 요청에 접근할 권한이 없습니다.');
+      throw Object.assign(new Error(detail?.message || '이 요청에 접근할 권한이 없습니다.'), { status: response.status });
     }
 
     // 204 No Content는 성공이지만 body가 없음
@@ -331,7 +332,7 @@ export async function apiRequest(
         clearAuthSession();
         throw new Error('로그인 정보가 만료되었습니다. 다시 로그인해주세요.');
       }
-      throw new Error(translateApiErrorMessage(errorMessage));
+      throw Object.assign(new Error(translateApiErrorMessage(errorMessage)), { status: response.status });
     }
 
     return data;

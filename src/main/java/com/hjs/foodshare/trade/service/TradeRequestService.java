@@ -259,11 +259,29 @@ public class TradeRequestService {
 
     @Transactional
     public TradeRequestResponse cancelMarketTrade(Long requestId, Long userId, String reason) {
+        return cancelTrade(requestId, userId, reason, false);
+    }
+
+    @Transactional
+    public TradeRequestResponse withdrawTradeRequest(Long requestId, Long userId) {
+        return cancelTrade(requestId, userId, "생각이 바뀌었어요", true);
+    }
+
+    private TradeRequestResponse cancelTrade(Long requestId, Long userId, String reason, boolean pendingOnly) {
         TradeRequest request=lockTrade(requestId);
         if (request.getExchangeDescription() != null)
             throw new BusinessException(HttpStatus.CONFLICT,"맞교환 내역에서 취소해주세요.");
         boolean writer=request.getPost().getWriter().getId().equals(userId);
         boolean requester=request.getRequester().getId().equals(userId);
+        if (pendingOnly) {
+            if (!requester) {
+                throw new BusinessException(HttpStatus.FORBIDDEN, "요청한 사람만 요청을 취소할 수 있습니다.");
+            }
+            if (request.getStatus() != TradeRequestStatus.PENDING
+                    && !(request.getStatus() == TradeRequestStatus.CANCELLED && !request.isCancelledAfterAcceptance())) {
+                throw new BusinessException(HttpStatus.CONFLICT, "수락 대기 중인 요청만 여기서 취소할 수 있습니다. 거래 내역을 확인해주세요.");
+            }
+        }
         if (!writer && !requester) throw new BusinessException(HttpStatus.FORBIDDEN, "거래 당사자만 취소할 수 있습니다.");
         if (request.getStatus()==TradeRequestStatus.CANCELLED) return toResponse(request);
         if (request.getStatus()!=TradeRequestStatus.ACCEPTED && !(requester && request.getStatus()==TradeRequestStatus.PENDING))

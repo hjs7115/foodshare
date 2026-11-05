@@ -295,7 +295,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
       const [sent, received, profile] = await Promise.allSettled([
         loadPages(API_ENDPOINTS.mypageTradeRequests),
         loadPages(API_ENDPOINTS.mypageReceivedTradeRequests),
-        apiRequest(API_ENDPOINTS.getProfile),
+        background ? Promise.resolve(null) : apiRequest(API_ENDPOINTS.getProfile),
       ]);
       if (historyLoadRef.current !== load) return;
 
@@ -306,7 +306,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         sent: sent.status === 'fulfilled' ? sent.value.hasMore : background && previous.sent,
         received: received.status === 'fulfilled' ? received.value.hasMore : background && previous.received,
       }));
-      if (profile.status === 'fulfilled') {
+      if (profile.status === 'fulfilled' && profile.value) {
         setLifetimeCompleted(Number((profile.value.data || profile.value).completedTradeCount || 0));
       }
       const failed = [sent.status === 'rejected' && '보낸 요청', received.status === 'rejected' && '받은 요청'].filter(Boolean);
@@ -349,7 +349,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
     const refresh = () => {
       if (document.visibilityState === 'visible') void loadTradeRequests(true);
     };
-    const timer = window.setInterval(refresh, 5000);
+    const timer = window.setInterval(refresh, 30000);
     window.addEventListener('focus', refresh);
     return () => {
       window.clearInterval(timer);

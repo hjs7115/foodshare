@@ -568,7 +568,7 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
         const reason=await showPrompt('물품 미수령·잘못된 완료 처리 등 사유를 입력해주세요.','거래 신고·분쟁 접수');if(!reason?.trim())return;
         try{await createReport({targetType:'TRADE_REQUEST',targetId:r.requestId,reason:reason.trim()});showToast('거래 기록과 함께 접수했습니다. 설정의 내 신고 내역에서 처리 결과를 확인할 수 있습니다.');}catch(e:any){showToast(e.message);}
       }}>신고·분쟁 접수</button>}</div>)}
-      {groupOwner&&!recruiting&&group.requests.some(r=>r.status==='CANCELLED')&&!group.requests.some(r=>r.status==='COMPLETED'||(r.status==='ACCEPTED'&&(r.writerConfirmedAt||r.requesterConfirmedAt)))&&<button className="w-full rounded-xl bg-lime-200 py-3 text-sm" onClick={()=>setReopenGroup(group.postId)}>빈자리 다시 모집</button>}
+      {groupOwner&&!recruiting&&group.requests.some(r=>r.reopenCandidate)&&!group.requests.some(r=>r.status==='COMPLETED'||(r.status==='ACCEPTED'&&(r.writerConfirmedAt||r.requesterConfirmedAt)))&&<button className="w-full rounded-xl bg-lime-200 py-3 text-sm" onClick={()=>setReopenGroup(group.postId)}>빈자리 다시 모집</button>}
       {groupOwner&&active&&recruiting&&<button disabled={processingGroupKey===group.key} onClick={()=>handleGroupAction(group,'closeRecruitment')} className="mt-3 w-full rounded-xl bg-lime-200 py-3 text-sm">남은 대기 요청도 수락하고 모집마감</button>}
       {groupOwner&&active&&<button className="w-full rounded-xl border border-red-200 py-2 text-sm text-red-700" onClick={async()=>{
         if(!await showConfirm('진행 중인 참여 요청을 모두 취소하고 모집을 닫을까요? 송금 금액은 자동 환불되지 않습니다.','공동구매 전체 취소','전체 취소'))return;

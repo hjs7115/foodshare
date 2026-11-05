@@ -13,7 +13,7 @@
 
 ## 검증
 
-- 전체 백엔드 193개 테스트 통과(기존 181개 + 후속 회귀 12개).
+- 전체 백엔드 194개 테스트 통과(기존 181개 + 후속 회귀 13개).
 - 프런트 19개 테스트 통과, 운영 설정을 사용한 프로덕션 빌드 성공.
 - 모바일 크기 브라우저에서 거래내역 → 지난 대화 신고 → 신고 접수, 미확인 상태 재모집 버튼 비활성화 → 확인 후 재모집 요청 흐름 통과. 페이지 오류·가로 넘침 없음.
 - 운영 MySQL 복사본에서 기존 동시성 7종 × 5회 통과.
@@ -26,3 +26,8 @@
 추가 DB 마이그레이션이나 일괄 로그아웃은 필요하지 않다. 기존 데이터·이미지를 백업하고 프런트와 백엔드를 함께 교체한다. 실제 휴대폰 푸시 수신 자체는 이번 검증에 포함하지 않았으며, 알림 설정 검증은 발송 함수 호출 억제까지 확인했다. 기존 프런트 대형 청크 경고는 남아 있다.
 
 별도로 제안했던 ‘거래내역에서 채팅방 바로가기’와 ‘완료 확인 대기 재안내’는 이번에 승인된 6개 보완사항에 포함하지 않는다.
+
+### Final regression checks
+
+- Hide the group reopening action after a replacement fills the last seat.
+- Compare historical message boundaries using persisted member timestamps, avoiding nanosecond versus database microsecond rounding differences. A deterministic timestamp-boundary regression test covers this case.

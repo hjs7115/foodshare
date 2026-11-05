@@ -270,10 +270,10 @@ public class ChatService {
         if (!trade.getRequester().getId().equals(userId) && !trade.getPost().getWriter().getId().equals(userId))
             throw new BusinessException(HttpStatus.FORBIDDEN, "참여한 거래만 확인할 수 있습니다.");
         var room = findRoomForTradeRequest(requestId).orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "채팅방을 찾지 못했습니다."));
-        var window = reportWindow(userId, room);
-        return em.createQuery("select m from ChatMessage m join fetch m.sender where m.chatRoom.id=:room and m.sender.id<>:user and m.createdAt>=:joined and (:left is null or m.createdAt<=:left) and (:before is null or m.id<:before) order by m.id desc", ChatMessage.class)
-                .setParameter("room", room.getId()).setParameter("user", userId).setParameter("joined", window.from())
-                .setParameter("left", window.until()).setParameter("before", before).setMaxResults(100).getResultList()
+        reportWindow(userId, room); // Compare persisted timestamps at DB precision.
+        return em.createQuery("select m from ChatMessage m join fetch m.sender where m.chatRoom.id=:room and m.sender.id<>:user and (exists (select cm.id from ChatRoomMember cm where cm.chatRoom=m.chatRoom and cm.user.id=:user and m.createdAt>=cm.joinedAt and (cm.leftAt is null or m.createdAt<=cm.leftAt)) or (not exists (select cm.id from ChatRoomMember cm where cm.chatRoom=m.chatRoom and cm.user.id=:user) and m.createdAt>=m.chatRoom.createdAt)) and (:before is null or m.id<:before) order by m.id desc", ChatMessage.class)
+                .setParameter("room", room.getId()).setParameter("user", userId)
+                .setParameter("before", before).setMaxResults(100).getResultList()
                 .stream().map(m -> ChatMessageResponse.from(m, userId)).toList();
     }
 

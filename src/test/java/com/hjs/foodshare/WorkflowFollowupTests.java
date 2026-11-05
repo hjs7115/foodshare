@@ -63,6 +63,19 @@ class WorkflowFollowupTests {
   assertEquals(message.messageId(),chats.reportableMessages(buyer.getId(),request.requestId(),null).getFirst().messageId());
   assertFalse(chats.canAccessRoom(buyer.getId(),accepted.chatRoomId()));
  }
+ @Test void historicalListingUsesDatabaseTimestampPrecision(){
+  var owner=user("owner");var buyer=user("buyer");var p=post(owner,PostType.SALE);
+  var request=trades.createRequest(p.getId(),buyer.getId());var accepted=trades.accept(request.requestId(),owner.getId());
+  var message=chats.sendMessage(owner.getId(),accepted.chatRoomId(),"boundary message");
+  moderation.blockUser(buyer.getId(),owner.getId());
+  var member=em.createQuery("select m from ChatRoomMember m where m.chatRoom.id=:room and m.user.id=:user",com.hjs.foodshare.chat.domain.ChatRoomMember.class).setParameter("room",accepted.chatRoomId()).setParameter("user",buyer.getId()).getSingleResult();
+  var entity=em.find(com.hjs.foodshare.chat.domain.ChatMessage.class,message.messageId());
+  var instant=LocalDateTime.now().plusSeconds(1).withNano(123456600);
+  org.springframework.test.util.ReflectionTestUtils.setField(entity,"createdAt",instant);
+  org.springframework.test.util.ReflectionTestUtils.setField(member,"leftAt",instant.plusNanos(100));
+  em.flush();
+  assertEquals(message.messageId(),chats.reportableMessages(buyer.getId(),request.requestId(),null).getFirst().messageId());
+ }
  @Test void acceptedFridgePhotoIsPreservedInExistingTrade_negativeControl(){
   var owner=user("owner");var buyer=user("buyer");var f=item(owner);f.setImageUrl("/uploads/old-evidence.jpg");
   var shared=open.publish(owner.getId(),f.getId(),"1개");var request=open.request(buyer.getId(),f.getId());trades.accept(request.requestId(),owner.getId());
@@ -102,6 +115,7 @@ class WorkflowFollowupTests {
   var replacement=trades.createRequest(p.getId(),next.getId());
   var accepted=trades.accept(replacement.requestId(),owner.getId());
   assertEquals(2,p.getCurrentParticipantCount());
+  assertFalse(trades.getReceivedRequests(owner.getId()).stream().filter(r->r.requestId().equals(request.requestId())).findFirst().orElseThrow().reopenCandidate());
   assertTrue(chats.canAccessRoom(next.getId(),accepted.chatRoomId()));
   assertFalse(chats.canAccessRoom(buyer.getId(),accepted.chatRoomId()));
  }

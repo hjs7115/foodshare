@@ -91,6 +91,12 @@ class WorkflowFollowupTests {
   var report = moderation.createReport(buyer.getId(), new ReportCreateRequest(
           ReportTargetType.CHAT_MESSAGE, message.messageId(), "욕설", null));
   assertTrue(report.evidence().contains("신고할 메시지"));
+  chats.leaveRoom(buyer.getId(), roomId);
+  chats.leaveRoom(buyer.getId(), roomId);
+  assertTrue(chats.getRooms(buyer.getId(), "ALL").isEmpty());
+  assertTrue(chats.getRooms(owner.getId(), "ALL").getFirst().readOnly());
+  assertThrows(BusinessException.class, () -> chats.getMessages(buyer.getId(), roomId));
+  assertEquals(message.messageId(), chats.reportableMessages(buyer.getId(), pending.requestId(), null).getFirst().messageId());
  }
 
  @Test void groupChatClosesWhenLastAcceptedSeatIsCancelled() {
@@ -131,7 +137,13 @@ class WorkflowFollowupTests {
   assertFalse(chats.getRooms(remaining.getId(), "ALL").getFirst().readOnly());
   assertEquals(after.content(), chats.getRooms(remaining.getId(), "ALL").getFirst().lastMessage());
   assertThrows(BusinessException.class, () -> chats.getMessages(outsider.getId(), roomId));
+  assertThrows(BusinessException.class, () -> chats.leaveRoom(outsider.getId(), roomId));
   assertThrows(BusinessException.class, () -> chats.sendMessage(leaving.getId(), roomId, "전송 시도"));
+  chats.leaveRoom(leaving.getId(), roomId);
+  assertTrue(chats.getRooms(leaving.getId(), "ALL").isEmpty());
+  assertEquals(after.content(), chats.getRooms(remaining.getId(), "ALL").getFirst().lastMessage());
+  assertEquals(java.util.List.of(before.messageId()), chats.reportableMessages(leaving.getId(), first.requestId(), null)
+          .stream().map(message -> message.messageId()).toList());
  }
 
  @Test void purchasePostAcceptsLegacyBlankExpirationFromHiddenField() {

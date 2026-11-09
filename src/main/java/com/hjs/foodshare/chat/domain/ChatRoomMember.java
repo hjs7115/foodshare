@@ -45,6 +45,7 @@ public class ChatRoomMember {
     private LocalDateTime joinedAt;
 
     private LocalDateTime leftAt;
+    private Boolean hiddenFromChatList;
     private Long lastReadMessageId;
     @Column(length=100) private String personalName;
     public boolean hasReadCursor(){return lastReadMessageId!=null;}
@@ -125,5 +126,13 @@ public class ChatRoomMember {
         return joinedAt;
     }
     public LocalDateTime getLeftAt() { return leftAt; }
-    public void rejoin() { leftAt = null; muted = false; unreadCount = 0; }
+    public boolean isHiddenFromChatList() { return Boolean.TRUE.equals(hiddenFromChatList); }
+    public void hideFromChatList() { hiddenFromChatList = true; }
+
+    public void rejoin() {
+        leftAt = null;
+        hiddenFromChatList = false;
+        muted = false;
+        unreadCount = 0;
+    }
 }

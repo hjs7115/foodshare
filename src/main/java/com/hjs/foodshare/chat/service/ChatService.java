@@ -173,9 +173,15 @@ public class ChatService {
     }
 
     private ChatRoom lockRoom(Long userId,Long roomId){
+        ChatRoom room = findRoomForUpdate(roomId);
+        validateParticipant(room, userId);
+        return room;
+    }
+
+    private ChatRoom findRoomForUpdate(Long roomId) {
         ChatRoom room=em.find(ChatRoom.class,roomId,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if(room==null)throw new BusinessException(HttpStatus.NOT_FOUND,"채팅방을 찾을 수 없습니다.");
-        validateParticipant(room,userId);return room;
+        return room;
     }
 
     public long readCursor(Long userId,Long roomId){getParticipantRoom(userId,roomId);return chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId,userId).map(this::readCursorFor).orElse(0L);}
@@ -226,8 +232,11 @@ public class ChatService {
 
     @Transactional
     public void leaveRoom(Long userId, Long roomId) {
-        ChatRoom room = lockRoom(userId, roomId);
-        leaveMember(room, userId);
+        ChatRoom room = findRoomForUpdate(roomId);
+        if (chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId, userId)
+                .map(ChatRoomMember::isHiddenFromChatList).orElse(false)) return;
+        requireRoomAccess(room, userId);
+        leaveMember(room, userId).hideFromChatList();
     }
 
     @Transactional
@@ -239,7 +248,7 @@ public class ChatService {
                 });
     }
 
-    private void leaveMember(ChatRoom room, Long userId) {
+    private ChatRoomMember leaveMember(ChatRoom room, Long userId) {
         // Preserve both legacy participants before adding a per-user tombstone.
         addMemberIfAbsent(room, room.getWriter(), room.getWriterUnreadCount());
         addMemberIfAbsent(room, room.getRequester(), room.getRequesterUnreadCount());
@@ -247,6 +256,7 @@ public class ChatService {
                 .orElseGet(() -> chatRoomMemberRepository.save(ChatRoomMember.create(room,
                         userRepository.findById(userId).orElseThrow(), 0)));
         member.leave();
+        return member;
     }
 
     public void requireParticipant(Long userId, Long roomId) {
@@ -266,6 +276,7 @@ public class ChatService {
     private RoomAccess roomAccess(ChatRoom room, Long userId) {
         if (isActiveParticipant(room, userId)) return new RoomAccess(false, null);
         var member = chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId);
+        if (member.map(ChatRoomMember::isHiddenFromChatList).orElse(false)) return null;
         if (room.isCancelledDirectTrade() && isMember(room, userId, member)
                 && !blocks.blockedEitherWay(room.getWriter().getId(), room.getRequester().getId())) {
             return new RoomAccess(true, null);

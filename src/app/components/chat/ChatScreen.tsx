@@ -85,6 +85,7 @@ export default function ChatScreen({
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
+  const roomsRequestVersionRef = useRef(0);
   const activeRoomIdRef = useRef<number | null>(null);
   const messageSyncRef = useRef<{roomId: number; cursor: number | null; loading: boolean} | null>(null);
   const failedSendRef = useRef<{roomId:number;content:string;clientId:string}|null>(null);
@@ -330,10 +331,12 @@ export default function ChatScreen({
   };
 
   const loadRooms = async (filter: ChatFilter) => {
+    const version = ++roomsRequestVersionRef.current;
     setIsLoading(true);
     try {
       const roomFilter = filter === 'UNREAD' && activeRoomIdRef.current !== null ? 'ALL' : filter;
       const response = await apiRequest(`${API_ENDPOINTS.chatRooms}?filter=${roomFilter}`, { method: 'GET' });
+      if (roomsRequestVersionRef.current !== version) return;
       const raw = response?.data?.content || response?.data || response?.rooms || response?.chatRooms || response;
       const normalizedRooms = Array.isArray(raw)
         ? raw.map(normalizeRoom).filter((room) => room.chatRoomId).sort(sortRoomsForDisplay)
@@ -343,9 +346,9 @@ export default function ChatScreen({
       onChatUnreadChange?.(normalizedRooms.reduce((sum, room) => sum + room.unreadCount, 0));
     } catch (error) {
       console.warn('채팅방 목록 조회 실패', error);
-      setRooms([]);
+      if (roomsRequestVersionRef.current === version) setRooms([]);
     } finally {
-      setIsLoading(false);
+      if (roomsRequestVersionRef.current === version) setIsLoading(false);
     }
   };
 
@@ -622,7 +625,6 @@ export default function ChatScreen({
   };
 
   const beginRoomLongPress = (room: ChatRoom) => {
-    if (room.readOnly) return;
     clearLongPressTimer();
     longPressTriggeredRef.current = false;
     longPressTimerRef.current = window.setTimeout(() => {
@@ -732,16 +734,16 @@ export default function ChatScreen({
       if (await showConfirm('채팅방에서 나갈까요?\n내 목록에서 사라지고 메시지를 더 이상 받지 않습니다. 다른 참여자의 대화 기록은 유지됩니다.', '채팅방 나가기', '나가기')) {
         try {
           await apiRequest(API_ENDPOINTS.leaveChatRoom(room.chatRoomId), { method: 'DELETE' });
+          roomsRequestVersionRef.current++;
+          setIsLoading(false);
           setRooms((prev) => prev.filter((item) => item.chatRoomId !== room.chatRoomId));
-          if (selectedRoom?.chatRoomId === room.chatRoomId) {
-            setMessages([]);
-          }
+          if (activeRoomIdRef.current === room.chatRoomId) closeSelectedRoom();
+          void loadRooms(activeFilter);
           showToast('채팅방에서 나갔습니다.', 'success');
         } catch (error: any) {
           showToast(error?.message || '채팅방 나가기에 실패했습니다.', 'error');
           return;
         }
-        closeSelectedRoom();
       }
     }
 
@@ -846,7 +848,6 @@ export default function ChatScreen({
             </button>
             <button
               onClick={() => setShowRoomMenu(true)}
-              disabled={selectedRoom.readOnly}
               className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]"
               aria-label="채팅 메뉴"
             >
@@ -1006,9 +1007,11 @@ export default function ChatScreen({
                 {!selectedRoom.groupRoom && <RoomMenuButton icon={Flag} label="신고하기" onClick={() => handleRoomMenuAction('report')} />}
               </div>
               <div className="mb-4 overflow-hidden rounded-3xl bg-[#f8fafc]">
-                <RoomMenuButton icon={Pin} label={selectedRoom.pinned ? '상단 고정 해제' : '상단 고정'} onClick={() => handleRoomMenuAction('pin')} />
-                <RoomMenuButton icon={BellOff} label={selectedRoom.muted ? '알림 켜기' : '알림 끄기'} onClick={() => handleRoomMenuAction('mute')} />
-                <RoomMenuButton icon={Pencil} label="방 이름 변경" onClick={() => handleRoomMenuAction('rename')} />
+                {!selectedRoom.readOnly && <>
+                  <RoomMenuButton icon={Pin} label={selectedRoom.pinned ? '상단 고정 해제' : '상단 고정'} onClick={() => handleRoomMenuAction('pin')} />
+                  <RoomMenuButton icon={BellOff} label={selectedRoom.muted ? '알림 켜기' : '알림 끄기'} onClick={() => handleRoomMenuAction('mute')} />
+                  <RoomMenuButton icon={Pencil} label="방 이름 변경" onClick={() => handleRoomMenuAction('rename')} />
+                </>}
                 <RoomMenuButton icon={Trash2} label="채팅방 나가기" danger onClick={() => handleRoomMenuAction('leave')} />
               </div>
               <button
@@ -1212,6 +1215,7 @@ export default function ChatScreen({
           onClose={() => setRoomActionTarget(null)}
           onTogglePin={() => handleRoomMenuAction('pin', roomActionTarget)}
           onToggleMute={() => handleRoomMenuAction('mute', roomActionTarget)}
+          onLeave={() => handleRoomMenuAction('leave', roomActionTarget)}
         />
       )}
 
@@ -1433,11 +1437,13 @@ function RoomQuickActionSheet({
   onClose,
   onTogglePin,
   onToggleMute,
+  onLeave,
 }: {
   room: ChatRoom;
   onClose: () => void;
   onTogglePin: () => void;
   onToggleMute: () => void;
+  onLeave: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-[70] bg-black/25 flex items-end" onClick={onClose}>
@@ -1450,8 +1456,11 @@ function RoomQuickActionSheet({
           {room.partnerNickname}
         </p>
         <div className="overflow-hidden rounded-3xl bg-[#f8fafc]">
-          <RoomMenuButton icon={Pin} label={room.pinned ? '상단 고정 해제' : '상단 고정'} onClick={onTogglePin} />
-          <RoomMenuButton icon={BellOff} label={room.muted ? '알림 켜기' : '알림 끄기'} onClick={onToggleMute} />
+          {!room.readOnly && <>
+            <RoomMenuButton icon={Pin} label={room.pinned ? '상단 고정 해제' : '상단 고정'} onClick={onTogglePin} />
+            <RoomMenuButton icon={BellOff} label={room.muted ? '알림 켜기' : '알림 끄기'} onClick={onToggleMute} />
+          </>}
+          <RoomMenuButton icon={Trash2} label="채팅방 나가기" danger onClick={onLeave} />
         </div>
       </div>
     </div>

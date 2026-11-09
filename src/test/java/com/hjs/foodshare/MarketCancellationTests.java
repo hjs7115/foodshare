@@ -44,7 +44,8 @@ class MarketCancellationTests {
   double freshness=buyer.getFreshnessScore();var response=trades.cancelMarketTrade(id,buyer.getId(),"연락이 닿지 않아요");
   assertEquals(TradeRequestStatus.CANCELLED,response.status());assertEquals(buyer.getId(),response.cancelledBy());assertEquals(PostStatus.CLOSED,p.getStatus());
   assertEquals(room, response.chatRoomId());
-  assertThrows(BusinessException.class, () -> chat.getMessages(owner.getId(), room));
+  assertTrue(chat.getRooms(owner.getId(), "ALL").getFirst().readOnly());
+  assertTrue(chat.getMessages(owner.getId(), room).stream().anyMatch(message -> message.content().contains("취소")));
   assertEquals(freshness, buyer.getFreshnessScore());
   long count=notes.count();trades.cancelMarketTrade(id,buyer.getId(),"기타");assertEquals(count,notes.count());
   assertThrows(BusinessException.class,()->trades.reopenMarketTrade(id,buyer.getId(),true));

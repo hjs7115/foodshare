@@ -79,8 +79,11 @@ class WorkflowFollowupTests {
   trades.cancelMarketTrade(pending.requestId(), buyer.getId(), "기타");
   for (var participant : java.util.List.of(owner, buyer)) {
    assertFalse(chats.canAccessRoom(participant.getId(), roomId));
-   assertTrue(chats.getRooms(participant.getId(), "ALL").isEmpty());
-   assertThrows(BusinessException.class, () -> chats.getMessages(participant.getId(), roomId));
+   var visible = chats.getRooms(participant.getId(), "ALL").getFirst();
+   assertEquals(roomId, visible.chatRoomId());
+   assertTrue(visible.readOnly());
+   assertEquals(0, visible.unreadCount());
+   assertTrue(chats.getMessages(participant.getId(), roomId).stream().anyMatch(row -> row.messageId().equals(message.messageId())));
    assertThrows(BusinessException.class, () -> chats.sendMessage(participant.getId(), roomId, "새 메시지"));
   }
   assertEquals(roomId, chats.findRoomIdByTradeRequestId(pending.requestId()));
@@ -99,7 +102,36 @@ class WorkflowFollowupTests {
   trades.cancelMarketTrade(request.requestId(), buyer.getId(), "기타");
   assertFalse(chats.canAccessRoom(owner.getId(), roomId));
   assertFalse(chats.canAccessRoom(buyer.getId(), roomId));
+  assertTrue(chats.getRooms(owner.getId(), "ALL").getFirst().readOnly());
+  assertTrue(chats.getRooms(buyer.getId(), "ALL").getFirst().readOnly());
   assertEquals(roomId, chats.findRoomIdByTradeRequestId(request.requestId()));
+ }
+
+ @Test void cancelledGroupMemberCanReadOnlyMessagesFromTheirParticipation() {
+  var owner = user("readonly-group-owner");
+  var leaving = user("readonly-group-leaving");
+  var remaining = user("readonly-group-remaining");
+  var outsider = user("readonly-group-outsider");
+  var p = post(owner, PostType.GROUP_BUY);
+  org.springframework.test.util.ReflectionTestUtils.setField(p, "targetParticipantCount", 3);
+  var first = trades.createRequest(p.getId(), leaving.getId());
+  trades.accept(first.requestId(), owner.getId());
+  var second = trades.createRequest(p.getId(), remaining.getId());
+  var roomId = trades.accept(second.requestId(), owner.getId()).chatRoomId();
+  var before = chats.sendMessage(owner.getId(), roomId, "취소 전 대화");
+  trades.cancelMarketTrade(first.requestId(), leaving.getId(), "기타");
+  var after = chats.sendMessage(remaining.getId(), roomId, "취소 후 대화");
+
+  var room = chats.getRooms(leaving.getId(), "ALL").getFirst();
+  assertTrue(room.readOnly());
+  assertNotEquals(after.content(), room.lastMessage());
+  assertTrue(room.participants().isEmpty());
+  assertEquals(java.util.List.of(before.messageId()), chats.getMessages(leaving.getId(), roomId).stream()
+          .filter(message -> !message.systemMessage()).map(message -> message.messageId()).toList());
+  assertFalse(chats.getRooms(remaining.getId(), "ALL").getFirst().readOnly());
+  assertEquals(after.content(), chats.getRooms(remaining.getId(), "ALL").getFirst().lastMessage());
+  assertThrows(BusinessException.class, () -> chats.getMessages(outsider.getId(), roomId));
+  assertThrows(BusinessException.class, () -> chats.sendMessage(leaving.getId(), roomId, "전송 시도"));
  }
 
  @Test void purchasePostAcceptsLegacyBlankExpirationFromHiddenField() {

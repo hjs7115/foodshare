@@ -23,24 +23,25 @@ public record ChatRoomResponse(
         String lastMessage,
         LocalDateTime lastMessageAt,
         int unreadCount,
+        boolean readOnly,
         boolean pinned,
         boolean muted,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
     public ChatRoomResponse withRoomName(String name){
-        return name==null||name.isBlank()?this:new ChatRoomResponse(chatRoomId,tradeRequestId,postId,postTitle,postType,name,partnerId,partnerNickname,partnerProfileImage,groupRoom,participantCount,participants,lastMessage,lastMessageAt,unreadCount,pinned,muted,createdAt,updatedAt);
+        return name==null||name.isBlank()?this:new ChatRoomResponse(chatRoomId,tradeRequestId,postId,postTitle,postType,name,partnerId,partnerNickname,partnerProfileImage,groupRoom,participantCount,participants,lastMessage,lastMessageAt,unreadCount,readOnly,pinned,muted,createdAt,updatedAt);
     }
     public static ChatRoomResponse from(ChatRoom room, Long currentUserId, ChatMessage lastMessage) {
         User partner = room.getWriter().getId().equals(currentUserId) ? room.getRequester() : room.getWriter();
         int unreadCount = room.getWriter().getId().equals(currentUserId)
                 ? room.getWriterUnreadCount()
                 : room.getRequesterUnreadCount();
-        return from(room, currentUserId, lastMessage, partner, unreadCount, room.isPinnedFor(currentUserId),
+        return from(room, currentUserId, lastMessage, partner, unreadCount, false, room.isPinnedFor(currentUserId),
                 room.isMutedFor(currentUserId), room.isGroupRoom(), 2, List.of(
                         ChatParticipantResponse.from(room.getWriter()),
                         ChatParticipantResponse.from(room.getRequester())
-                ));
+                ), room.getUpdatedAt());
     }
 
     public static ChatRoomResponse from(
@@ -49,11 +50,13 @@ public record ChatRoomResponse(
             ChatMessage lastMessage,
             User partner,
             int unreadCount,
+            boolean readOnly,
             boolean pinned,
             boolean muted,
             boolean groupRoom,
             int participantCount,
-            List<ChatParticipantResponse> participants
+            List<ChatParticipantResponse> participants,
+            LocalDateTime updatedAt
     ) {
         String defaultRoomName = groupRoom
                 ? room.getTradeRequest().getPost().getTitle() + " 공동구매방"
@@ -78,10 +81,11 @@ public record ChatRoomResponse(
                 lastMessage == null ? null : lastMessage.getContent(),
                 lastMessage == null ? null : lastMessage.getCreatedAt(),
                 unreadCount,
+                readOnly,
                 pinned,
                 muted,
                 room.getCreatedAt(),
-                room.getUpdatedAt()
+                updatedAt
         );
     }
 }

@@ -113,9 +113,12 @@ public class ChatService {
         };
 
         return rooms.stream()
-                .filter(room -> isActiveParticipant(room, userId))
-                .filter(room -> !"UNREAD".equalsIgnoreCase(filter) || unreadCount(room, userId) > 0)
-                .map(room -> toResponse(room, userId))
+                .map(room -> {
+                    var access = roomAccess(room, userId);
+                    return access == null ? null : toResponse(room, userId, access);
+                })
+                .filter(java.util.Objects::nonNull)
+                .filter(room -> !"UNREAD".equalsIgnoreCase(filter) || room.unreadCount() > 0)
                 .sorted(Comparator
                         .comparing(ChatRoomResponse::pinned).reversed()
                         .thenComparing(ChatRoomResponse::updatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
@@ -125,11 +128,19 @@ public class ChatService {
     public List<ChatMessageResponse> getMessages(Long userId,Long roomId) { return getMessages(userId,roomId,null,null,100); }
 
     public List<ChatMessageResponse> getMessages(Long userId,Long roomId,Long after,Long before,int size) {
-        ChatRoom room=getParticipantRoom(userId,roomId);
-        var query=em.createQuery("select m from ChatMessage m left join fetch m.sender where m.chatRoom.id=:room and (:after is null or m.id>:after) and (:before is null or m.id<:before) and (m.sender is null or not exists(select b.id from UserBlock b where (b.blocker.id=:viewer and b.blockedUser.id=m.sender.id) or (b.blocker.id=m.sender.id and b.blockedUser.id=:viewer))) order by m.id "+(after==null?"desc":"asc"),ChatMessage.class)
-            .setParameter("room",roomId).setParameter("viewer",userId).setParameter("after",after).setParameter("before",before).setMaxResults(Math.min(Math.max(size,1),100));
-        var messages=new java.util.ArrayList<>(query.getResultList());
-        if(after==null)java.util.Collections.reverse(messages);
+        ChatRoom room = findRoom(roomId);
+        RoomAccess access = requireRoomAccess(room, userId);
+        var query = em.createQuery("select m from ChatMessage m left join fetch m.sender where m.chatRoom.id=:room"
+                + " and (:after is null or m.id>:after) and (:before is null or m.id<:before)"
+                + visibleMessagesCondition(access) + " order by m.id " + (after == null ? "desc" : "asc"), ChatMessage.class)
+                .setParameter("room", roomId).setParameter("viewer", userId)
+                .setParameter("after", after).setParameter("before", before)
+                .setMaxResults(Math.min(Math.max(size, 1), 100));
+        var messages = new java.util.ArrayList<>(query.getResultList());
+        if (after == null) java.util.Collections.reverse(messages);
+        if (access.readOnly()) {
+            return messages.stream().map(message -> ChatMessageResponse.from(message, userId).withUnreadCount(0)).toList();
+        }
         var members=chatRoomMemberRepository.findAllByChatRoom(room);
         return messages.stream().map(message -> {
             int unread=0;
@@ -185,8 +196,7 @@ public class ChatService {
     public ChatRoomResponse getRoomByTradeRequest(Long userId, Long tradeRequestId) {
         ChatRoom room = findRoomForTradeRequest(tradeRequestId)
                 .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Chat room not found."));
-        validateParticipant(room, userId);
-        return toResponse(room, userId);
+        return toResponse(room, userId, requireRoomAccess(room, userId));
     }
 
     @Transactional
@@ -243,6 +253,7 @@ public class ChatService {
         getParticipantRoom(userId, roomId);
     }
 
+    // Realtime subscriptions and delivery require active participation.
     public boolean canAccessRoom(Long userId, Long roomId) {
         if (userId == null || roomId == null) return false;
         return chatRoomRepository.findById(roomId)
@@ -250,6 +261,38 @@ public class ChatService {
     }
 
     private record ReportWindow(java.time.LocalDateTime from, java.time.LocalDateTime until) {}
+    private record RoomAccess(boolean readOnly, ReportWindow historyWindow) {}
+
+    private RoomAccess roomAccess(ChatRoom room, Long userId) {
+        if (isActiveParticipant(room, userId)) return new RoomAccess(false, null);
+        var member = chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId);
+        if (room.isCancelledDirectTrade() && isMember(room, userId, member)
+                && !blocks.blockedEitherWay(room.getWriter().getId(), room.getRequester().getId())) {
+            return new RoomAccess(true, null);
+        }
+        if (room.isGroupRoom()) {
+            if (room.getWriter().getId().equals(userId) && isMember(room, userId, member)) {
+                return new RoomAccess(true, null);
+            }
+            if (member.isPresent() && member.get().getLeftAt() != null
+                    && tradeRequestRepository.existsByPostIdAndRequesterIdAndStatusAndCancelledAfterAcceptanceTrue(
+                            room.getTradeRequest().getPost().getId(), userId, TradeRequestStatus.CANCELLED)) {
+                return new RoomAccess(true, new ReportWindow(member.get().getJoinedAt(), member.get().getLeftAt()));
+            }
+        }
+        return null;
+    }
+
+    private RoomAccess requireRoomAccess(ChatRoom room, Long userId) {
+        var access = roomAccess(room, userId);
+        if (access == null) throw new BusinessException(HttpStatus.FORBIDDEN, "Only chat room participants can access it.");
+        return access;
+    }
+
+    private boolean isMember(ChatRoom room, Long userId, java.util.Optional<ChatRoomMember> member) {
+        return member.map(ChatRoomMember::isActive)
+                .orElseGet(() -> room.getWriter().getId().equals(userId) || room.getRequester().getId().equals(userId));
+    }
 
     private ReportWindow reportWindow(Long userId, ChatRoom room) {
         var member = chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId);
@@ -284,10 +327,7 @@ public class ChatService {
                 && !tradeRequestRepository.existsByPostIdAndStatusIn(room.getTradeRequest().getPost().getId(),
                         List.of(TradeRequestStatus.ACCEPTED, TradeRequestStatus.COMPLETED))) return false;
         if(!room.isGroupRoom() && blocks.blockedEitherWay(room.getWriter().getId(),room.getRequester().getId())) return false;
-        return chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId)
-                .map(ChatRoomMember::isActive)
-                .orElseGet(() -> room.getWriter().getId().equals(userId)
-                        || room.getRequester().getId().equals(userId));
+        return isMember(room, userId, chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(), userId));
     }
 
     public Long findRoomIdByTradeRequestId(Long tradeRequestId) {
@@ -350,30 +390,52 @@ public class ChatService {
     }
 
     private ChatRoom getParticipantRoom(Long userId, Long roomId) {
-        ChatRoom room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Chat room not found."));
+        ChatRoom room = findRoom(roomId);
         validateParticipant(room, userId);
         return room;
     }
 
+    private ChatRoom findRoom(Long roomId) {
+        return chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "Chat room not found."));
+    }
+
     private ChatRoomResponse toResponse(ChatRoom room, Long userId) {
+        return toResponse(room, userId, new RoomAccess(false, null));
+    }
+
+    private ChatRoomResponse toResponse(ChatRoom room, Long userId, RoomAccess access) {
         return ChatRoomResponse.from(
                 room,
                 userId,
-                lastVisibleMessage(room.getId(),userId),
+                lastVisibleMessage(room.getId(), userId, access),
                 partner(room, userId),
-                unreadCount(room, userId),
+                access.readOnly() ? 0 : unreadCount(room, userId),
+                access.readOnly(),
                 isPinned(room, userId),
                 isMuted(room, userId),
                 room.isGroupRoom(),
-                participantCount(room),
-                participants(room)
+                access.historyWindow() == null ? participantCount(room) : 0,
+                access.historyWindow() == null ? participants(room) : List.of(),
+                access.historyWindow() == null ? room.getUpdatedAt() : access.historyWindow().until()
         ).withRoomName(chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(),userId).map(ChatRoomMember::getPersonalName).orElse(null));
     }
 
-    private ChatMessage lastVisibleMessage(Long roomId,Long userId){
-        var found=em.createQuery("select m from ChatMessage m where m.chatRoom.id=:room and (m.sender is null or not exists(select b.id from UserBlock b where (b.blocker.id=:viewer and b.blockedUser.id=m.sender.id) or (b.blocker.id=m.sender.id and b.blockedUser.id=:viewer))) order by m.id desc",ChatMessage.class).setParameter("room",roomId).setParameter("viewer",userId).setMaxResults(1).getResultList();
-        return found.isEmpty()?null:found.getFirst();
+    private ChatMessage lastVisibleMessage(Long roomId, Long userId, RoomAccess access) {
+        var query = em.createQuery("select m from ChatMessage m where m.chatRoom.id=:room"
+                + visibleMessagesCondition(access) + " order by m.id desc", ChatMessage.class)
+                .setParameter("room", roomId).setParameter("viewer", userId).setMaxResults(1);
+        var found = query.getResultList();
+        return found.isEmpty() ? null : found.getFirst();
+    }
+
+    private String visibleMessagesCondition(RoomAccess access) {
+        return " and (m.sender is null or not exists(select b.id from UserBlock b where"
+                + " (b.blocker.id=:viewer and b.blockedUser.id=m.sender.id)"
+                + " or (b.blockedUser.id=:viewer and b.blocker.id=m.sender.id)))"
+                + (access.historyWindow() == null ? "" : " and exists (select cm.id from ChatRoomMember cm"
+                + " where cm.chatRoom=m.chatRoom and cm.user.id=:viewer and m.createdAt>=cm.joinedAt"
+                + " and m.createdAt<=cm.leftAt)");
     }
 
     private void validateParticipant(ChatRoom room, Long userId) {

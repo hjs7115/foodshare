@@ -27,6 +27,7 @@ interface ChatRoom {
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount: number;
+  readOnly?: boolean;
   pinned?: boolean;
   muted?: boolean;
 }
@@ -115,7 +116,7 @@ export default function ChatScreen({
   }, [messages]);
 
   useEffect(() => {
-    if (!selectedRoom) {
+    if (!selectedRoom || selectedRoom.readOnly) {
       closeSocket();
       setShowRoomMenu(false);
       setIsSearchingMessages(false);
@@ -133,10 +134,10 @@ export default function ChatScreen({
       window.removeEventListener('auth-token-refreshed', renewed);
       closeSocket();
     };
-  }, [selectedRoom?.chatRoomId]);
+  }, [selectedRoom?.chatRoomId, selectedRoom?.readOnly]);
 
   useEffect(() => {
-    if (!selectedRoom) return;
+    if (!selectedRoom || selectedRoom.readOnly) return;
 
     const refreshOpenRoom = () => {
       loadMessages(selectedRoom).catch((error) => {
@@ -159,7 +160,7 @@ export default function ChatScreen({
       window.removeEventListener('focus', refreshOpenRoom);
       window.removeEventListener('moderation-changed',moderationChanged);
     };
-  }, [selectedRoom?.chatRoomId]);
+  }, [selectedRoom?.chatRoomId, selectedRoom?.readOnly]);
 
   useEffect(() => {
     if (isSearchingMessages) {
@@ -218,6 +219,7 @@ export default function ChatScreen({
     lastMessage: room.lastMessage ?? room.latestMessage ?? '',
     lastMessageAt: room.lastMessageAt ?? room.updatedAt ?? room.createdAt,
     unreadCount: Number(room.unreadCount ?? 0),
+    readOnly: room.readOnly === true,
     pinned: Boolean(room.pinned ?? room.isPinned),
     muted: Boolean(room.muted ?? room.isMuted),
   });
@@ -330,12 +332,13 @@ export default function ChatScreen({
   const loadRooms = async (filter: ChatFilter) => {
     setIsLoading(true);
     try {
-      const response = await apiRequest(`${API_ENDPOINTS.chatRooms}?filter=${filter}`, { method: 'GET' });
+      const roomFilter = filter === 'UNREAD' && activeRoomIdRef.current !== null ? 'ALL' : filter;
+      const response = await apiRequest(`${API_ENDPOINTS.chatRooms}?filter=${roomFilter}`, { method: 'GET' });
       const raw = response?.data?.content || response?.data || response?.rooms || response?.chatRooms || response;
       const normalizedRooms = Array.isArray(raw)
         ? raw.map(normalizeRoom).filter((room) => room.chatRoomId).sort(sortRoomsForDisplay)
         : [];
-      setRooms(normalizedRooms);
+      setRooms(roomFilter === filter ? normalizedRooms : normalizedRooms.filter(room => room.unreadCount > 0));
       setSelectedRoom(current => current ? normalizedRooms.find(room => room.chatRoomId === current.chatRoomId) || current : null);
       onChatUnreadChange?.(normalizedRooms.reduce((sum, room) => sum + room.unreadCount, 0));
     } catch (error) {
@@ -397,7 +400,9 @@ export default function ChatScreen({
         messagesRef.current=next;
         return areMessageListsEqual(prev,next)?prev:next;
       });
-      if(options.markRead || normalized.some(m=>!m.mine))await markRoomRead(room.chatRoomId);
+      if (!room.readOnly && (options.markRead || normalized.some(m => !m.mine))) {
+        await markRoomRead(room.chatRoomId);
+      }
       if (messageSyncRef.current === sync && (last === null || (normalized.length && shouldStickToBottomRef.current))) {
         window.requestAnimationFrame(() => scrollMessagesToBottom('auto'));
       }
@@ -439,7 +444,7 @@ export default function ChatScreen({
   };
 
   const sendChatContent = async (rawContent:string,options:{restoreInputOnFail?:boolean}={}) => {
-    if(!selectedRoom || !rawContent.trim())return false;
+    if (!selectedRoom || selectedRoom.readOnly || !rawContent.trim()) return false;
     const room=selectedRoom,content=rawContent.trim();
     if(content.length>1000){showToast('메시지는 1000자 이내로 입력해주세요.');if(options.restoreInputOnFail)setMessageText(content);return false;}
     const previous=failedSendRef.current;
@@ -471,6 +476,7 @@ export default function ChatScreen({
   };
 
   const handleImageAttachment = async (file?: File | null) => {
+    if (selectedRoom?.readOnly) return;
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       showToast('이미지 파일만 첨부할 수 있습니다.');
@@ -616,6 +622,7 @@ export default function ChatScreen({
   };
 
   const beginRoomLongPress = (room: ChatRoom) => {
+    if (room.readOnly) return;
     clearLongPressTimer();
     longPressTriggeredRef.current = false;
     longPressTimerRef.current = window.setTimeout(() => {
@@ -809,7 +816,7 @@ export default function ChatScreen({
             >
               <ArrowLeft size={22} className="text-[#1a202c]" />
             </button>
-            <button type="button" aria-label="상대 프로필 보기" onClick={() => selectedRoom.groupRoom?setShowParticipants(true):setProfileTarget(selectedRoom.partnerId ?? null)}>
+            <button type="button" disabled={selectedRoom.readOnly} aria-label="상대 프로필 보기" onClick={() => selectedRoom.groupRoom?setShowParticipants(true):setProfileTarget(selectedRoom.partnerId ?? null)}>
             <ChatProfileAvatar
               src={selectedRoom.partnerProfileImage}
               alt={selectedRoom.partnerNickname}
@@ -822,7 +829,7 @@ export default function ChatScreen({
                 {selectedRoom.groupRoom && selectedRoom.participantCount ? ` ${selectedRoom.participantCount}` : ''}
               </h1>
               <p className="text-xs text-[#0f766e] truncate">
-                {selectedRoom.groupRoom ? getParticipantSummary(selectedRoom) : selectedRoom.postTitle}
+                {selectedRoom.readOnly ? '거래 취소 · 읽기 전용' : selectedRoom.groupRoom ? getParticipantSummary(selectedRoom) : selectedRoom.postTitle}
               </p>
             </div>
           </div>
@@ -839,6 +846,7 @@ export default function ChatScreen({
             </button>
             <button
               onClick={() => setShowRoomMenu(true)}
+              disabled={selectedRoom.readOnly}
               className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]"
               aria-label="채팅 메뉴"
             >
@@ -884,7 +892,7 @@ export default function ChatScreen({
                 className={`flex gap-2 ${message.mine ? 'justify-end' : 'justify-start'}`}
               >
                 {!message.mine && (
-                  <button type="button" className="self-start shrink-0" aria-label={`${message.senderNickname || "상대방"} 프로필 보기`} onClick={() => setProfileTarget(message.senderId ?? null)}>
+                  <button type="button" disabled={selectedRoom.readOnly} className="self-start shrink-0" aria-label={`${message.senderNickname || "상대방"} 프로필 보기`} onClick={() => setProfileTarget(message.senderId ?? null)}>
                   <ChatProfileAvatar
                     src={message.senderProfileImage}
                     alt={message.senderNickname || '상대방'}
@@ -920,7 +928,7 @@ export default function ChatScreen({
         </div>
 
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-[#e2e8f0] bg-white px-5 py-4">
-          {showAttachmentMenu && (
+          {!selectedRoom.readOnly && showAttachmentMenu && (
             <div className="absolute bottom-[84px] left-5 rounded-3xl border border-[#ccfbf1] bg-white p-2 shadow-2xl">
               <AttachmentMenuButton icon={Camera} label="카메라" onClick={() => openAttachmentPicker('camera')} />
               <AttachmentMenuButton icon={ImageIcon} label="사진" onClick={() => openAttachmentPicker('photo')} />
@@ -929,7 +937,11 @@ export default function ChatScreen({
             </div>
           )}
 
-          <form onSubmit={sendMessage} className="flex items-center gap-3">
+          {selectedRoom.readOnly ? (
+            <div className="rounded-2xl bg-slate-100 px-4 py-3 text-center text-sm text-slate-700" role="status">
+              거래가 취소되어 메시지를 보낼 수 없어요. 기존 대화는 확인하고 신고할 수 있어요.
+            </div>
+          ) : <form onSubmit={sendMessage} className="flex items-center gap-3">
             <input
               ref={cameraInputRef}
               type="file"
@@ -969,7 +981,7 @@ export default function ChatScreen({
             <button type="submit" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#14b8a6] text-white" aria-label="전송">
               <Send size={20} />
             </button>
-          </form>
+          </form>}
         </div>
 
         {showChatMapModal && (
@@ -1118,7 +1130,7 @@ export default function ChatScreen({
                         </div>
                         <span className="flex shrink-0 items-center gap-2">
                           <span className="text-xs text-[#a0aec0]">{formatTime(room.lastMessageAt)}</span>
-                          <span
+                          {!room.readOnly && <span
                             role="button"
                             tabIndex={0}
                             onClick={(event) => {
@@ -1141,11 +1153,11 @@ export default function ChatScreen({
                             title={room.pinned ? '상단 고정 해제' : '상단 고정'}
                           >
                             <Pin size={15} className={room.pinned ? 'fill-[#14b8a6]' : ''} />
-                          </span>
+                          </span>}
                         </span>
                       </div>
                       <p className="truncate text-xs text-[#718096]">
-                        {room.groupRoom ? getParticipantSummary(room) : room.postTitle}
+                        {room.readOnly ? '거래 취소 · 읽기 전용' : room.groupRoom ? getParticipantSummary(room) : room.postTitle}
                       </p>
                       <div className="mt-2 flex items-center justify-between gap-3">
                         <p className="truncate text-sm text-[#4a5568]">{room.lastMessage || '채팅방이 개설되었습니다.'}</p>

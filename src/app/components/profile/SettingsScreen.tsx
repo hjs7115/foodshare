@@ -27,7 +27,7 @@ import { showConfirm, showToast } from '../../utils/feedback';
 type SettingsView = 'main' | 'password' | 'notifications' | 'location' | 'chat' | 'privacy' | 'terms' | 'help' | 'notice' | 'reports' | 'withdraw';
 
 export default function SettingsScreen({ onClose }: { onClose: () => void }) {
-  const [demoMode, setDemoMode] = useState<{canManage: boolean; enabled: boolean} | null>(null);
+  const [demoMode, setDemoMode] = useState<{canManage: boolean; enabled: boolean; canReset: boolean} | null>(null);
   const [changingDemo, setChangingDemo] = useState(false);
   useEffect(() => { let active = true;
     apiRequest(API_BASE_URL + '/api/demo-mode').then(r => {if(active) setDemoMode(r.data);}).catch(() => {});
@@ -50,7 +50,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
   };
   const [resettingDemo, setResettingDemo] = useState(false);
   const resetMySimulation = async () => {
-    if (resettingDemo) return;
+    if (!demoMode?.canReset || resettingDemo) return;
     if (!(await showConfirm('내 AI 시연 거래·채팅·평가를 초기화하고 시연 평가로 바뀐 신선도를 되돌립니다. 실제 거래와 다른 사람의 체험 기록은 유지됩니다.', '내 시뮬레이션 초기화', '초기화'))) return;
     setResettingDemo(true);
     try {
@@ -181,11 +181,21 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
           </section>
         ))}
 
-        <button type="button" onClick={resetMySimulation} disabled={resettingDemo} aria-label="내 시뮬레이션 초기화" className="mt-5 w-full rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4 text-left disabled:opacity-50">
-          <p className="text-sm leading-6 text-[#1e3a8a]">
-            게시글, 댓글, 거래 내역, 관심 목록은 서버에 저장됩니다. AI 시연 기록을 다시 시작하려면 여기를 눌러 내 시뮬레이션을 초기화하세요. 실제 거래 기록은 유지됩니다.
-          </p>
-        </button>
+        {demoMode?.canReset ? (
+          <button type="button" onClick={resetMySimulation} disabled={resettingDemo}
+            aria-label="내 시뮬레이션 초기화"
+            className="mt-5 w-full rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4 text-left disabled:opacity-50">
+            <p className="text-sm leading-6 text-[#1e3a8a]">
+              게시글, 댓글, 거래 내역, 관심 목록은 서버에 저장됩니다. AI 시연 기록을 다시 시작하려면 여기를 눌러 내 시뮬레이션을 초기화하세요. 실제 거래 기록은 유지됩니다.
+            </p>
+          </button>
+        ) : (
+          <div className="mt-5 w-full rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4">
+            <p className="text-sm leading-6 text-[#1e3a8a]">
+              게시글, 댓글, 거래 내역, 관심 목록은 서버에 저장됩니다. 기기 데이터 삭제는 현재 브라우저의 로그인과 화면 설정만 정리합니다.
+            </p>
+          </div>
+        )>
 
         <div className="mt-5 text-center text-xs text-[#94a3b8]">
           {demoMode?.canManage ? <button type="button" onClick={toggleDemoMode} disabled={changingDemo} className="px-4 py-2 disabled:opacity-50">반띵 1.0.0</button> : '반띵 1.0.0'}

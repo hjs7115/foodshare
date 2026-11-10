@@ -8,10 +8,22 @@ import com.hjs.foodshare.global.exception.BusinessException;
 @Service @Transactional(readOnly=true)
 public class DemoVisibility {
  @PersistenceContext private EntityManager em;
- public record Status(boolean canManage, boolean enabled) {}
+ public record Status(boolean canManage, boolean enabled, boolean canReset) {}
  public boolean enabled(){var state=em.find(DemoState.class,1L);return state!=null && state.isEnabled();}
  public boolean canManage(Long userId){return userId!=null && em.find(DemoManager.class,userId)!=null;}
- public Status status(Long userId){boolean manager=canManage(userId);return new Status(manager,manager && enabled());}
+ public boolean canReset(Long userId){
+  if(!canManage(userId))return false;
+  var account=em.find(com.hjs.foodshare.user.domain.User.class,userId);
+  if(account==null || !account.isAvailable())return false;
+  String nickname=account.getNickname();
+  return "새파란".equals(nickname) || "메로".equals(nickname);
+ }
+ public void requireResetPermission(Long userId){
+  if(!canReset(userId))throw new BusinessException(HttpStatus.FORBIDDEN,"시뮬레이션 초기화 권한이 없습니다.");
+ }
+ public Status status(Long userId){
+  return new Status(canManage(userId),enabled(),canReset(userId));
+ }
  public Set<Long> hiddenPostIds(){
   var ids=new HashSet<>(em.createQuery("select s.privatePostId from DemoSession s",Long.class).getResultList());
   if(!enabled())ids.addAll(em.createQuery("select p.postId from DemoPost p",Long.class).getResultList());
@@ -65,6 +77,6 @@ public class DemoVisibility {
   var state=em.find(DemoState.class,1L,LockModeType.PESSIMISTIC_WRITE);
   if(state==null)throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,"시연 모드 초기화가 필요합니다.");
   state.setEnabled(enabled);
-  return new Status(true,enabled);
+  return status(userId);
  }
 }

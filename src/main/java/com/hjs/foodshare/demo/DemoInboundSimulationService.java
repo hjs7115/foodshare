@@ -43,11 +43,12 @@ public class DemoInboundSimulationService {
         this.tx = new TransactionTemplate(manager);
     }
 
+    /** All existing and newly registered accounts can receive an inbound demo request.
+     *  Only pre-registered demo actors may send the automated request. */
     /** Invoked in the same transaction as ordinary post creation. */
     public void schedule(Post post) {
         if (!demo.enabled() || post == null || !post.isOpen()
                 || post.getPostType() == PostType.GROUP_BUY
-                || demo.isDemoWriter(post.getWriter().getId())
                 || demo.isTemplate(post.getId())) return;
         if (em.find(DemoInboundJob.class, post.getId()) == null)
             em.persist(new DemoInboundJob(post.getId(), post.getWriter().getId()));

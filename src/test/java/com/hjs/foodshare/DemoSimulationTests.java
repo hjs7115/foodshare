@@ -188,6 +188,53 @@ class DemoSimulationTests {
   });
   assertNull(tx(()->em.find(DemoInboundJob.class,post)));
  }
+ @Test void existingAndNewAccountsIncludingDemoWritersCanScheduleInboundTrades(){
+  var f=fixture(PostType.SHARE);
+  Long newAccount=tx(()->user().getId());
+  for(Long writerId:List.of(f.owner,f.user,newAccount)){
+   Long posted=tx(()->{
+    var author=users.findById(writerId).orElseThrow();
+    var p=posts.save(Post.create(author,PostType.SALE,"동네 사과 판매","사과","1개",1200,
+       "학교 앞",0.0,LocalDate.now().plusDays(2),37.5,127.0,null,
+       "상태 양호",null,null,null));
+    inbound.schedule(p);return p.getId();
+   });
+   assertNotNull(tx(()->em.find(DemoInboundJob.class,posted)),
+       "All user accounts should qualify regardless of whether they authored demo templates");
+  }
+ }
+ @Test void enabledIsGlobalButResetOnlyForNamedDemoManagers(){
+  var f=fixture(PostType.SHARE);
+  Long ordinary=f.user;
+  Long named1=tx(()->{
+    String key=UUID.randomUUID().toString();
+    var account=users.save(User.create("테스트","새파란",key+"@demo.invalid","unused",key.substring(0,20),"서울"));
+    em.persist(new DemoManager(account.getId()));return account.getId();
+  });
+  Long named2=tx(()->{
+    String key=UUID.randomUUID().toString();
+    var account=users.save(User.create("테스트","메로",key+"@demo.invalid","unused",key.substring(0,20),"서울"));
+    em.persist(new DemoManager(account.getId()));return account.getId();
+  });
+  Long unauthorizedManager=tx(()->{
+    var account=user();
+    em.persist(new DemoManager(account.getId()));return account.getId();
+  });
+  assertTrue(demo.status(ordinary).enabled());
+  assertFalse(demo.status(ordinary).canManage());
+  assertFalse(demo.status(ordinary).canReset());
+  assertTrue(demo.status(named1).enabled());
+  assertTrue(demo.status(named1).canReset());
+  assertTrue(demo.status(named2).canReset());
+  assertTrue(demo.status(unauthorizedManager).canManage());
+  assertFalse(demo.status(unauthorizedManager).canReset());
+  assertThrows(com.hjs.foodshare.global.exception.BusinessException.class,
+      ()->demo.requireResetPermission(ordinary));
+  assertThrows(com.hjs.foodshare.global.exception.BusinessException.class,
+      ()->demo.requireResetPermission(unauthorizedManager));
+  assertDoesNotThrow(()->demo.requireResetPermission(named1));
+  assertDoesNotThrow(()->demo.requireResetPermission(named2));
+ }
  @Test void withdrawnRequestsAreNotAutoAcceptedAndHiddenModeStopsNewRequests(){
   var f=fixture(PostType.SHARE);var a=request(f,f.user);trades.withdrawTradeRequest(a,f.user);due(a);simulation.advance(a);assertNull(room(a));
   tx(()->{em.find(DemoState.class,1L).setEnabled(false);return null;});assertThrows(Exception.class,()->request(f,f.other));

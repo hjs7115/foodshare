@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowLeft, Send } from 'lucide-react';
 import { API_BASE_URL, apiRequest } from '../../api/config';
-import { getStoredUserInfo } from '../../auth/session';
 import { showToast } from '../../utils/feedback';
 
 type Category = 'ERROR' | 'SUGGESTION' | 'ACCOUNT' | 'OTHER';
@@ -18,7 +17,6 @@ export default function SupportInquiryScreen({ onClose }: {onClose: () => void})
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
-  const email = getStoredUserInfo<{email?: string}>()?.email;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -62,7 +60,6 @@ export default function SupportInquiryScreen({ onClose }: {onClose: () => void})
       <form onSubmit={submit} className="flex-1 space-y-5 overflow-y-auto bg-[#f7fafc] px-5 py-6">
         <div className="rounded-2xl bg-[#eff6ff] p-4 text-sm leading-6 text-[#1e3a8a]">
           서비스 사용 중 불편했던 점이나 개선 의견을 남겨주세요. 입력한 내용은 반띵 운영 이메일로 전달됩니다.
-          {email && <p className="mt-1 text-xs">답변 받을 이메일: {email}</p>}
         </div>
         <label className="block space-y-2">
           <span className="text-sm font-bold text-[#334155]">문의 유형</span>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ShoppingBasket } from 'lucide-react';
+import brandMarkUrl from '../../../assets/brand-mark.png';
 
 export default function LandingScreen({
   onShowLogin,
@@ -22,7 +23,7 @@ export default function LandingScreen({
                 </div>
               ) : (
                 <img
-                  src="/assets/app-brand-mark.png"
+                  src={brandMarkUrl}
                   alt=""
                   className="block h-auto w-full shrink-0 object-contain"
                   onError={() => setBrandImageFailed(true)}

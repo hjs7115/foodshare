@@ -67,6 +67,20 @@ class DemoSimulationTests {
   assertThrows(Exception.class,()->chats.getMessages(f.other,room(a)));
   assertTrue(tx(()->demo.hiddenPostIds().contains(em.find(DemoSession.class,a).privatePostId)));
  }
+ @Test void demoNamesAreCleanedWithoutChangingRealParticipantNames(){
+  var f=fixture(PostType.SHARE);
+  String realName="김시연"+f.user;
+  tx(()->{
+   em.createQuery("update User u set u.nickname=:name where u.id=:id").setParameter("name","시연 · 이웃"+f.owner).setParameter("id",f.owner).executeUpdate();
+   em.createQuery("update User u set u.nickname=:name where u.id=:id").setParameter("name",realName).setParameter("id",f.user).executeUpdate();return null;
+  });
+  var id=request(f,f.user);due(id);simulation.advance(id);
+  var humanView=chats.getRooms(f.user,"ALL").stream().filter(r->r.chatRoomId().equals(room(id))).findFirst().orElseThrow();
+  assertEquals("이웃"+f.owner,humanView.partnerNickname());
+  assertEquals("이웃"+f.owner,humanView.participants().stream().filter(p->p.userId().equals(f.owner)).findFirst().orElseThrow().nickname());
+  var actorView=chats.getRooms(f.owner,"ALL").stream().filter(r->r.chatRoomId().equals(room(id))).findFirst().orElseThrow();
+  assertEquals(realName,actorView.partnerNickname());
+ }
  @Test void aiRepliesAndResetPreservesRealReviewChanges(){
   var f=fixture(PostType.SALE);var a=request(f,f.user);due(a);simulation.advance(a);
   when(ai.reply(anyString())).thenReturn("내일 오후는 어떠세요?");
@@ -268,7 +282,7 @@ class DemoSimulationTests {
    inbound.screenAndFinish(screening);
    inbound.prepare(postId);
    Long requestId=tx(()->em.find(DemoInboundJob.class,postId).requestId);
-   assertNotNull(requestId);
+   assertNotNull(requestId,()->tx(()->{var j=em.find(DemoInboundJob.class,postId);return "screened="+j.screened+", finished="+j.finished+", due="+j.dueAt+", now="+LocalDateTime.now()+", enabled="+demo.enabled()+", allowed="+safety.canParticipate(f.user);}));
    trades.accept(requestId,f.user);
    tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
    inbound.prepare(postId);
@@ -379,6 +393,33 @@ class DemoSimulationTests {
   assertNull(inbound.prepare(post));assertNull(tx(()->em.find(DemoInboundJob.class,post).requestId));
   assertTrue(tx(()->posts.findById(post).orElseThrow().isOpen()));assertEquals(0,simulation.resetMine(f.user));
  }
+ @Test void mixedGroupUsesAiDisclosureAndOnlyReviewsTheActualCounterparty(){
+  var f=fixture(PostType.SHARE);
+  Long post=tx(()->{
+   var p=posts.save(Post.create(users.findById(f.user).orElseThrow(),PostType.GROUP_BUY,"쌀 공동구매","쌀","10kg",20000,"역",0.0,
+     LocalDate.now().plusDays(3),37.5,127.0,null,"함께 구매해요",1,4,LocalDateTime.now().plusDays(2)));
+   inbound.schedule(p);var job=em.find(DemoInboundJob.class,p.getId());job.screened=true;job.dueAt=LocalDateTime.now().minusSeconds(1);return p.getId();
+  });
+  // The real member's request, not the AI request, anchors this group room.
+  Long real=trades.createRequest(post,f.other).requestId();trades.accept(real,f.user);
+  inbound.prepare(post);Long bot=tx(()->em.find(DemoInboundJob.class,post).requestId);trades.accept(bot,f.user);
+  trades.closeGroupBuyRecruitment(post,f.user);Long chat=chats.findRoomIdByTradeRequestId(real);
+  assertTrue(chats.getRooms(f.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(chat)&&r.simulation()));
+  chats.sendMessage(f.other,chat,"다른 참가자만 한 말입니다");
+  chats.sendMessage(f.user,chat,"주최자의 실제 대화입니다");
+  assertTrue(tx(()->demo.isSimulationChat(post,f.user)));
+  assertFalse(tx(()->demo.isSimulationChat(post,f.other)));
+  String context=tx(()->{
+   var trade=em.find(TradeRequest.class,bot);
+   return DemoReviewContext.from(em,trade,chat,trade.getRequester().getId());
+  });
+  assertTrue(context.contains("주최자의 실제 대화입니다"));assertFalse(context.contains("다른 참가자만 한 말입니다"));
+  tx(()->{var job=em.find(DemoInboundJob.class,post);job.greeted=true;job.acceptedAt=LocalDateTime.now().minusSeconds(30);job.dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  var prompt=inbound.prepare(post);assertNotNull(prompt);
+  assertFalse(prompt.conversation().contains("다른 참가자만 한 말입니다"));
+  simulation.resetMine(f.user);
+  assertTrue(chats.getRooms(f.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(chat)&&!r.simulation()));
+ }
  @Test void inboundDoesNotScheduleWhenDemoModeIsOff(){
   var fixture=fixture(PostType.SHARE);
   Long post=tx(()->{
@@ -456,6 +497,20 @@ class DemoSimulationTests {
   safety.clear(f.user); // Administrator can undo an accidental restriction.
   assertTrue(safety.canParticipate(f.user));
  }
+ @Test void simultaneousFirstDemoActionsDoNotFailOrLoseCounters() throws Exception {
+  var pool=java.util.concurrent.Executors.newFixedThreadPool(2);
+  try {
+   for(int round=0;round<5;round++){
+    Long person=tx(()->user().getId());
+    var start=new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.Callable<Boolean> action=()->{start.await();return safety.allowPost(person);};
+    var a=pool.submit(action);var b=pool.submit(action);start.countDown();
+    assertTrue(a.get(10,java.util.concurrent.TimeUnit.SECONDS));
+    assertTrue(b.get(10,java.util.concurrent.TimeUnit.SECONDS));
+    assertEquals(2,tx(()->em.find(DemoParticipationControl.class,person).posts));
+   }
+  } finally {pool.shutdownNow();}
+ }
  @Test void repeatedClearHarassmentPermanentlyBlocksOnlyDemoUntilManualRestoration(){
   var f=fixture(PostType.SHARE);
   Long person=f.user;
@@ -466,10 +521,12 @@ class DemoSimulationTests {
   }
   assertFalse(safety.canParticipate(person));
   assertTrue(safety.canParticipate(f.other));
+  assertTrue(safety.restrictedAccounts().stream().anyMatch(a->a.userId().equals(person)&&a.permanent()));
   assertThrows(com.hjs.foodshare.global.exception.BusinessException.class,
        ()->safety.require(person,DemoSafetyService.Activity.MESSAGE));
   safety.clear(person);
   assertTrue(safety.canParticipate(person));
+  assertTrue(safety.restrictedAccounts().stream().noneMatch(a->a.userId().equals(person)));
  }
  @Test void uncertainPhotoOrOffTopicTextDoesNotBlockAnAccount(){
   var f=fixture(PostType.SHARE);

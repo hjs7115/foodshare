@@ -30,6 +30,26 @@ type SettingsView = 'main' | 'password' | 'notifications' | 'location' | 'chat' 
 export default function SettingsScreen({ onClose }: { onClose: () => void }) {
   const [demoMode, setDemoMode] = useState<{canManage: boolean; enabled: boolean; canReset: boolean} | null>(null);
   const [changingDemo, setChangingDemo] = useState(false);
+  const [restrictedAccounts, setRestrictedAccounts] = useState<{userId:number;nickname:string;permanent:boolean;until:string|null}[]|null>(null);
+  const [loadingRestrictions, setLoadingRestrictions] = useState(false);
+  const loadRestrictions = async () => {
+    if (!demoMode?.canReset || loadingRestrictions) return;
+    setLoadingRestrictions(true);
+    try { setRestrictedAccounts((await apiRequest(API_BASE_URL+'/api/demo-mode/restricted-accounts')).data || []); }
+    catch(error:any) { showToast(error?.message || '제한 목록을 불러오지 못했습니다.'); }
+    finally { setLoadingRestrictions(false); }
+  };
+  const restoreDemoAccount = async (userId:number,nickname:string) => {
+    if (!demoMode?.canReset || loadingRestrictions) return;
+    if (!(await showConfirm(`${nickname}님의 AI 체험 제한을 해제할까요?`, '체험 제한 해제', '해제'))) return;
+    setLoadingRestrictions(true);
+    try {
+      await apiRequest(API_BASE_URL+'/api/demo-mode/restore-account/'+userId,{method:'POST'});
+      setRestrictedAccounts(current=>current?.filter(account=>account.userId!==userId) || []);
+      showToast('AI 체험 제한을 해제했습니다.');
+    } catch(error:any) { showToast(error?.message || '제한을 해제하지 못했습니다.'); }
+    finally { setLoadingRestrictions(false); }
+  };
   useEffect(() => { let active = true;
     apiRequest(API_BASE_URL + '/api/demo-mode').then(r => {if(active) setDemoMode(r.data);}).catch(() => {});
     return () => {active = false;};
@@ -200,6 +220,16 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
         )}
 
         <div className="mt-5 text-center text-xs text-[#94a3b8]">
+          {demoMode?.canReset && <div className="mb-2 text-left">
+            <button type="button" onClick={loadRestrictions} disabled={loadingRestrictions} className="px-4 py-2 text-xs text-slate-500">AI 체험 제한 관리</button>
+            {restrictedAccounts !== null && <div className="rounded-xl border bg-white p-3 text-xs text-slate-700">
+              {restrictedAccounts.length === 0 && <p>현재 제한된 계정이 없습니다.</p>}
+              {restrictedAccounts.map(account=><div key={account.userId} className="flex items-center justify-between gap-2 py-2">
+                <span>{account.nickname} · {account.permanent?'해제 필요':'일시 제한'}</span>
+                <button type="button" disabled={loadingRestrictions} onClick={()=>restoreDemoAccount(account.userId,account.nickname)} className="shrink-0 rounded-lg bg-blue-50 px-3 py-2 text-blue-700">해제</button>
+              </div>)}
+            </div>}
+          </div>}
           {demoMode?.canManage ? <button type="button" onClick={toggleDemoMode} disabled={changingDemo} className="px-4 py-2 disabled:opacity-50">반띵 1.0.0</button> : '반띵 1.0.0'}
         </div>
       </div>

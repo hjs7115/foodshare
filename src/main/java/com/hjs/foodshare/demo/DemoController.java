@@ -10,6 +10,7 @@ public class DemoController {
  private final DemoVisibility demo;
  private final DemoSimulationService simulation;
  private final DemoSafetyService safety;
+ @GetMapping("/restricted-accounts") public ApiResponse<java.util.List<DemoSafetyService.RestrictedAccount>> restricted(@AuthenticationPrincipal AuthUser user){demo.requireResetPermission(user.userId());return ApiResponse.ok("AI 체험 제한 목록",safety.restrictedAccounts());}
  public DemoController(DemoVisibility demo,DemoSimulationService simulation,DemoSafetyService safety){this.demo=demo;this.simulation=simulation;this.safety=safety;}
  @PostMapping("/restore-account/{targetUserId}") public ApiResponse<Void> restore(@AuthenticationPrincipal AuthUser user,@PathVariable Long targetUserId){demo.requireResetPermission(user.userId());safety.clear(targetUserId);return ApiResponse.ok("시연 이용 제한을 해제했습니다.",null);}
  @PostMapping("/reset-mine") public ApiResponse<Integer> reset(@AuthenticationPrincipal AuthUser user){demo.requireResetPermission(user.userId());return ApiResponse.ok("내 시뮬레이션을 초기화했습니다.",simulation.resetMine(user.userId()));}

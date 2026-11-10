@@ -181,8 +181,7 @@ public class ChatService {
         if(text.isBlank() || text.length()>1000 || (clientId!=null && !clientId.matches("[A-Za-z0-9-]{1,80}")))
             throw new BusinessException(HttpStatus.BAD_REQUEST,"메시지는 1~1000자로 입력해주세요.");
         if(clientId!=null){var previous=chatMessageRepository.findByChatRoomIdAndSenderIdAndClientMessageId(roomId,userId,clientId);if(previous.isPresent()){if(!previous.get().getContent().equals(text))throw new BusinessException(HttpStatus.CONFLICT,"같은 전송 식별자로 다른 메시지를 보낼 수 없습니다.");return ChatMessageResponse.from(previous.get(),userId);}}
-        Long tradeId=room.getTradeRequest()==null?null:room.getTradeRequest().getId();
-        if(!automated && demo.enabled() && demo.isSimulation(tradeId)) {
+        if(!automated && demo.enabled() && demo.isSimulationChat(room.getTradeRequest().getPost().getId(),userId)) {
             demoSafety.require(userId,com.hjs.foodshare.demo.DemoSafetyService.Activity.MESSAGE);
             demoSafety.checkChatMessage(userId,text);
         }
@@ -479,7 +478,8 @@ public class ChatService {
                 access.historyWindow() == null ? participants(room) : List.of(),
                 access.historyWindow() == null ? room.getUpdatedAt() : access.historyWindow().until()
         ).withRoomName(chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(),userId).map(ChatRoomMember::getPersonalName).orElse(null))
-         .withSimulation(demo.enabled() && demo.isSimulation(room.getTradeRequest().getId()));
+         .withSimulation(demo.enabled() && demo.isSimulationChat(room.getTradeRequest().getPost().getId(),null))
+         .withDemoActorNames(demo.demoWriterIds());
     }
 
     private ChatMessage lastVisibleMessage(Long roomId, Long userId, RoomAccess access) {

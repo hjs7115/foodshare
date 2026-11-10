@@ -36,6 +36,10 @@ public class DemoVisibility {
   return !em.createQuery("select d.postId from DemoPost d, Post p where p.id=d.postId and p.writer.id=:user",Long.class)
     .setParameter("user",userId).setMaxResults(1).getResultList().isEmpty();
  }
+ public Set<Long> demoWriterIds(){
+  if(!enabled())return Set.of();
+  return new HashSet<>(em.createQuery("select distinct p.writer.id from DemoPost d, Post p where p.id=d.postId",Long.class).getResultList());
+ }
  public boolean isPrivatePost(Long postId){
   return !em.createQuery("select s.requestId from DemoSession s where s.privatePostId=:post",Long.class)
     .setParameter("post",postId).setMaxResults(1).getResultList().isEmpty();
@@ -45,6 +49,14 @@ public class DemoVisibility {
   if(em.find(DemoSession.class,id)!=null)return true;
   return !em.createQuery("select j.postId from DemoInboundJob j where j.requestId=:request",Long.class)
     .setParameter("request",id).setMaxResults(1).getResultList().isEmpty();
+ }
+ /** Group rooms may be anchored to a real participant's request rather than the AI request. */
+ public boolean isSimulationChat(Long postId,Long humanId){
+  long outbound=em.createQuery("select count(s) from DemoSession s where s.privatePostId=:post and s.reset=false and (:human is null or s.userId=:human)",Long.class)
+    .setParameter("post",postId).setParameter("human",humanId).getSingleResult();
+  if(outbound>0)return true;
+  return em.createQuery("select count(j) from DemoInboundJob j where j.postId=:post and j.requestId is not null and coalesce(j.reset,false)=false and (:human is null or j.writerId=:human)",Long.class)
+    .setParameter("post",postId).setParameter("human",humanId).getSingleResult()>0;
  }
  public void rememberScore(com.hjs.foodshare.user.domain.User target,Long requestId){
   if(!isSimulation(requestId)||em.find(DemoScore.class,target.getId())!=null)return;

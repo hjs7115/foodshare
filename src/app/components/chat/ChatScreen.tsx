@@ -256,9 +256,8 @@ export default function ChatScreen({
     return {
       messageId: rawId ?? getNextTempMessageId(),
       senderId,
-      senderNickname: room?.simulation && !mine
-        ? (String(message.senderNickname ?? message.sender?.nickname ?? '이웃').replace(/시연|데모/gi, '').trim() || '이웃')
-        : (message.senderNickname ?? message.sender?.nickname),
+      senderNickname: room?.participants?.find(participant => participant.userId === senderId)?.nickname
+        ?? message.senderNickname ?? message.sender?.nickname,
       senderProfileImage: message.senderProfileImage ?? message.sender?.profileImage,
       content: message.content ?? message.message ?? '',
       mine,

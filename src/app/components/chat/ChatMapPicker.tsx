@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Coffee, Crosshair, MapPin, ParkingCircle, Search, Store, UtensilsCrossed, X } from 'lucide-react';
 import { loadKakaoMaps } from '../KakaoMapModal';
-import { showToast } from '../../utils/feedback';
 
 type Position = { lat: number; lng: number };
 type Place = Position & { id: string; label: string; address: string };
@@ -46,7 +45,6 @@ export default function ChatMapPicker({
   const requestId = useRef(0);
   const geocodeId = useRef(0);
   const [load, setLoad] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [loadError, setLoadError] = useState('');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<Category | null>(null);
   const [results, setResults] = useState<Place[]>([]);
@@ -54,6 +52,7 @@ export default function ChatMapPicker({
   const [locationMessage, setLocationMessage] = useState('');
   const [searching, setSearching] = useState(false);
   const [sending, setSending] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const clearPins = () => {
     for (const pin of resultPins.current) pin.setMap(null);
@@ -84,13 +83,14 @@ export default function ChatMapPicker({
 
   useEffect(() => {
     mounted.current = true;
+    let cancelled = false;
     let currentMap: any = null;
     let clickListener: ((event: any) => void) | null = null;
     let observer: ResizeObserver | null = null;
     const saved = savedLocation();
     const start = saved || { lat: 37.5665, lng: 126.978 };
     loadKakaoMaps().then(() => {
-      if (!mounted.current || !host.current || !window.kakao?.maps?.services) return;
+      if (cancelled || !mounted.current || !host.current || !window.kakao?.maps?.services) return;
       const k = window.kakao;
       currentMap = new k.maps.Map(host.current, {
         center: new k.maps.LatLng(start.lat, start.lng), level: 4,
@@ -112,12 +112,12 @@ export default function ChatMapPicker({
       }
       window.requestAnimationFrame(() => currentMap?.relayout());
       setLoad('ready');
-    }).catch((error: Error) => {
-      if (!mounted.current) return;
-      setLoadError(error.message || '지도를 불러오지 못했습니다.');
+    }).catch(() => {
+      if (cancelled || !mounted.current) return;
       setLoad('error');
     });
     return () => {
+      cancelled = true;
       mounted.current = false;
       requestId.current++;
       geocodeId.current++;
@@ -151,6 +151,7 @@ export default function ChatMapPicker({
     const current = map.current;
     if (!current || !k?.maps?.services) return;
     const id = ++requestId.current;
+    setNotice('');
     setSearching(true);
     const places = new k.maps.services.Places();
     const callback = (rows: any[], status: any) => {
@@ -169,13 +170,13 @@ export default function ChatMapPicker({
               if (place) { showResults([place]); return; }
             }
             showResults([]);
-            showToast('검색 결과가 없어요. 지도를 이동해 다시 검색해주세요.');
+            setNotice('검색 결과가 없어요. 지도를 이동해 다시 검색해주세요.');
           });
           return;
         }
         setSearching(false);
         showResults([]);
-        showToast('이 주변에 선택한 종류의 장소가 없어요.');
+        setNotice('이 주변에 선택한 종류의 장소가 없어요.');
         return;
       }
       setSearching(false);
@@ -212,7 +213,7 @@ export default function ChatMapPicker({
   };
   const locate = () => {
     if (!navigator.geolocation) {
-      showToast('이 기기에서 위치 확인을 지원하지 않습니다.');
+      setNotice('이 기기에서 위치 확인을 지원하지 않습니다.');
       return;
     }
     setLocationMessage('현재 위치 확인 중...');
@@ -233,12 +234,31 @@ export default function ChatMapPicker({
   };
   const send = async () => {
     if (!selected || sending) return;
+    setNotice('');
     setSending(true);
     try {
       const ok = await onSelectAddress(selected.label, selected.lat, selected.lng);
       if (ok && mounted.current) onClose();
+      else if (mounted.current) setNotice('위치를 전송하지 못했습니다. 다시 시도해주세요.');
     } catch {
-      showToast('위치를 전송하지 못했습니다. 다시 시도해주세요.');
+      setNotice('위치를 전송하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      if (mounted.current) setSending(false);
+    }
+  };
+
+  const sendSearchLocation = async () => {
+    const address = query.trim();
+    if (!address || sending) return;
+    setNotice('');
+    setSending(true);
+    try {
+      // No invented coordinates: the existing sender uses a Kakao search link.
+      const ok = await onSelectAddress(address, Number.NaN, Number.NaN);
+      if (ok && mounted.current) onClose();
+      else if (mounted.current) setNotice('장소를 전송하지 못했습니다. 다시 시도해주세요.');
+    } catch {
+      setNotice('장소를 전송하지 못했습니다. 다시 시도해주세요.');
     } finally {
       if (mounted.current) setSending(false);
     }
@@ -254,6 +274,7 @@ export default function ChatMapPicker({
         <button type="button" onClick={onClose} aria-label="지도 닫기"
           className="flex h-11 w-11 items-center justify-center rounded-full text-slate-900"><X size={26} /></button>
       </header>
+      {notice && <p role="alert" className="shrink-0 bg-amber-50 px-4 py-3 text-sm text-amber-900">{notice}</p>}
       <div className="relative min-h-0 flex-1 bg-[#eef3f2]">
         <div ref={host} className="absolute inset-0 h-full w-full" aria-label="카카오 지도" />
         <div className="pointer-events-none absolute inset-x-0 top-0 z-20 bg-gradient-to-b from-white/90 via-white/60 to-transparent pb-5 pt-3">
@@ -303,8 +324,14 @@ export default function ChatMapPicker({
           <div className="absolute inset-x-6 top-1/2 z-30 -translate-y-1/2 rounded-2xl bg-white p-6 text-center shadow-xl">
             {load === 'loading' ? '카카오 지도를 불러오고 있어요.' : <>
               <p className="font-semibold text-red-700">지도를 불러오지 못했어요.</p>
-              <p className="mt-2 break-words text-sm text-slate-600">{loadError}</p>
-              <p className="mt-2 text-xs text-slate-500">카카오 JavaScript 키와 사이트 도메인 설정을 확인해주세요.</p>
+              <p className="mt-2 text-sm text-slate-600">주소나 장소명을 입력하면 지도 검색 링크로 보낼 수 있어요.</p>
+              <input value={query} onChange={event => setQuery(event.target.value)} maxLength={150}
+                aria-label="직접 입력할 주소 또는 장소명" placeholder="예: 충주역 앞"
+                className="mt-3 w-full rounded-xl border border-slate-300 px-3 py-3 text-sm" />
+              <button type="button" onClick={sendSearchLocation} disabled={!query.trim() || sending}
+                className="mt-3 w-full rounded-xl bg-blue-600 px-3 py-3 text-sm font-semibold text-white disabled:opacity-50">
+                {sending ? '장소 전송 중...' : '입력한 장소 보내기'}
+              </button>
             </>}
           </div>
         )}

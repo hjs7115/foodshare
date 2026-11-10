@@ -55,7 +55,7 @@ public class DemoSafetyService {
 
     private Decision record(Long userId,Activity activity) {
         if(userId==null)return Decision.RESTRICTED;
-        return tx.execute(status -> {
+        return retryConcurrentCreation(() -> tx.execute(status -> {
             LocalDateTime now=LocalDateTime.now();
             DemoParticipationControl state=em.find(DemoParticipationControl.class,userId,LockModeType.PESSIMISTIC_WRITE);
             if(state==null){
@@ -86,7 +86,18 @@ public class DemoSafetyService {
             state.restrictedUntil=now.plusMinutes(state.violations==1?1:10);
             state.resetWindow(now);
             return Decision.RESTRICTED;
-        });
+        }));
+    }
+
+    // Two first actions may both observe no counter row. Roll back the losing
+    // insert, then lock the winner's row in a fresh transaction (also for MySQL deadlocks).
+    private <T> T retryConcurrentCreation(java.util.function.Supplier<T> operation) {
+        for(int attempt=0;;attempt++) {
+            try { return operation.get(); }
+            catch(org.springframework.dao.DataIntegrityViolationException | org.springframework.dao.TransientDataAccessException conflict) {
+                if(attempt>=2)throw conflict;
+            }
+        }
     }
 
     /**
@@ -97,7 +108,7 @@ public class DemoSafetyService {
      */
     public void checkChatMessage(Long userId, String message) {
         if (userId == null || !DemoSafetySignals.unmistakableHarassment(message)) return;
-        int strikes = tx.execute(status -> {
+        int strikes = retryConcurrentCreation(() -> tx.execute(status -> {
             LocalDateTime now = LocalDateTime.now();
             DemoParticipationControl state = em.find(DemoParticipationControl.class,userId,LockModeType.PESSIMISTIC_WRITE);
             if (state == null) {
@@ -112,7 +123,7 @@ public class DemoSafetyService {
             state.explicitAbuseSignals++;
             if (state.explicitAbuseSignals >= 3) state.permanentlyRestricted=true;
             return state.explicitAbuseSignals;
-        });
+        }));
         if (strikes >= 3)
             throw new BusinessException(HttpStatus.FORBIDDEN,
                 "명백한 부적절한 메시지가 반복되어 이 계정의 AI 체험이 제한되었습니다. 해제는 운영자에게 문의해주세요.");
@@ -121,6 +132,15 @@ public class DemoSafetyService {
     }
 
     /** Manual operator correction; account and ordinary trade data are not touched. */
+    public record RestrictedAccount(Long userId,String nickname,boolean permanent,LocalDateTime until) {}
+    public java.util.List<RestrictedAccount> restrictedAccounts() {
+        return tx.execute(status -> em.createQuery("select s from DemoParticipationControl s where s.permanentlyRestricted=true or s.restrictedUntil>:now order by s.userId",DemoParticipationControl.class)
+            .setParameter("now",LocalDateTime.now()).setMaxResults(100).getResultList().stream().map(s->{
+                var user=em.find(com.hjs.foodshare.user.domain.User.class,s.userId);
+                return new RestrictedAccount(s.userId,user==null?"탈퇴한 회원":user.getNickname(),s.permanentlyRestricted,s.restrictedUntil);
+            }).toList());
+    }
+
     public void clear(Long userId) {
         tx.executeWithoutResult(status -> {
             DemoParticipationControl state=em.find(DemoParticipationControl.class,userId,LockModeType.PESSIMISTIC_WRITE);

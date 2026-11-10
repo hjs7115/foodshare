@@ -19,10 +19,12 @@ public final class DemoReviewContext {
                 .append("\n후기 대상: 실제 사용자")
                 .append("\n대화 기록:\n");
         if (roomId != null) {
+            Long targetId = reviewerId.equals(trade.getRequester().getId())
+                    ? trade.getPost().getWriter().getId() : trade.getRequester().getId();
             List<ChatMessage> latest = em.createQuery(
-                    "select m from ChatMessage m left join fetch m.sender where m.chatRoom.id=:room and m.systemMessage=false order by m.id desc",
+                    "select m from ChatMessage m left join fetch m.sender where m.chatRoom.id=:room and m.systemMessage=false and m.sender.id in :people order by m.id desc",
                     ChatMessage.class)
-                    .setParameter("room", roomId).setMaxResults(24).getResultList();
+                    .setParameter("room", roomId).setParameter("people",List.of(reviewerId,targetId)).setMaxResults(24).getResultList();
             List<ChatMessage> ordered = new ArrayList<>(latest);
             Collections.reverse(ordered);
             for (ChatMessage m : ordered) {

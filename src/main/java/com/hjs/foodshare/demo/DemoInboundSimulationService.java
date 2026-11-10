@@ -225,8 +225,9 @@ public class DemoInboundSimulationService {
                     post.getImageUrl(), true, greeting(post), false, null);
         }
         List<ChatMessage> history = em.createQuery(
-                "select m from ChatMessage m left join fetch m.sender where m.chatRoom.id=:room and m.systemMessage=false order by m.id desc",
-                ChatMessage.class).setParameter("room", roomId).setMaxResults(16).getResultList();
+                "select m from ChatMessage m left join fetch m.sender where m.chatRoom.id=:room and m.systemMessage=false and m.sender.id in :people order by m.id desc",
+                ChatMessage.class).setParameter("room", roomId)
+                .setParameter("people", List.of(job.writerId,request.getRequester().getId())).setMaxResults(16).getResultList();
         long latest = history.stream().filter(m -> m.getSender() != null
                 && m.getSender().getId().equals(job.writerId)).mapToLong(ChatMessage::getId).max().orElse(0);
         if (latest <= job.repliedThrough) {

@@ -35,10 +35,19 @@ public record ChatRoomResponse(
     }
     public ChatRoomResponse withSimulation(boolean enabled) {
         if (!enabled) return this;
-        String naturalName = partnerNickname == null ? "이웃" : partnerNickname.replaceAll("(?i)(?:시연|데모)", "").replaceAll("^[\\s·•.]+|[\\s·•.]+$", "").trim();
-        if (naturalName.isBlank()) naturalName = "이웃" + partnerId;
-        String displayName = roomName != null && roomName.equals(partnerNickname) ? naturalName : roomName;
-        return new ChatRoomResponse(chatRoomId,tradeRequestId,postId,postTitle,postType,displayName,partnerId,naturalName,partnerProfileImage,groupRoom,participantCount,participants,lastMessage,lastMessageAt,unreadCount,readOnly,pinned,muted,createdAt,updatedAt,true);
+        return new ChatRoomResponse(chatRoomId,tradeRequestId,postId,postTitle,postType,roomName,partnerId,partnerNickname,partnerProfileImage,groupRoom,participantCount,participants,lastMessage,lastMessageAt,unreadCount,readOnly,pinned,muted,createdAt,updatedAt,true);
+    }
+    public ChatRoomResponse withDemoActorNames(java.util.Set<Long> actors) {
+        if(actors.isEmpty())return this;
+        String name=actors.contains(partnerId)?naturalName(partnerNickname,partnerId):partnerNickname;
+        String displayName=roomName!=null && roomName.equals(partnerNickname)?name:roomName;
+        var people=participants.stream().map(p->actors.contains(p.userId())
+            ?new ChatParticipantResponse(p.userId(),naturalName(p.nickname(),p.userId()),p.profileImage()):p).toList();
+        return new ChatRoomResponse(chatRoomId,tradeRequestId,postId,postTitle,postType,displayName,partnerId,name,partnerProfileImage,groupRoom,participantCount,people,lastMessage,lastMessageAt,unreadCount,readOnly,pinned,muted,createdAt,updatedAt,simulation);
+    }
+    private static String naturalName(String original,Long id){
+        String name=original==null?"":original.replaceAll("(?:시연|데모)","").replaceAll("[·•.]"," ").trim();
+        return name.isBlank()?"이웃"+id:name;
     }
     public static ChatRoomResponse from(ChatRoom room, Long currentUserId, ChatMessage lastMessage) {
         User partner = room.getWriter().getId().equals(currentUserId) ? room.getRequester() : room.getWriter();

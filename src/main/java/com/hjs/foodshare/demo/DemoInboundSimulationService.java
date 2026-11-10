@@ -50,7 +50,6 @@ public class DemoInboundSimulationService {
     /** Invoked in the same transaction as ordinary post creation. */
     public void schedule(Post post) {
         if (!demo.enabled() || post == null || !post.isOpen()
-                || post.getPostType() == PostType.GROUP_BUY
                 || demo.isTemplate(post.getId())) return;
         // Preserve the user's ordinary post even when this account has a demo cooldown.
         if (!safety.allowPost(post.getWriter().getId())) return;
@@ -245,6 +244,8 @@ public class DemoInboundSimulationService {
         text.append("유형: ").append(post.getPostType()).append(". ");
         if (post.getPostType() == PostType.BUY)
             text.append("작성자가 물품을 구하므로, 요청자는 판매/제공할 수 있는 쪽입니다.\n");
+        else if (post.getPostType() == PostType.GROUP_BUY)
+            text.append("작성자는 공동구매 주최자이며, 당신은 함께 구매하는 참가자입니다.\n");
         else text.append("작성자가 나눔 또는 판매하므로, 요청자는 받고 싶거나 구매하려는 쪽입니다.\n");
         text.append("게시글: ").append(post.getTitle()).append(" / 수량: ").append(post.getQuantity())
                 .append(" / 가격: ").append(post.getPrice()).append(" / 장소: ").append(post.getTradeLocation())
@@ -322,6 +323,7 @@ public class DemoInboundSimulationService {
             case SHARE -> "작성자가 나눔하는 물건을 받고 싶은 이웃";
             case SALE -> "작성자가 판매하는 물건을 구매하고 싶은 이웃";
             case BUY -> "작성자가 찾는 물품을 제공할 가능성이 있는 이웃";
+            case GROUP_BUY -> "작성자가 주최한 공동구매에 참여한 이웃";
             default -> "게시글을 보고 연락하는 이웃";
         };
         return "역할: " + role
@@ -345,6 +347,7 @@ public class DemoInboundSimulationService {
             case SHARE -> "안녕하세요! " + item + " 아직 나눔 가능할까요? 받고 싶어서요.";
             case SALE -> "안녕하세요! " + item + " 아직 판매 중일까요? 구매하고 싶어요.";
             case BUY -> "안녕하세요! " + item + " 구하신다는 글 보고 왔는데, 아직 찾고 계신가요?";
+            case GROUP_BUY -> "안녕하세요! " + item + " 공동구매에 참여했어요. 수령 일정은 어떻게 될까요?";
             default -> "안녕하세요! 게시글 보고 연락드렸어요.";
         };
     }

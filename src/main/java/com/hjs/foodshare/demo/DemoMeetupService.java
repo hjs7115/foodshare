@@ -95,7 +95,8 @@ public class DemoMeetupService {
 
     public static String choose(List<Place> found, String context) {
         if (found == null || found.isEmpty()) return GENERIC_REPLY;
-        String last = context.substring(Math.max(0, context.lastIndexOf('\n'))).strip();
+        String conversation = context == null ? "" : context.stripTrailing();
+        String last = conversation.substring(Math.max(0, conversation.lastIndexOf('\n'))).strip();
         String preferred = last.contains("카페") ? "CE7"
                 : last.contains("식당") || last.contains("음식점") ? "FD6"
                 : last.contains("편의점") ? "CS2" : "";

@@ -27,6 +27,8 @@ class DemoMeetupServiceTests {
                 DemoMeetupService.choose(candidates, "요청자: 어디서 보실래요?"));
         assertEquals("개인카페 앞에서 만나실래요? 찾기 쉬울 것 같아요.",
                 DemoMeetupService.choose(candidates, "요청자: 카페에서 만나면 좋겠어요. 어디서 볼까요?"));
+        assertEquals("개인카페 앞에서 만나실래요? 찾기 쉬울 것 같아요.",
+                DemoMeetupService.choose(candidates, "요청자: 카페에서 만나면 좋겠어요. 어디서 볼까요?\n"));
         assertFalse(DemoMeetupService.choose(List.of(), "요청자: 어디서 보실래요?")
                 .contains("단월동 시연"));
     }

@@ -107,7 +107,13 @@ public class DemoSimulationService {
   long daily=em.createQuery("select coalesce(sum(d.replyCount),0) from DemoSession d, TradeRequest t where d.requestId=t.id and d.userId=:user and t.createdAt>=:today",Long.class).setParameter("user",s.userId).setParameter("today",java.time.LocalDate.now().atStartOfDay()).getSingleResult();
   if(s.replyCount>=30 || daily>=100){send(s,r,"오늘은 메시지를 더 보내기 어려울 것 같아요. 거래 완료는 화면에서 진행해주세요.","demo-limit-"+latest);s.repliedThrough=latest;return null;}
   chats.markAsRead(r.getPost().getWriter().getId(),s.roomId);
-  StringBuilder context=new StringBuilder("역할: 당신은 게시글 작성자(나눔 제공자 또는 판매자)이며, 상대는 거래 요청자입니다. 상대의 문의에 답하세요.\n거래 상품: ").append(r.getPost().getTitle()).append(" / 수량: ").append(r.getPost().getQuantity()).append(" / 가격: ").append(r.getPost().getPrice()).append(" / 거래 종류: ").append(r.getPost().getPostType()).append(" / 장소: ").append(r.getPost().getTradeLocation()).append("\n최근 대화:\n");
+  String role=switch(r.getPost().getPostType()){
+   case BUY -> "물품을 구하는 구매자";
+   case GROUP_BUY -> "공동구매 주최자";
+   case SHARE -> "나눔 제공자";
+   case SALE -> "판매자";
+  };
+  StringBuilder context=new StringBuilder("역할: 당신은 게시글 작성자이며 ").append(role).append("입니다. 상대는 거래 요청자입니다. 상대의 문의에 답하세요.\n거래 상품: ").append(r.getPost().getTitle()).append(" / 수량: ").append(r.getPost().getQuantity()).append(" / 가격: ").append(r.getPost().getPrice()).append(" / 거래 종류: ").append(r.getPost().getPostType()).append(" / 장소: ").append(r.getPost().getTradeLocation()).append("\n최근 대화:\n");
   var ordered=new ArrayList<>(history);Collections.reverse(ordered);
   ordered.forEach(m->context.append(m.getSender().getId().equals(s.userId)?"요청자: ":"게시글 작성자: ").append(m.getContent()).append('\n'));
   return new Prompt(id,latest,context.toString(),false,DemoMeetupService.nearHuman(r.getRequester(),r.getPost()));

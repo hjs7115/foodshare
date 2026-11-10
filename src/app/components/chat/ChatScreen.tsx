@@ -7,7 +7,7 @@ import NotificationsScreen from '../common/NotificationsScreen';
 import BottomNavIcon from '../common/BottomNavIcon';
 import { showToast, showConfirm, showPrompt } from '../../utils/feedback';
 import { getChatSettings, loadChatSettings } from '../profile/ChatSettingsScreen';
-import KakaoMapModal from '../KakaoMapModal';
+import ChatMapPicker from './ChatMapPicker';
 import { useNestedBack } from '../../utils/useNestedBack';
 
 type ChatFilter = 'ALL' | 'SHARING' | 'GROUP_BUY' | 'UNREAD';
@@ -74,8 +74,12 @@ export default function ChatScreen({
   const openedInitialRoomIdRef = useRef<number | null>(null);
   useNestedBack(Boolean(selectedRoom), () => closeSelectedRoom());
   useNestedBack(showRoomMenu,()=>setShowRoomMenu(false));
-  useNestedBack(showAttachmentMenu,()=>setShowAttachmentMenu(false));
-  useNestedBack(showChatMapModal,()=>setShowChatMapModal(false));
+  // One nested history entry for the entire attachment -> map flow.
+  // Two separate entries caused closing the attachment sheet to pop the new map.
+  useNestedBack(showAttachmentMenu || showChatMapModal, () => {
+    if (showChatMapModal) setShowChatMapModal(false);
+    else setShowAttachmentMenu(false);
+  });
   useNestedBack(isSearchingMessages,()=>cancelMessageSearch());
   const socketRef = useRef<WebSocket | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -513,11 +517,11 @@ export default function ChatScreen({
     await sendChatContent(`[파일]\n${file.name}\n${sizeLabel}`);
   };
 
-  const handleSelectChatLocation = (address: string, lat: number, lng: number) => {
+  const handleSelectChatLocation = async (address: string, lat: number, lng: number): Promise<boolean> => {
     const mapUrl = Number.isFinite(lat) && Number.isFinite(lng)
       ? `https://map.kakao.com/link/map/${encodeURIComponent(address)},${lat},${lng}`
       : `https://map.kakao.com/link/search/${encodeURIComponent(address)}`;
-    sendChatContent(`[지도]\n${address}\n${mapUrl}`);
+    return sendChatContent(`[지도]\n${address}\n${mapUrl}`);
   };
 
   const handleAttachmentInputChange = (
@@ -993,8 +997,7 @@ export default function ChatScreen({
         </div>
 
         {showChatMapModal && (
-          <KakaoMapModal
-            isOpen={showChatMapModal}
+          <ChatMapPicker
             onClose={() => setShowChatMapModal(false)}
             onSelectAddress={handleSelectChatLocation}
           />

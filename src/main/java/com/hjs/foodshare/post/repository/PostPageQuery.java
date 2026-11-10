@@ -45,8 +45,13 @@ public class PostPageQuery {
             else {where.append(" and p.latitude is not null and p.longitude is not null and ").append(distance).append("<=:radius");params.put("radius",radius);params.put("lat",lat);params.put("lng",lng);}
         }
         String order=switch(sort==null?PostSort.LATEST:sort){
-            case LATEST -> {\n                var demoState = em.find(com.hjs.foodshare.demo.DemoState.class,1L);
-                boolean demoOn = demoState != null && demoState.isEnabled();\n                yield demoOn && type == null && marketOnly\n                    ? "(case when p.postType=com.hjs.foodshare.post.domain.PostType.BUY then 1 else 0 end) asc, p.createdAt desc"\n                    : "p.createdAt desc";\n            }
+            case LATEST -> {
+                var demoState = em.find(com.hjs.foodshare.demo.DemoState.class,1L);
+                boolean demoOn = demoState != null && demoState.isEnabled();
+                yield demoOn && type == null && marketOnly
+                    ? "(case when p.postType=com.hjs.foodshare.post.domain.PostType.BUY then 1 else 0 end) asc, p.createdAt desc"
+                    : "p.createdAt desc";
+            }
             case EXPIRING_SOON -> expiration + " asc, p.createdAt desc";
             case DEADLINE -> "p.deadlineDate asc nulls last, p.createdAt desc";
             case PARTICIPATION -> "(1.0*p.currentParticipantCount/nullif(p.targetParticipantCount,0)) desc nulls last, p.createdAt desc";

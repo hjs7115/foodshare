@@ -65,7 +65,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       setToast({ id, message, tone });
       window.setTimeout(() => {
         setToast((current) => (current?.id === id ? null : current));
-      }, 2800);
+      }, 3000);
     };
 
     dialogHandler = (state) => new Promise((resolve) => {

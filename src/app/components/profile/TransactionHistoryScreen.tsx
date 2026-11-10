@@ -120,6 +120,9 @@ export default function TransactionHistoryScreen({ onClose }: TransactionHistory
   useEffect(() => {
     loadTradeRequests();
     apiRequest(API_ENDPOINTS.posts.replace(/\/posts$/,'')+'/mypage/reviews').then(r=>setReviewed(new Set((r.data||[]).map((v:any)=>Number(v.tradeRequestId))))).catch(()=>{});
+    // A simulated incoming request can arrive while this screen is already open.
+    const refresh = window.setInterval(() => { if (!document.hidden) void loadTradeRequests(true); }, 5000);
+    return () => window.clearInterval(refresh);
   }, []);
 
   const normalizeRequest = (request: any): TradeRequest => ({

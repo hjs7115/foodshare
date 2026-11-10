@@ -27,7 +27,12 @@ public class DemoVisibility {
   return !em.createQuery("select s.requestId from DemoSession s where s.privatePostId=:post",Long.class)
     .setParameter("post",postId).setMaxResults(1).getResultList().isEmpty();
  }
- public boolean isSimulation(Long id){return em.find(DemoSession.class,id)!=null;}
+ public boolean isSimulation(Long id){
+  if(id==null)return false;
+  if(em.find(DemoSession.class,id)!=null)return true;
+  return !em.createQuery("select j.postId from DemoInboundJob j where j.requestId=:request",Long.class)
+    .setParameter("request",id).setMaxResults(1).getResultList().isEmpty();
+ }
  public void rememberScore(com.hjs.foodshare.user.domain.User target,Long requestId){
   if(!isSimulation(requestId)||em.find(DemoScore.class,target.getId())!=null)return;
   long last=em.createQuery("select coalesce(max(r.id),0) from Review r",Long.class).getSingleResult();

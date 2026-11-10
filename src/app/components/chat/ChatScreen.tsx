@@ -876,7 +876,7 @@ export default function ChatScreen({
               <MessageCircle size={32} className="mx-auto mb-3 text-[#14b8a6]" />
               <p className="text-sm text-[#2d3748]" style={{ fontWeight: 800 }}>아직 메시지가 없습니다.</p>
             </div>
-          ) : messages.filter(message => !(selectedRoom.simulation && message.systemMessage && message.content === '채팅방이 개설되었습니다.')).map((message) => {
+          ) : messages.filter(message => !(message.systemMessage && message.content === '채팅방이 개설되었습니다.')).map((message) => {
             const isSearchHit = searchMatchIds.has(message.messageId);
             const isActiveSearchHit = activeSearchMessageId === message.messageId;
             const searchHighlightClass = isActiveSearchHit
@@ -1170,7 +1170,7 @@ export default function ChatScreen({
                         {room.readOnly ? '거래 취소 · 읽기 전용' : room.groupRoom ? getParticipantSummary(room) : room.postTitle}
                       </p>
                       <div className="mt-2 flex items-center justify-between gap-3">
-                        <p className="truncate text-sm text-[#4a5568]">{room.lastMessage || '채팅방이 개설되었습니다.'}</p>
+                        <p className="truncate text-sm text-[#4a5568]">{room.lastMessage === '채팅방이 개설되었습니다.' || !room.lastMessage ? '대화를 시작해보세요.' : room.lastMessage}</p>
                         {room.unreadCount > 0 && (
                           <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#ef4444] px-2 text-xs text-white">
                             {room.unreadCount}

@@ -37,6 +37,7 @@ class DemoSimulationTests {
  @Autowired ChatService chats;
  @Autowired ReviewService reviews;
  @Autowired DemoSimulationService simulation;
+ @Autowired DemoInboundSimulationService inbound;
  @Autowired DemoVisibility demo;
  @MockitoBean FcmPushService push;
  @MockitoBean DemoChatAi ai;
@@ -109,6 +110,83 @@ class DemoSimulationTests {
    if(result.get(i).getPostType()==PostType.SHARE)lastShare=i;
   }
   assertTrue(firstBuy>=0 && lastShare>=0 && lastShare<firstBuy);
+ }
+ @Test void inboundPostGetsAutomaticRequestGreetingReplyAndReview(){
+  var fixture=fixture(PostType.SHARE);
+  Long original=tx(()->{
+   var author=users.findById(fixture.user).orElseThrow();
+   var post=posts.save(Post.create(author,PostType.SALE,"당근 한 봉지","당근","1봉",2000,"역 앞",0.0,
+    LocalDate.now().plusDays(3),37.5,127.0,null,"당근 판매합니다",null,null,null));
+   inbound.schedule(post);
+   return post.getId();
+  });
+  assertNotNull(tx(()->em.find(DemoInboundJob.class,original)));
+  tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  assertNull(inbound.prepare(original));
+  Long request=tx(()->em.find(DemoInboundJob.class,original).requestId);
+  assertNotNull(request);
+  assertEquals(TradeRequestStatus.PENDING,tx(()->em.find(TradeRequest.class,request).getStatus()));
+  trades.accept(request,fixture.user);
+  Long chat=chats.findRoomIdByTradeRequestId(request);
+  assertNotNull(chat);
+  assertTrue(chats.getRooms(fixture.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(chat)&&r.simulation()));
+  tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  inbound.prepare(original); // Set a ten-second greeting delay after acceptance.
+  assertNotNull(tx(()->em.find(DemoInboundJob.class,original).acceptedAt));
+  assertFalse(tx(()->em.find(DemoInboundJob.class,original).greeted));
+  tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  inbound.prepare(original);
+  assertTrue(chats.getMessages(fixture.user,chat).stream().anyMatch(m->m.content().contains("구매하고 싶어서")));
+  when(ai.reply(anyString())).thenReturn("내일 오후면 괜찮아요!");
+  chats.sendMessage(fixture.user,chat,"내일 오후 괜찮으세요?");
+  tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  var prompt=inbound.prepare(original);
+  assertNotNull(prompt);
+  inbound.respond(prompt);
+  assertTrue(chats.getMessages(fixture.user,chat).stream().anyMatch(m->m.content().equals("내일 오후면 괜찮아요!")));
+  trades.complete(request,fixture.user);
+  tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  inbound.prepare(original);
+  tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  inbound.prepare(original);
+  assertEquals(TradeRequestStatus.COMPLETED,tx(()->em.find(TradeRequest.class,request).getStatus()));
+  assertTrue(tx(()->em.createQuery("select count(r) from Review r where r.tradeRequest.id=:id and r.reviewer.id=:actor",Long.class)
+    .setParameter("id",request).setParameter("actor",fixture.owner).getSingleResult())>0);
+  assertTrue(tx(()->users.findById(fixture.user).orElseThrow().getFreshnessScore())>50);
+ }
+ @Test void incomingGreetingMatchesShareAndBuyPosts(){
+  var f=fixture(PostType.SALE);
+  for(PostType type:List.of(PostType.SHARE,PostType.BUY)){
+   Long postId=tx(()->{
+    var p=posts.save(Post.create(users.findById(f.user).orElseThrow(),type,
+      type==PostType.SHARE?"감자 나눔":"감자 구합니다","감자","2개",type==PostType.SHARE?0:2000,
+      "역 앞",0.0,LocalDate.now().plusDays(2),37.5,127.0,null,"상태 양호",null,null,null));
+    inbound.schedule(p);return p.getId();
+   });
+   tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+   inbound.prepare(postId);
+   Long requestId=tx(()->em.find(DemoInboundJob.class,postId).requestId);
+   assertNotNull(requestId);
+   trades.accept(requestId,f.user);
+   tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+   inbound.prepare(postId);
+   tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+   inbound.prepare(postId);
+   Long chat=chats.findRoomIdByTradeRequestId(requestId);
+   String greeting=chats.getMessages(f.user,chat).stream().filter(m->!m.systemMessage()).map(m->m.content()).findFirst().orElse("");
+   assertTrue(greeting.contains(type==PostType.SHARE?"받아보고 싶어서요":"아직 찾고 계신가요"),greeting);
+  }
+ }
+ @Test void inboundDoesNotScheduleWhenDemoModeIsOff(){
+  var fixture=fixture(PostType.SHARE);
+  Long post=tx(()->{
+   em.find(DemoState.class,1L).setEnabled(false);
+   var p=posts.save(Post.create(users.findById(fixture.user).orElseThrow(),PostType.BUY,"토마토 구해요","토마토","1개",1000,"역",0.0,
+     LocalDate.now().plusDays(2),37.5,127.0,null,"구매 희망",null,null,null));
+   inbound.schedule(p);
+   return p.getId();
+  });
+  assertNull(tx(()->em.find(DemoInboundJob.class,post)));
  }
  @Test void withdrawnRequestsAreNotAutoAcceptedAndHiddenModeStopsNewRequests(){
   var f=fixture(PostType.SHARE);var a=request(f,f.user);trades.withdrawTradeRequest(a,f.user);due(a);simulation.advance(a);assertNull(room(a));

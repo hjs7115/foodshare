@@ -33,6 +33,8 @@ public class PostService {
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.hjs.foodshare.demo.DemoVisibility demo;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.hjs.foodshare.demo.DemoInboundSimulationService demoInbound;
 
     @org.springframework.beans.factory.annotation.Autowired
     private com.hjs.foodshare.post.repository.PostPageQuery pages;
@@ -97,6 +99,7 @@ public class PostService {
 
         post.setPriceNegotiable(request.priceNegotiable());
         Post saved = postRepository.save(post);
+        demoInbound.schedule(saved);
         notifications.notifyNearbyPost(saved);
         return toResponse(saved, userId);
     }

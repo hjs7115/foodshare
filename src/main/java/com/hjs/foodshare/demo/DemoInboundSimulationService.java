@@ -29,6 +29,7 @@ public class DemoInboundSimulationService {
     @PersistenceContext private EntityManager em;
     @org.springframework.beans.factory.annotation.Autowired private DemoSafetyService safety;
     @org.springframework.beans.factory.annotation.Autowired private DemoMeetupService meetup;
+    @org.springframework.beans.factory.annotation.Autowired private DemoGroupCompanionService companion;
     private final DemoVisibility demo;
     private final TradeRequestService trades;
     private final ChatService chats;
@@ -165,6 +166,7 @@ public class DemoInboundSimulationService {
                         .setParameter("actor", actorId).setParameter("owner", job.writerId).getSingleResult();
                 if (blocked > 0) continue;
                 job.requestId = trades.createRequest(postId, actorId).requestId();
+                companion.schedule(em.find(TradeRequest.class,job.requestId),job.writerId,actorId,false);
                 job.dueAt = LocalDateTime.now().plusSeconds(2);
                 return null;
             }
@@ -224,10 +226,13 @@ public class DemoInboundSimulationService {
             return new Prompt(job.postId, job.requestId, 0L, greetingContext(post),
                     post.getImageUrl(), true, greeting(post), false, null);
         }
+        var people=new ArrayList<>(List.of(job.writerId,request.getRequester().getId()));
+        var group=em.find(DemoGroupCompanion.class,postId);
+        if(group!=null && !group.reset && group.requestId!=null){var other=em.find(TradeRequest.class,group.requestId);if(other!=null)people.add(other.getRequester().getId());}
         List<ChatMessage> history = em.createQuery(
                 "select m from ChatMessage m left join fetch m.sender where m.chatRoom.id=:room and m.systemMessage=false and m.sender.id in :people order by m.id desc",
                 ChatMessage.class).setParameter("room", roomId)
-                .setParameter("people", List.of(job.writerId,request.getRequester().getId())).setMaxResults(16).getResultList();
+                .setParameter("people", people).setMaxResults(16).getResultList();
         long latest = history.stream().filter(m -> m.getSender() != null
                 && m.getSender().getId().equals(job.writerId)).mapToLong(ChatMessage::getId).max().orElse(0);
         if (latest <= job.repliedThrough) {
@@ -254,7 +259,7 @@ public class DemoInboundSimulationService {
         List<ChatMessage> ordered = new ArrayList<>(history);
         java.util.Collections.reverse(ordered);
         for (ChatMessage msg : ordered)
-            text.append(msg.getSender().getId().equals(job.writerId) ? "게시글 작성자: " : "거래 요청자: ")
+            text.append(msg.getSender().getId().equals(job.writerId) ? "게시글 작성자: " : msg.getSender().getId().equals(request.getRequester().getId()) ? "거래 요청자(나): " : "다른 공동구매 참가자: ")
                     .append(msg.getContent()).append('\n');
         return new Prompt(job.postId, job.requestId, latest, text.toString(), null, false, null, false,
                 DemoMeetupService.nearHuman(post.getWriter(), post));

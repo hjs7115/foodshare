@@ -30,6 +30,7 @@ public class DemoSimulationService {
  private final DemoChatAi ai;
  @org.springframework.beans.factory.annotation.Autowired private DemoSafetyService safety;
  @org.springframework.beans.factory.annotation.Autowired private DemoMeetupService meetup;
+ @org.springframework.beans.factory.annotation.Autowired private DemoGroupCompanionService companion;
  private final TransactionTemplate tx;
  public DemoSimulationService(DemoVisibility demo,TradeRequestService trades,ChatService chats,ReviewService reviews,ChatWebSocketHandler live,DemoChatAi ai,PlatformTransactionManager manager){
   this.demo=demo;this.trades=trades;this.chats=chats;this.reviews=reviews;this.live=live;this.ai=ai;this.tx=new TransactionTemplate(manager);
@@ -84,6 +85,7 @@ public class DemoSimulationService {
   if(!safety.canParticipate(s.userId)){s.dueAt=LocalDateTime.now().plusMinutes(10);return null;}
   if(r.getStatus()==TradeRequestStatus.CANCELLED||r.getStatus()==TradeRequestStatus.REJECTED){s.finished=true;return null;}
   if(r.getStatus()==TradeRequestStatus.PENDING){
+   companion.schedule(r,s.userId,r.getPost().getWriter().getId(),true);
    trades.accept(id,r.getPost().getWriter().getId());
    s.roomId=chats.findRoomIdByTradeRequestId(id);
    // The participant starts the conversation; do not send an unsolicited greeting.
@@ -115,7 +117,7 @@ public class DemoSimulationService {
   };
   StringBuilder context=new StringBuilder("역할: 당신은 게시글 작성자이며 ").append(role).append("입니다. 상대는 거래 요청자입니다. 상대의 문의에 답하세요.\n거래 상품: ").append(r.getPost().getTitle()).append(" / 수량: ").append(r.getPost().getQuantity()).append(" / 가격: ").append(r.getPost().getPrice()).append(" / 거래 종류: ").append(r.getPost().getPostType()).append(" / 장소: ").append(r.getPost().getTradeLocation()).append("\n최근 대화:\n");
   var ordered=new ArrayList<>(history);Collections.reverse(ordered);
-  ordered.forEach(m->context.append(m.getSender().getId().equals(s.userId)?"요청자: ":"게시글 작성자: ").append(m.getContent()).append('\n'));
+  ordered.forEach(m->context.append(m.getSender().getId().equals(s.userId)?"요청자: ":m.getSender().getId().equals(r.getPost().getWriter().getId())?"게시글 작성자(나): ":"다른 공동구매 참가자: ").append(m.getContent()).append('\n'));
   return new Prompt(id,latest,context.toString(),false,DemoMeetupService.nearHuman(r.getRequester(),r.getPost()));
  }
  public int resetMine(Long userId){return tx.execute(status -> {
@@ -131,8 +133,15 @@ public class DemoSimulationService {
    if(job.requestId==null){queued++;continue;}
    ids.add(job.requestId);
   }
+  int resetCount=ids.size()+queued;
+  var companions=em.createQuery("select j from DemoGroupCompanion j where j.humanId=:user and j.reset=false",DemoGroupCompanion.class).setParameter("user",userId).getResultList();
+  for(var j:companions)if(j.requestId!=null)ids.add(j.requestId);
   // Lock trades before users, matching completion/review lock ordering.
   for(Long id:ids)lock(id);
+  for(var j:companions){em.refresh(em.find(Post.class,j.postId),LockModeType.PESSIMISTIC_WRITE);em.refresh(j,LockModeType.PESSIMISTIC_WRITE);j.reset=true;j.finished=true;}
+  var resetActors=new HashSet<Long>();
+  for(Long id:ids){var r=em.find(TradeRequest.class,id);if(r!=null)resetActors.add(r.getRequester().getId());}
+  var privatePosts=new HashSet<>(em.createQuery("select s.privatePostId from DemoSession s where s.userId=:user",Long.class).setParameter("user",userId).getResultList());
   var targets=new TreeSet<Long>();
   for(Long id:ids){var r=em.find(TradeRequest.class,id);if(r==null)continue;targets.add(r.getRequester().getId());targets.add(r.getPost().getWriter().getId());}
   for(Long target:targets)em.refresh(em.find(User.class,target),LockModeType.PESSIMISTIC_WRITE);
@@ -148,7 +157,7 @@ public class DemoSimulationService {
    if(room!=null){
     var members=em.createQuery("select m from ChatRoomMember m where m.chatRoom.id=:id",ChatRoomMember.class).setParameter("id",room).getResultList();
     // A real group conversation must survive even if its primary request is the AI request.
-    boolean shared=s==null && members.stream().anyMatch(m->!m.getUser().getId().equals(userId) && !m.getUser().getId().equals(r.getRequester().getId()));
+    boolean shared=!privatePosts.contains(r.getPost().getId()) && members.stream().anyMatch(m->!m.getUser().getId().equals(userId) && !resetActors.contains(m.getUser().getId()));
     if(!shared)em.createQuery("delete from Notification n where n.targetType='CHAT_ROOM' and n.targetId=:id").setParameter("id",room).executeUpdate();
     for(var member:members){
      if(shared && !member.getUser().getId().equals(r.getRequester().getId()))continue;
@@ -175,6 +184,6 @@ public class DemoSimulationService {
    for(var rating:em.createQuery("select v.rating from Review v where v.targetUser.id=:user and v.id>:after order by v.id",Integer.class).setParameter("user",target).setParameter("after",base.afterReviewId).getResultList())score=FreshnessCalculator.update(score,rating);
    em.find(User.class,target).updateFreshnessScore(score);
   }
-  return ids.size()+queued;
+  return resetCount;
  });}
 }

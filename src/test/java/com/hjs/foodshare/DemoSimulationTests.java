@@ -40,6 +40,7 @@ class DemoSimulationTests {
  @Autowired DemoInboundSimulationService inbound;
  @Autowired DemoSafetyService safety;
  @Autowired DemoVisibility demo;
+ @Autowired DemoGroupCompanionService companion;
  @MockitoBean FcmPushService push;
  @MockitoBean DemoChatAi ai;
  @MockitoBean DemoMeetupService meetup;
@@ -49,7 +50,9 @@ class DemoSimulationTests {
  Fixture fixture(PostType type){return tx(()->{
   var state=em.find(DemoState.class,1L);if(state==null){state=new DemoState();em.persist(state);}state.setEnabled(true);
   var a=user();var b=user();var c=user();
-  var p=posts.save(Post.create(a,type,"두부 같이 나눠요","두부","1개",1000,"역 앞",0.0,LocalDate.now().plusDays(3),37.5,127.0,null,"시연 재료",type==PostType.GROUP_BUY?1:null,type==PostType.GROUP_BUY?4:null,type==PostType.GROUP_BUY?LocalDateTime.now().plusDays(3):null));em.persist(new DemoPost(p.getId()));return new Fixture(a.getId(),b.getId(),c.getId(),p.getId());
+  var p=posts.save(Post.create(a,type,"두부 같이 나눠요","두부","1개",1000,"역 앞",0.0,LocalDate.now().plusDays(3),37.5,127.0,null,"시연 재료",type==PostType.GROUP_BUY?1:null,type==PostType.GROUP_BUY?4:null,type==PostType.GROUP_BUY?LocalDateTime.now().plusDays(3):null));em.persist(new DemoPost(p.getId()));
+  if(type==PostType.GROUP_BUY){var extra=user();var seed=posts.save(Post.create(extra,PostType.SHARE,"참여용 식재료","두부","1개",0,"역",0.0,LocalDate.now().plusDays(3),37.5,127.0,null,"재료",null,null,null));em.persist(new DemoPost(seed.getId()));}
+  return new Fixture(a.getId(),b.getId(),c.getId(),p.getId());
  });}
  Long request(Fixture f,Long user){return trades.createRequest(f.post,user).requestId();}
  void due(Long id){tx(()->{em.find(DemoSession.class,id).dueAt=LocalDateTime.now().minusSeconds(1);return null;});}
@@ -551,4 +554,84 @@ class DemoSimulationTests {
   var f=fixture(PostType.SHARE);var a=request(f,f.user);trades.withdrawTradeRequest(a,f.user);due(a);simulation.advance(a);assertNull(room(a));
   tx(()->{em.find(DemoState.class,1L).setEnabled(false);return null;});assertThrows(Exception.class,()->request(f,f.other));
  }
+ void companionDue(Long post){tx(()->{em.find(DemoGroupCompanion.class,post).dueAt=LocalDateTime.now().minusSeconds(1);return null;});}
+ void ageMessages(Long room){tx(()->{em.createQuery("update ChatMessage m set m.createdAt=:past where m.chatRoom.id=:room").setParameter("past",LocalDateTime.now().minusSeconds(5)).setParameter("room",room).executeUpdate();return null;});}
+ void inboundDue(Long post){tx(()->{em.find(DemoInboundJob.class,post).dueAt=LocalDateTime.now().minusSeconds(1);return null;});}
+ Long ownGroup(Fixture f,int capacity){return tx(()->{
+  var p=posts.save(Post.create(users.findById(f.user).orElseThrow(),PostType.GROUP_BUY,"두부 함께 구매","두부","3개",3000,"역",0.0,LocalDate.now().plusDays(3),37.5,127.0,null,"두부 공동구매",1,capacity,LocalDateTime.now().plusDays(2)));
+  inbound.schedule(p);var j=em.find(DemoInboundJob.class,p.getId());j.screened=true;j.dueAt=LocalDateTime.now().minusSeconds(1);return p.getId();
+ });}
+ @Test void threePersonTemplateHasTwoDistinctBotsAnsweringInOrderAndResetStopsBoth(){
+  var f=fixture(PostType.GROUP_BUY);var id=request(f,f.user);due(id);simulation.advance(id);
+  Long post=tx(()->em.find(DemoSession.class,id).privatePostId);Long chat=room(id);
+  var second=tx(()->em.find(DemoGroupCompanion.class,post).requestId);assertNotNull(second);
+  var members=chats.getRooms(f.user,"ALL").stream().filter(r->r.chatRoomId().equals(chat)).findFirst().orElseThrow().participants();
+  assertEquals(3,members.size());assertEquals(3,members.stream().map(m->m.userId()).distinct().count());
+  assertTrue(chats.getMessages(f.user,chat).stream().noneMatch(m->!m.systemMessage()));
+  when(ai.reply(anyString())).thenReturn("첫 번째 답장");
+  chats.sendMessage(f.user,chat,"내일 받을게요");companionDue(post);assertNull(companion.prepare(post));
+  due(id);simulation.advance(id);companionDue(post);assertNull(companion.prepare(post)); // B waits two seconds after A.
+  ageMessages(chat);companionDue(post);var b=companion.prepare(post);assertNotNull(b);assertTrue(b.context().contains("첫 번째 답장"));
+  when(ai.reply(anyString())).thenReturn("두 번째 답장");companion.respond(b);companion.respond(b);
+  var responses=chats.getMessages(f.user,chat).stream().filter(m->m.content().endsWith("답장")).toList();
+  assertEquals(2,responses.size());assertEquals("첫 번째 답장",responses.get(0).content());assertEquals("두 번째 답장",responses.get(1).content());
+  companionDue(post);assertNull(companion.prepare(post)); // No bot-to-bot loop.
+  chats.sendMessage(f.user,chat,"감사합니다");due(id);simulation.advance(id);ageMessages(chat);companionDue(post);var late=companion.prepare(post);assertNotNull(late);
+  simulation.resetMine(f.user);companion.respond(late);
+  assertTrue(tx(()->em.find(DemoGroupCompanion.class,post).reset));
+  assertEquals(TradeRequestStatus.CANCELLED,tx(()->em.find(TradeRequest.class,second).getStatus()));
+  assertFalse(chats.getRooms(f.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(chat)));
+ }
+ @Test void inboundSecondRequestIsDelayedAndBothBotsGreetCompleteReviewAndReset(){
+  var f=fixture(PostType.GROUP_BUY);Long post=ownGroup(f,3);inbound.prepare(post);
+  Long first=tx(()->em.find(DemoInboundJob.class,post).requestId);
+  assertNotNull(first);assertNull(companion.prepare(post));assertNull(tx(()->em.find(DemoGroupCompanion.class,post).requestId));
+  companionDue(post);assertNull(companion.prepare(post));Long second=tx(()->em.find(DemoGroupCompanion.class,post).requestId);assertNotNull(second);
+  assertNotEquals(tx(()->em.find(TradeRequest.class,first).getRequester().getId()),tx(()->em.find(TradeRequest.class,second).getRequester().getId()));
+  trades.accept(first,f.user);assertNull(chats.findRoomIdByTradeRequestId(first));trades.accept(second,f.user);
+  Long chat=chats.findRoomIdByTradeRequestId(first);assertNotNull(chat);
+  inboundDue(post);inbound.prepare(post);companionDue(post);assertNull(companion.prepare(post));
+  inboundDue(post);var greeting=inbound.prepare(post);assertNotNull(greeting);inbound.respond(greeting);
+  ageMessages(chat);companionDue(post);var greetB=companion.prepare(post);assertNotNull(greetB);assertTrue(greetB.greeting());companion.respond(greetB);
+  chats.sendMessage(f.user,chat,"내일 오후에 수령해요");when(ai.reply(anyString())).thenReturn("네 확인했어요");
+  inboundDue(post);inbound.respond(inbound.prepare(post));ageMessages(chat);companionDue(post);var reply=companion.prepare(post);assertNotNull(reply);assertFalse(reply.greeting());companion.respond(reply);
+  trades.complete(first,f.user);trades.complete(second,f.user);
+  inboundDue(post);inbound.prepare(post);inboundDue(post);inbound.respond(inbound.prepare(post));
+  companionDue(post);var review=companion.prepare(post);assertNotNull(review);assertTrue(review.review());companion.respond(review);
+  assertEquals(2L,tx(()->em.createQuery("select count(v) from Review v where v.tradeRequest.id in :ids",Long.class).setParameter("ids",List.of(first,second)).getSingleResult()));
+  simulation.resetMine(f.user);
+  assertEquals(0L,tx(()->em.createQuery("select count(v) from Review v where v.tradeRequest.id in :ids",Long.class).setParameter("ids",List.of(first,second)).getSingleResult()));
+  assertEquals(50.0,tx(()->users.findById(f.user).orElseThrow().getFreshnessScore()));
+  assertEquals(1,tx(()->posts.findById(post).orElseThrow().getCurrentParticipantCount()));
+  assertFalse(chats.getRooms(f.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(chat)));
+ }
+ @Test void twoPersonAndEarlyClosedGroupsDoNotAddAnExtraRequest(){
+  var f=fixture(PostType.GROUP_BUY);Long small=ownGroup(f,2);inbound.prepare(small);
+  assertNull(tx(()->em.find(DemoGroupCompanion.class,small)));
+  Long post=ownGroup(f,3);inbound.prepare(post);Long first=tx(()->em.find(DemoInboundJob.class,post).requestId);
+  trades.accept(first,f.user);trades.closeGroupBuyRecruitment(post,f.user);companionDue(post);assertNull(companion.prepare(post));
+  assertNull(tx(()->em.find(DemoGroupCompanion.class,post).requestId));
+  assertTrue(tx(()->em.find(DemoGroupCompanion.class,post).finished));
+ }
+
+ @Test void outboundCompanionCompletesOnlyAfterHumanAndDoesNotInventExtraHumanReview(){
+  var f=fixture(PostType.GROUP_BUY);var id=request(f,f.user);due(id);simulation.advance(id);
+  Long post=tx(()->em.find(DemoSession.class,id).privatePostId);Long second=tx(()->em.find(DemoGroupCompanion.class,post).requestId);
+  companionDue(post);companion.prepare(post);
+  assertEquals(TradeRequestStatus.ACCEPTED,tx(()->em.find(TradeRequest.class,second).getStatus()));
+  trades.complete(id,f.user);due(id);simulation.advance(id);companionDue(post);companion.prepare(post);
+  assertEquals(TradeRequestStatus.COMPLETED,tx(()->em.find(TradeRequest.class,second).getStatus()));
+  assertEquals(1L,tx(()->em.createQuery("select count(v) from Review v where v.targetUser.id=:user",Long.class).setParameter("user",f.user).getSingleResult()));
+  simulation.resetMine(f.user);assertEquals(50.0,tx(()->users.findById(f.user).orElseThrow().getFreshnessScore()));
+ }
+ @Test void companionCannotPublishAfterModeOffOrHumanBlocksIt(){
+  var f=fixture(PostType.GROUP_BUY);var id=request(f,f.user);due(id);simulation.advance(id);Long chat=room(id);
+  Long post=tx(()->em.find(DemoSession.class,id).privatePostId);
+  chats.sendMessage(f.user,chat,"안녕하세요");when(ai.reply(anyString())).thenReturn("첫 답변");due(id);simulation.advance(id);ageMessages(chat);companionDue(post);var pending=companion.prepare(post);assertNotNull(pending);
+  when(ai.reply(anyString())).thenReturn("금지된 늦은 답변");
+  tx(()->{em.find(DemoState.class,1L).setEnabled(false);return null;});companion.respond(pending);
+  tx(()->{em.find(DemoState.class,1L).setEnabled(true);var bot=em.find(TradeRequest.class,pending.requestId()).getRequester();em.persist(com.hjs.foodshare.moderation.domain.UserBlock.create(em.find(User.class,f.user),bot));return null;});companion.respond(pending);
+  assertEquals(0L,tx(()->em.createQuery("select count(m) from ChatMessage m where m.chatRoom.id=:room and m.content='금지된 늦은 답변'",Long.class).setParameter("room",chat).getSingleResult()));
+ }
+
 }

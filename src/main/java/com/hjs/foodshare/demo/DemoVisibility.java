@@ -47,6 +47,7 @@ public class DemoVisibility {
  public boolean isSimulation(Long id){
   if(id==null)return false;
   if(em.find(DemoSession.class,id)!=null)return true;
+  if(!em.createQuery("select j.postId from DemoGroupCompanion j where j.requestId=:request",Long.class).setParameter("request",id).getResultList().isEmpty())return true;
   return !em.createQuery("select j.postId from DemoInboundJob j where j.requestId=:request",Long.class)
     .setParameter("request",id).setMaxResults(1).getResultList().isEmpty();
  }
@@ -55,6 +56,7 @@ public class DemoVisibility {
   long outbound=em.createQuery("select count(s) from DemoSession s where s.privatePostId=:post and s.reset=false and (:human is null or s.userId=:human)",Long.class)
     .setParameter("post",postId).setParameter("human",humanId).getSingleResult();
   if(outbound>0)return true;
+  if(em.createQuery("select count(j) from DemoGroupCompanion j where j.postId=:post and j.requestId is not null and j.reset=false and (:human is null or j.humanId=:human)",Long.class).setParameter("post",postId).setParameter("human",humanId).getSingleResult()>0)return true;
   return em.createQuery("select count(j) from DemoInboundJob j where j.postId=:post and j.requestId is not null and coalesce(j.reset,false)=false and (:human is null or j.writerId=:human)",Long.class)
     .setParameter("post",postId).setParameter("human",humanId).getSingleResult()>0;
  }
@@ -74,7 +76,7 @@ public class DemoVisibility {
     .setParameter("user",userId).setParameter("post",source.getId()).getSingleResult()>0)
    throw new BusinessException(HttpStatus.CONFLICT,"이미 체험한 글입니다. 설정에서 시뮬레이션을 초기화하면 다시 체험할 수 있어요.");
   boolean group=source.getPostType()==com.hjs.foodshare.post.domain.PostType.GROUP_BUY;
-  var copy=com.hjs.foodshare.post.domain.Post.create(source.getWriter(),source.getPostType(),source.getTitle().substring(0,Math.min(100,source.getTitle().length())),source.getIngredientName(),source.getQuantity(),source.getPrice(),source.getTradeLocation(),source.getDistanceKm(),java.time.LocalDate.now().plusDays(1),source.getLatitude(),source.getLongitude(),source.getImageUrl(),source.getContent(),group?1:null,group?2:null,group?java.time.LocalDateTime.now().plusDays(1):null);
+  var copy=com.hjs.foodshare.post.domain.Post.create(source.getWriter(),source.getPostType(),source.getTitle().substring(0,Math.min(100,source.getTitle().length())),source.getIngredientName(),source.getQuantity(),source.getPrice(),source.getTradeLocation(),source.getDistanceKm(),java.time.LocalDate.now().plusDays(1),source.getLatitude(),source.getLongitude(),source.getImageUrl(),source.getContent(),group?1:null,group?Math.min(3,Math.max(2,source.getTargetParticipantCount())):null,group?java.time.LocalDateTime.now().plusDays(1):null);
   copy.setPriceNegotiable(source.isPriceNegotiable());em.persist(copy);return copy;
  }
  public void register(com.hjs.foodshare.trade.domain.TradeRequest request,Long sourceId){

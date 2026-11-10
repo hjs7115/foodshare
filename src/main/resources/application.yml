@@ -54,3 +54,5 @@ app:
   ai:
     openai-api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_MODEL:gpt-4o-mini}
+  support:
+    inbox-email: ${SUPPORT_INBOX_EMAIL:${MAIL_FROM:${MAIL_USERNAME:}}}

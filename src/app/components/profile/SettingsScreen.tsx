@@ -21,10 +21,11 @@ import WithdrawalScreen from './WithdrawalScreen';
 import LocationSettingsScreen from './LocationSettingsScreen';
 import ChatSettingsScreen from './ChatSettingsScreen';
 import FindPasswordScreen from '../auth/FindPasswordScreen';
+import SupportInquiryScreen from './SupportInquiryScreen';
 import { getStoredUserInfo } from '../../auth/session';
 import { showConfirm, showToast } from '../../utils/feedback';
 
-type SettingsView = 'main' | 'password' | 'notifications' | 'location' | 'chat' | 'privacy' | 'terms' | 'help' | 'notice' | 'reports' | 'withdraw';
+type SettingsView = 'main' | 'password' | 'notifications' | 'location' | 'chat' | 'privacy' | 'terms' | 'help' | 'notice' | 'contact' | 'reports' | 'withdraw';
 
 export default function SettingsScreen({ onClose }: { onClose: () => void }) {
   const [demoMode, setDemoMode] = useState<{canManage: boolean; enabled: boolean; canReset: boolean} | null>(null);
@@ -83,6 +84,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
   };
 
   if(currentView==='reports')return <ReportsScreen onClose={()=>setCurrentView('main')}/>;
+  if(currentView==='contact')return <SupportInquiryScreen onClose={()=>setCurrentView('main')}/>;
   if(currentView==='withdraw')return <WithdrawalScreen onClose={()=>setCurrentView('main')}/>;
   if (currentView === 'notifications') {
     return <NotificationSettingsScreen onClose={() => setCurrentView('main')} />;
@@ -142,7 +144,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
         { icon: Shield, label: '내 신고·분쟁 내역', description: '접수 상태와 운영자의 조치 결과를 확인합니다.', action: () => setCurrentView('reports') },
         { icon: HelpCircle, label: '도움말', description: '게시글, 거래, 채팅 이용 방법을 확인합니다.', action: () => setCurrentView('help') },
         { icon: FileText, label: '공지사항', description: '서비스 변경 사항과 운영 안내를 확인합니다.', action: () => setCurrentView('notice') },
-        { icon: AlertCircle, label: '문의하기', description: '오류나 불편 사항은 프로젝트 관리자에게 전달합니다.', action: () => showToast('문의는 관리자 이메일 또는 GitHub 이슈로 전달해주세요.') },
+        { icon: AlertCircle, label: '문의하기', description: '오류나 불편 사항을 운영 이메일로 전달합니다.', action: () => setCurrentView('contact') },
       ],
     },
   ];
@@ -344,39 +346,6 @@ const tutorialSteps = [
   },
 ];
 
-const patchNotes = [
-  {
-    version: 'v1.3.0',
-    date: '2026.09.08',
-    title: '채팅 사용성 개선',
-    items: [
-      '단체 채팅방에서 보낸 메시지의 안 읽은 수가 참여자 수 기준으로 표시됩니다.',
-      '채팅 입력창에 카메라, 사진, 지도, 파일 첨부 메뉴를 추가했습니다.',
-      '채팅방 검색, 상단 고정, 방별 알림 설정 흐름을 정리했습니다.',
-    ],
-  },
-  {
-    version: 'v1.2.0',
-    date: '2026.09.08',
-    title: '계정 설정 보강',
-    items: [
-      '내 정보 설정에서 이메일 인증 후 비밀번호를 변경할 수 있게 했습니다.',
-      '개인정보 처리방침과 이용약관 내용을 세부 항목으로 확장했습니다.',
-      '도움말 화면을 단계별 튜토리얼 형태로 개편했습니다.',
-    ],
-  },
-  {
-    version: 'v1.1.0',
-    date: '2026.09.07',
-    title: '알림과 게시글 안정화',
-    items: [
-      '알림 삭제 후 읽지 않은 알림 표시가 남는 문제를 개선했습니다.',
-      '게시글 거리 필터와 정렬 결과가 더 일관되게 보이도록 조정했습니다.',
-      '거래 요청과 채팅방 목록 갱신 흐름을 보강했습니다.',
-    ],
-  },
-];
-
 function SettingsInfoScreen({ view, onClose }: { view: InfoView; onClose: () => void }) {
   const title = view === 'help'
     ? '도움말'
@@ -390,7 +359,7 @@ function SettingsInfoScreen({ view, onClose }: { view: InfoView; onClose: () => 
       <div className="flex-1 overflow-y-auto bg-[#f7fafc] px-5 py-5">
         {(view === 'privacy' || view === 'terms') && <PolicyDetail content={policySections[view]} />}
         {view === 'help' && <HelpTutorial />}
-        {view === 'notice' && <PatchNoteCards />}
+        {view === 'notice' && <div className="rounded-2xl border border-[#e2e8f0] bg-white p-6 text-center text-sm text-[#64748b]">등록된 공지사항이 없습니다.</div>}
       </div>
     </div>
   );
@@ -440,30 +409,3 @@ function HelpTutorial() {
   );
 }
 
-function PatchNoteCards() {
-  return (
-    <div className="space-y-4">
-      {patchNotes.map((note) => (
-        <section key={note.version} className="rounded-2xl border border-[#e2e8f0] bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <p className="mb-1 text-xs text-[#14b8a6]" style={{ fontWeight: 900 }}>{note.version}</p>
-              <h2 className="text-lg text-[#1a202c]" style={{ fontWeight: 900 }}>{note.title}</h2>
-            </div>
-            <span className="shrink-0 rounded-full bg-[#f1f5f9] px-3 py-1 text-xs text-[#64748b]" style={{ fontWeight: 800 }}>
-              {note.date}
-            </span>
-          </div>
-          <ul className="space-y-2">
-            {note.items.map((item) => (
-              <li key={item} className="flex gap-2 text-sm leading-6 text-[#4a5568]">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#14b8a6]" />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-    </div>
-  );
-}

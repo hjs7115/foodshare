@@ -39,11 +39,11 @@ public class DemoSimulationService {
  }
  private DemoSession session(Long id){return em.find(DemoSession.class,id,LockModeType.PESSIMISTIC_WRITE);}
  private void send(DemoSession s,TradeRequest r,String text,String clientId){
-  var saved=chats.sendMessage(r.getPost().getWriter().getId(),s.roomId,text,clientId);
+  var saved=chats.sendAutomatedMessage(r.getPost().getWriter().getId(),s.roomId,text,clientId);
   Long actor=r.getPost().getWriter().getId();
   TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){@Override public void afterCommit(){live.publishSavedMessage(actor,saved);}});
  }
- record Prompt(Long requestId,long through,String text){}
+ record Prompt(Long requestId,long through,String text,boolean review){}
  public void advance(Long id){
   Prompt prompt=prepareNext(id);
   if(prompt!=null)respond(prompt);
@@ -51,7 +51,23 @@ public class DemoSimulationService {
  Prompt prepareNext(Long id){return tx.execute(status -> prepare(id));}
  void respond(Prompt prompt){
   Long id=prompt.requestId();
-  // No database locks or transaction are held during the external AI request.
+  // The external AI call is deliberately outside the transaction and any DB lock.
+  if(prompt.review()){
+   var draft=ai.review(prompt.text());
+   if(draft==null)draft=new DemoChatAi.ReviewDraft(4,"대화가 원활해서 편하게 거래를 진행할 수 있었어요.");
+   final var review=draft;
+   tx.executeWithoutResult(status -> {
+    var r=lock(id);var s=session(id);
+    if(r==null||s==null||s.reset||s.finished||!demo.enabled()||r.getStatus()!=TradeRequestStatus.COMPLETED)return;
+    Long actor=r.getPost().getWriter().getId();
+    if(em.createQuery("select count(v) from Review v where v.tradeRequest.id=:id and v.reviewer.id=:actor",Long.class)
+         .setParameter("id",id).setParameter("actor",actor).getSingleResult()==0)
+       reviews.createReview(id,actor,new ReviewCreateRequest(review.rating(),review.content()));
+    send(s,r,"감사합니다! 좋은 하루 보내세요 :)","demo-complete-"+id);
+    s.finished=true;
+   });
+   return;
+  }
   String answer=ai.reply(prompt.text());
   tx.executeWithoutResult(status -> {
    var r=lock(id);var s=session(id);
@@ -72,10 +88,12 @@ public class DemoSimulationService {
    trades.complete(id,r.getPost().getWriter().getId());
   }
   if(r.getStatus()==TradeRequestStatus.COMPLETED){
-   if(em.createQuery("select count(v) from Review v where v.tradeRequest.id=:id and v.reviewer.id=:actor",Long.class).setParameter("id",id).setParameter("actor",r.getPost().getWriter().getId()).getSingleResult()==0)
-    reviews.createReview(id,r.getPost().getWriter().getId(),new ReviewCreateRequest(5,"빠르고 친절하게 거래했어요. 감사합니다!"));
-   send(s,r,"감사합니다! 좋은 하루 보내세요 :)","demo-complete-"+id);
-   s.finished=true;return null;
+   Long actor=r.getPost().getWriter().getId();
+   long existing=em.createQuery("select count(v) from Review v where v.tradeRequest.id=:id and v.reviewer.id=:actor",Long.class)
+       .setParameter("id",id).setParameter("actor",actor).getSingleResult();
+   if(existing>0){s.finished=true;return null;}
+   s.dueAt=LocalDateTime.now().plusSeconds(30);
+   return new Prompt(id,0L,DemoReviewContext.from(em,r,s.roomId,actor),true);
   }
   s.dueAt=LocalDateTime.now().plusSeconds(2);
   if(r.getStatus()!=TradeRequestStatus.ACCEPTED||s.roomId==null)return null;
@@ -88,7 +106,7 @@ public class DemoSimulationService {
   StringBuilder context=new StringBuilder("역할: 당신은 게시글 작성자(나눔 제공자 또는 판매자)이며, 상대는 거래 요청자입니다. 상대의 문의에 답하세요.\n거래 상품: ").append(r.getPost().getTitle()).append(" / 수량: ").append(r.getPost().getQuantity()).append(" / 가격: ").append(r.getPost().getPrice()).append(" / 거래 종류: ").append(r.getPost().getPostType()).append(" / 장소: ").append(r.getPost().getTradeLocation()).append("\n최근 대화:\n");
   var ordered=new ArrayList<>(history);Collections.reverse(ordered);
   ordered.forEach(m->context.append(m.getSender().getId().equals(s.userId)?"요청자: ":"게시글 작성자: ").append(m.getContent()).append('\n'));
-  return new Prompt(id,latest,context.toString());
+  return new Prompt(id,latest,context.toString(),false);
  }
  public int resetMine(Long userId){return tx.execute(status -> {
   if(em.find(User.class,userId)==null)throw new BusinessException(HttpStatus.NOT_FOUND,"계정을 찾을 수 없습니다.");

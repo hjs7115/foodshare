@@ -9,7 +9,9 @@ import jakarta.validation.constraints.NotNull;
 public class DemoController {
  private final DemoVisibility demo;
  private final DemoSimulationService simulation;
- public DemoController(DemoVisibility demo,DemoSimulationService simulation){this.demo=demo;this.simulation=simulation;}
+ private final DemoSafetyService safety;
+ public DemoController(DemoVisibility demo,DemoSimulationService simulation,DemoSafetyService safety){this.demo=demo;this.simulation=simulation;this.safety=safety;}
+ @PostMapping("/restore-account/{targetUserId}") public ApiResponse<Void> restore(@AuthenticationPrincipal AuthUser user,@PathVariable Long targetUserId){demo.requireResetPermission(user.userId());safety.clear(targetUserId);return ApiResponse.ok("시연 이용 제한을 해제했습니다.",null);}
  @PostMapping("/reset-mine") public ApiResponse<Integer> reset(@AuthenticationPrincipal AuthUser user){demo.requireResetPermission(user.userId());return ApiResponse.ok("내 시뮬레이션을 초기화했습니다.",simulation.resetMine(user.userId()));}
  public record Update(@NotNull Boolean enabled) {}
  @GetMapping public ApiResponse<DemoVisibility.Status> status(@AuthenticationPrincipal AuthUser user){return ApiResponse.ok("Demo mode status",demo.status(user.userId()));}

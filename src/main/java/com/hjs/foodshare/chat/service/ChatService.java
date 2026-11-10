@@ -36,6 +36,7 @@ public class ChatService {
 
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
     @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.demo.DemoVisibility demo;
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.demo.DemoSafetyService demoSafety;
     @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.moderation.repository.UserBlockRepository blocks;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
@@ -163,6 +164,16 @@ public class ChatService {
 
     @Transactional
     public ChatMessageResponse sendMessage(Long userId,Long roomId,String content,String clientId) {
+        return persistMessage(userId,roomId,content,clientId,false);
+    }
+
+    /** Internal service call only; does not expose a client-controlled bypass flag. */
+    @Transactional
+    public ChatMessageResponse sendAutomatedMessage(Long userId,Long roomId,String content,String clientId) {
+        return persistMessage(userId,roomId,content,clientId,true);
+    }
+
+    private ChatMessageResponse persistMessage(Long userId,Long roomId,String content,String clientId,boolean automated) {
         ChatRoom room=lockRoom(userId,roomId);
         User sender=userRepository.findById(userId).orElseThrow();
         if(!sender.isAvailable())throw new BusinessException(HttpStatus.FORBIDDEN,"이용이 제한된 계정입니다.");
@@ -170,6 +181,9 @@ public class ChatService {
         if(text.isBlank() || text.length()>1000 || (clientId!=null && !clientId.matches("[A-Za-z0-9-]{1,80}")))
             throw new BusinessException(HttpStatus.BAD_REQUEST,"메시지는 1~1000자로 입력해주세요.");
         if(clientId!=null){var previous=chatMessageRepository.findByChatRoomIdAndSenderIdAndClientMessageId(roomId,userId,clientId);if(previous.isPresent()){if(!previous.get().getContent().equals(text))throw new BusinessException(HttpStatus.CONFLICT,"같은 전송 식별자로 다른 메시지를 보낼 수 없습니다.");return ChatMessageResponse.from(previous.get(),userId);}}
+        Long tradeId=room.getTradeRequest()==null?null:room.getTradeRequest().getId();
+        if(!automated && demo.enabled() && demo.isSimulation(tradeId))
+            demoSafety.require(userId,com.hjs.foodshare.demo.DemoSafetyService.Activity.MESSAGE);
         var message=ChatMessage.user(room,sender,text);message.setClientMessageId(clientId);
         chatMessageRepository.saveAndFlush(message);notifyUnreadMembers(room,sender,text,message.getId());
         return ChatMessageResponse.from(message,userId,true).withUnreadCount((int)chatRoomMemberRepository.findAllByChatRoom(room).stream().filter(ChatRoomMember::isActive).filter(m->!m.getUser().getId().equals(userId)&&!blocks.blockedEitherWay(userId,m.getUser().getId())).count());

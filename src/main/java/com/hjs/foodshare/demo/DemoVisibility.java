@@ -8,6 +8,7 @@ import com.hjs.foodshare.global.exception.BusinessException;
 @Service @Transactional(readOnly=true)
 public class DemoVisibility {
  @PersistenceContext private EntityManager em;
+ @org.springframework.beans.factory.annotation.Autowired private DemoSafetyService safety;
  public record Status(boolean canManage, boolean enabled, boolean canReset) {}
  public boolean enabled(){var state=em.find(DemoState.class,1L);return state!=null && state.isEnabled();}
  public boolean canManage(Long userId){return userId!=null && em.find(DemoManager.class,userId)!=null;}
@@ -54,6 +55,7 @@ public class DemoVisibility {
   if(!em.createQuery("select s.requestId from DemoSession s where s.privatePostId=:id",Long.class).setParameter("id",source.getId()).getResultList().isEmpty())
    throw new BusinessException(HttpStatus.BAD_REQUEST,"시연 원본 게시글에서 요청해주세요.");
   if(!isTemplate(source.getId()))return source;
+  if(enabled())safety.require(userId,DemoSafetyService.Activity.REQUEST);
   // The original post lock serializes duplicate requests without changing the template.
   em.refresh(source,LockModeType.PESSIMISTIC_WRITE);
   if(em.createQuery("select count(s) from DemoSession s where s.userId=:user and s.sourcePostId=:post and s.reset=false",Long.class)

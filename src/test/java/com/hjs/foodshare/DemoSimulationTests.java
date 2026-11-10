@@ -38,6 +38,7 @@ class DemoSimulationTests {
  @Autowired ReviewService reviews;
  @Autowired DemoSimulationService simulation;
  @Autowired DemoInboundSimulationService inbound;
+ @Autowired DemoSafetyService safety;
  @Autowired DemoVisibility demo;
  @MockitoBean FcmPushService push;
  @MockitoBean DemoChatAi ai;
@@ -70,8 +71,11 @@ class DemoSimulationTests {
   when(ai.reply(anyString())).thenReturn("내일 오후는 어떠세요?");
   chats.sendMessage(f.user,room(a),"언제 받을 수 있나요?");due(a);simulation.advance(a);
   assertTrue(chats.getMessages(f.user,room(a)).stream().anyMatch(m->m.content().equals("내일 오후는 어떠세요?")));
+  when(ai.review(anyString())).thenReturn(new DemoChatAi.ReviewDraft(5,"시간 조율이 편하고 대화가 친절했어요."));
   trades.complete(a,f.user);due(a);simulation.advance(a);
   assertEquals(TradeRequestStatus.COMPLETED,trades.getMyRequestForPost(f.user,f.post).getFirst().status());
+  assertEquals(5,tx(()->em.createQuery("select v.rating from Review v where v.tradeRequest.id=:id",Integer.class)
+    .setParameter("id",a).getSingleResult()));
   double before=tx(()->em.find(DemoScore.class,f.user).score);
   assertTrue(tx(()->users.findById(f.user).orElseThrow().getFreshnessScore())>before);
   // A real trade review after the simulation must survive reset and be replayed against the original score.
@@ -157,8 +161,15 @@ class DemoSimulationTests {
   tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
   inbound.prepare(original);
   tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
-  inbound.prepare(original);
+  var reviewPrompt=inbound.prepare(original);
+  assertNotNull(reviewPrompt);
+  assertTrue(reviewPrompt.review());
+  assertTrue(reviewPrompt.conversation().contains("내일 오후 괜찮으세요?"));
+  when(ai.review(anyString())).thenReturn(new DemoChatAi.ReviewDraft(4,"시간 이야기가 편했어요. 감사합니다!"));
+  inbound.respond(reviewPrompt);
   assertEquals(TradeRequestStatus.COMPLETED,tx(()->em.find(TradeRequest.class,request).getStatus()));
+  assertEquals(4,tx(()->em.createQuery("select v.rating from Review v where v.tradeRequest.id=:id",Integer.class)
+    .setParameter("id",request).getSingleResult()));
   assertTrue(tx(()->em.createQuery("select count(r) from Review r where r.tradeRequest.id=:id and r.reviewer.id=:actor",Long.class)
     .setParameter("id",request).setParameter("actor",fixture.owner).getSingleResult())>0);
   assertTrue(tx(()->users.findById(fixture.user).orElseThrow().getFreshnessScore())>50);
@@ -246,6 +257,25 @@ class DemoSimulationTests {
       ()->demo.requireResetPermission(unauthorizedManager));
   assertDoesNotThrow(()->demo.requireResetPermission(named1));
   assertDoesNotThrow(()->demo.requireResetPermission(named2));
+ }
+ @Test void extremeDemoSpamTemporarilyRestrictsOnlyThatAccount(){
+  var f=fixture(PostType.SHARE);
+  assertTrue(safety.canParticipate(f.user));
+  assertTrue(safety.canParticipate(f.other));
+  safety.require(f.user, DemoSafetyService.Activity.MESSAGE);
+  assertTrue(safety.canParticipate(f.user)); // One normal message is safe.
+  tx(()->{
+   var row=em.find(DemoParticipationControl.class,f.user);
+   em.refresh(row,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+   row.messages=90;
+   return null;
+  });
+  assertThrows(com.hjs.foodshare.global.exception.BusinessException.class,
+      ()->safety.require(f.user,DemoSafetyService.Activity.MESSAGE));
+  assertFalse(safety.canParticipate(f.user));
+  assertTrue(safety.canParticipate(f.other)); // Other accounts still work.
+  safety.clear(f.user); // Administrator can undo an accidental restriction.
+  assertTrue(safety.canParticipate(f.user));
  }
  @Test void withdrawnRequestsAreNotAutoAcceptedAndHiddenModeStopsNewRequests(){
   var f=fixture(PostType.SHARE);var a=request(f,f.user);trades.withdrawTradeRequest(a,f.user);due(a);simulation.advance(a);assertNull(room(a));

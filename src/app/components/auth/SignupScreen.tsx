@@ -304,7 +304,10 @@ export default function SignupScreen({
   const renderStepHeader = (title: string, description?: string) => (
     <div className="text-center mb-9">
       <p className="text-[#65a30d] text-base mb-4" style={{ fontWeight: 700 }}>{step} / 4</p>
-      <h1 className="text-4xl text-[#2d3748] mb-3 leading-tight" style={{ fontWeight: 600 }}>{title}</h1>
+      <h1 className="text-4xl text-[#2d3748] mb-3 leading-tight" style={{
+        fontWeight: 600,
+        ...(step === 1 ? { fontSize: 'clamp(20px, 6.2vw, 36px)', whiteSpace: 'nowrap' as const } : {}),
+      }}>{title}</h1>
       {description && <p className="text-[#718096] text-base leading-6">{description}</p>}
     </div>
   );
@@ -351,6 +354,9 @@ export default function SignupScreen({
                   disabled={isEmailVerified}
                 />
                 {emailError && <p className="mt-2 text-sm text-[#ff6b6b]">{emailError}</p>}
+                <p className="mt-2 text-xs leading-5 text-[#718096]">
+                  Gmail 등 일부 이메일 서비스에서는 인증 메일이 스팸함으로 분류될 수 있어요. 메일이 보이지 않으면 스팸함도 확인해주세요.
+                </p>
               </div>
 
               <button

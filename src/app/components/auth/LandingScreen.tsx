@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { ShoppingBasket } from 'lucide-react';
+
 export default function LandingScreen({
   onShowLogin,
   onShowSignup,
@@ -5,21 +8,32 @@ export default function LandingScreen({
   onShowLogin: () => void;
   onShowSignup: () => void;
 }) {
+  const [brandImageFailed, setBrandImageFailed] = useState(false);
+
   return (
     <div className="bg-white size-full flex flex-col items-center justify-center px-6 py-16">
       <section className="w-full max-w-md rounded-3xl border border-[#e2e8f0] bg-white px-6 py-12 shadow-sm">
         <div className="flex flex-col items-center justify-center w-full">
           <div className="text-center">
-            <img
-              src="/assets/app-brand-mark.png"
-              alt="반띵"
-              className="mx-auto mb-1 w-48 object-contain translate-y-16"
-            />
-            <h2 className="text-5xl text-[#2d3748] mb-3 mt-8" style={{ fontWeight: 600 }}>반 띵</h2>
+            <div className="mx-auto flex h-32 w-44 items-start justify-center overflow-hidden" role="img" aria-label="반띵 식재료 바구니 로고">
+              {brandImageFailed ? (
+                <div className="flex h-28 w-28 items-center justify-center rounded-3xl bg-[#ecfccb] text-[#65a30d]">
+                  <ShoppingBasket size={72} strokeWidth={1.8} aria-hidden="true" />
+                </div>
+              ) : (
+                <img
+                  src="/assets/app-brand-mark.png"
+                  alt=""
+                  className="block h-auto w-full shrink-0 object-contain"
+                  onError={() => setBrandImageFailed(true)}
+                />
+              )}
+            </div>
+            <h2 className="mt-2 mb-3 text-4xl text-[#2d3748]" style={{ fontWeight: 700 }}>반띵</h2>
             <p className="text-[#718096] text-lg">식재료를 이웃과 나누세요</p>
           </div>
 
-          <div className="space-y-3 pt-12 w-full">
+          <div className="space-y-3 pt-10 w-full">
             <button
               onClick={onShowLogin}
               className="w-full bg-[#bef264] text-[#0a0a0a] py-4 rounded-2xl hover:bg-[#a3e635] transition-colors shadow-sm"

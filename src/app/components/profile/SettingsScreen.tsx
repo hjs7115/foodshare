@@ -197,7 +197,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
               게시글, 댓글, 거래 내역, 관심 목록은 서버에 저장됩니다. 기기 데이터 삭제는 현재 브라우저의 로그인과 화면 설정만 정리합니다.
             </p>
           </div>
-        )>
+        )}
 
         <div className="mt-5 text-center text-xs text-[#94a3b8]">
           {demoMode?.canManage ? <button type="button" onClick={toggleDemoMode} disabled={changingDemo} className="px-4 py-2 disabled:opacity-50">반띵 1.0.0</button> : '반띵 1.0.0'}
@@ -219,7 +219,7 @@ function SettingsHeader({ title, onClose }: { title: string; onClose: () => void
   );
 }
 
-type InfoView = Exclude<SettingsView, 'main' | 'password' | 'notifications' | 'location' | 'chat'>;
+type InfoView = 'privacy' | 'terms' | 'help' | 'notice';
 
 const policySections = {
   privacy: {

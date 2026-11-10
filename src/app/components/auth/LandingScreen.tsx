@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ShoppingBasket } from 'lucide-react';
-import brandMarkUrl from '../../../assets/brand-mark.png';
+import brandMarkUrl from '../../../assets/brand-mark-optimized.png';
 
 export default function LandingScreen({
   onShowLogin,

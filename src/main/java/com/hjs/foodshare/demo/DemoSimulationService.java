@@ -120,24 +120,53 @@ public class DemoSimulationService {
  }
  public int resetMine(Long userId){return tx.execute(status -> {
   if(em.find(User.class,userId)==null)throw new BusinessException(HttpStatus.NOT_FOUND,"계정을 찾을 수 없습니다.");
-  var ids=em.createQuery("select s.requestId from DemoSession s where s.userId=:user and s.reset=false order by s.requestId",Long.class).setParameter("user",userId).getResultList();
+  // Inbound workers lock their job before the post/trade. Use the same ordering,
+  // including finished jobs whose reviews still need to be reset.
+  var inbound=em.createQuery("select j from DemoInboundJob j where j.writerId=:user and coalesce(j.reset,false)=false order by j.postId",DemoInboundJob.class)
+    .setParameter("user",userId).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
+  var ids=new TreeSet<>(em.createQuery("select s.requestId from DemoSession s where s.userId=:user and s.reset=false order by s.requestId",Long.class).setParameter("user",userId).getResultList());
+  int queued=0;
+  for(var job:inbound){
+   job.reset=true;job.finished=true;
+   if(job.requestId==null){queued++;continue;}
+   ids.add(job.requestId);
+  }
   // Lock trades before users, matching completion/review lock ordering.
   for(Long id:ids)lock(id);
   var targets=new TreeSet<Long>();
-  for(Long id:ids){var r=em.find(TradeRequest.class,id);targets.add(userId);targets.add(r.getPost().getWriter().getId());}
+  for(Long id:ids){var r=em.find(TradeRequest.class,id);if(r==null)continue;targets.add(r.getRequester().getId());targets.add(r.getPost().getWriter().getId());}
   for(Long target:targets)em.refresh(em.find(User.class,target),LockModeType.PESSIMISTIC_WRITE);
   for(Long id:ids){
-   var s=session(id);if(s.reset)continue;
+   var s=session(id);if(s!=null && s.reset)continue;
    var r=em.find(TradeRequest.class,id);
+   if(r==null)continue;
+   Long room=s==null?chats.findRoomIdByTradeRequestId(id):s.roomId;
    var reviewIds=em.createQuery("select v.id from Review v where v.tradeRequest.id=:id",Long.class).setParameter("id",id).getResultList();
    if(!reviewIds.isEmpty())em.createQuery("delete from Notification n where n.targetType='REVIEW' and n.targetId in :ids").setParameter("ids",reviewIds).executeUpdate();
    em.createQuery("delete from Review v where v.tradeRequest.id=:id").setParameter("id",id).executeUpdate();
    em.createQuery("delete from Notification n where n.targetType='TRADE_REQUEST' and n.targetId=:id").setParameter("id",id).executeUpdate();
-   if(s.roomId!=null){
-    em.createQuery("delete from Notification n where n.targetType='CHAT_ROOM' and n.targetId=:id").setParameter("id",s.roomId).executeUpdate();
-    for(var member:em.createQuery("select m from ChatRoomMember m where m.chatRoom.id=:id",ChatRoomMember.class).setParameter("id",s.roomId).getResultList()){member.leave();member.markAsRead();member.hideFromChatList();}
+   if(room!=null){
+    var members=em.createQuery("select m from ChatRoomMember m where m.chatRoom.id=:id",ChatRoomMember.class).setParameter("id",room).getResultList();
+    // A real group conversation must survive even if its primary request is the AI request.
+    boolean shared=s==null && members.stream().anyMatch(m->!m.getUser().getId().equals(userId) && !m.getUser().getId().equals(r.getRequester().getId()));
+    if(!shared)em.createQuery("delete from Notification n where n.targetType='CHAT_ROOM' and n.targetId=:id").setParameter("id",room).executeUpdate();
+    for(var member:members){
+     if(shared && !member.getUser().getId().equals(r.getRequester().getId()))continue;
+     member.leave();member.markAsRead();member.hideFromChatList();
+    }
    }
-   r.cancel(userId,"시뮬레이션 초기화");r.hideHistoryFor(userId);r.hideHistoryFor(r.getPost().getWriter().getId());r.getPost().delete();s.reset=true;s.finished=true;
+   r.cancel(userId,"시뮬레이션 초기화");r.hideHistoryFor(r.getRequester().getId());r.hideHistoryFor(r.getPost().getWriter().getId());
+   if(s!=null){r.getPost().delete();s.reset=true;s.finished=true;}
+   else {
+    // Keep the human's post and all other requests. Reopen only when no actual trade remains.
+    em.flush();
+    long remaining=em.createQuery("select count(t) from TradeRequest t where t.post.id=:post and t.status in :states",Long.class)
+      .setParameter("post",r.getPost().getId()).setParameter("states",List.of(TradeRequestStatus.ACCEPTED,TradeRequestStatus.COMPLETED)).getSingleResult();
+    var post=r.getPost();
+    if(post.getPostType()==com.hjs.foodshare.post.domain.PostType.GROUP_BUY)post.updateParticipantCount((int)remaining+1);
+    if(remaining==0 && !post.isDeleted() && !post.hasPassedDeadline()
+       && !post.getEffectiveExpirationDate().isBefore(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))))post.reopen();
+   }
   }
   em.flush();
   for(Long target:targets){
@@ -146,6 +175,6 @@ public class DemoSimulationService {
    for(var rating:em.createQuery("select v.rating from Review v where v.targetUser.id=:user and v.id>:after order by v.id",Integer.class).setParameter("user",target).setParameter("after",base.afterReviewId).getResultList())score=FreshnessCalculator.update(score,rating);
    em.find(User.class,target).updateFreshnessScore(score);
   }
-  return ids.size();
+  return ids.size()+queued;
  });}
 }

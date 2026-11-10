@@ -17,6 +17,8 @@ public class DemoInboundJob {
     public boolean screened;
     public boolean skippedForUnrelatedContent;
     public boolean finished;
+    /** Nullable for existing production rows; null means not reset. */
+    public Boolean reset;
     public int attempts;
     public long repliedThrough;
     public int replyCount;

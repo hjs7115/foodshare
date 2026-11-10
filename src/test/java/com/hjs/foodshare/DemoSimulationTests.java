@@ -94,6 +94,10 @@ class DemoSimulationTests {
   assertTrue(tx(()->posts.findById(f.post).orElseThrow().isOpen()));
   trades.complete(a,f.user);due(a);simulation.advance(a);
   assertEquals(TradeRequestStatus.COMPLETED,trades.getMyRequestForPost(f.user,f.post).getFirst().status());
+  assertEquals(1,simulation.resetMine(f.user));
+  assertTrue(trades.getMyRequestForPost(f.user,f.post).isEmpty());
+  assertTrue(tx(()->posts.findById(f.post).orElseThrow().isOpen()));
+  assertFalse(chats.getRooms(f.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(room(a))));
  }
  @Test void resetOnlyAffectsCallerAndStopsLateAiResponse(){
   var f=fixture(PostType.SHARE);var a=request(f,f.user);var b=request(f,f.other);due(a);due(b);simulation.advance(a);simulation.advance(b);
@@ -237,6 +241,17 @@ class DemoSimulationTests {
   assertTrue(tx(()->em.createQuery("select count(r) from Review r where r.tradeRequest.id=:id and r.reviewer.id=:actor",Long.class)
     .setParameter("id",request).setParameter("actor",actualActor).getSingleResult())>0);
   assertTrue(tx(()->users.findById(fixture.user).orElseThrow().getFreshnessScore())>50);
+  assertEquals(1,simulation.resetMine(fixture.user));
+  assertEquals(50.0,tx(()->users.findById(fixture.user).orElseThrow().getFreshnessScore()));
+  assertTrue(tx(()->posts.findById(original).orElseThrow().isOpen()));
+  assertFalse(tx(()->posts.findById(original).orElseThrow().isDeleted()));
+  assertTrue(tx(()->Boolean.TRUE.equals(em.find(DemoInboundJob.class,original).reset)));
+  assertTrue(trades.getMyRequests(fixture.user).stream().noneMatch(r->r.requestId().equals(request)));
+  assertFalse(chats.getRooms(fixture.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(chat)));
+  assertEquals(0L,tx(()->em.createQuery("select count(v) from Review v where v.tradeRequest.id=:id",Long.class).setParameter("id",request).getSingleResult()));
+  assertEquals(0,simulation.resetMine(fixture.user));
+  inbound.respond(reviewPrompt); // Late AI results must not restore a deleted review.
+  assertEquals(0L,tx(()->em.createQuery("select count(v) from Review v where v.tradeRequest.id=:id",Long.class).setParameter("id",request).getSingleResult()));
  }
  @Test void incomingGreetingMatchesShareAndBuyPosts(){
   var f=fixture(PostType.SALE);
@@ -265,6 +280,14 @@ class DemoSimulationTests {
    Long chat=chats.findRoomIdByTradeRequestId(requestId);
    String greeting=chats.getMessages(f.user,chat).stream().filter(m->!m.systemMessage()).map(m->m.content()).findFirst().orElse("");
    assertTrue(greeting.contains(type==PostType.SHARE?"받고 싶어서요":"아직 찾고 계신가요"),greeting);
+   chats.sendMessage(f.user,chat,"내일 가능해요?");
+   tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+   var late=inbound.prepare(postId);assertNotNull(late);
+   assertEquals(1,simulation.resetMine(f.user));
+   inbound.respond(late);
+   assertFalse(chats.getRooms(f.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(chat)));
+   assertTrue(tx(()->posts.findById(postId).orElseThrow().isOpen()));
+   assertEquals(0,simulation.resetMine(f.user));
   }
  }
  @Test void inboundGroupBuyWaitsForRecruitmentCloseThenChatsAndReviews(){
@@ -309,6 +332,52 @@ class DemoSimulationTests {
   var review=inbound.prepare(postId);assertNotNull(review);assertTrue(review.review());inbound.respond(review);
   assertEquals(TradeRequestStatus.COMPLETED,tx(()->em.find(TradeRequest.class,requestId).getStatus()));
   assertEquals(1L,tx(()->em.createQuery("select count(v) from Review v where v.tradeRequest.id=:id",Long.class).setParameter("id",requestId).getSingleResult()));
+  assertEquals(1,simulation.resetMine(f.user));
+  assertEquals(50.0,tx(()->users.findById(f.user).orElseThrow().getFreshnessScore()));
+  assertEquals(1,tx(()->posts.findById(postId).orElseThrow().getCurrentParticipantCount()));
+  assertTrue(tx(()->posts.findById(postId).orElseThrow().isOpen()));
+  assertFalse(chats.getRooms(f.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(chat)));
+ }
+ @Test void inboundResetPreservesHumanGroupMembersMessagesAndRealReview(){
+  var f=fixture(PostType.SHARE);
+  Long post=tx(()->{
+   var p=posts.save(Post.create(users.findById(f.user).orElseThrow(),PostType.GROUP_BUY,"쌀 함께 구매","쌀","10kg",20000,"역",0.0,
+     LocalDate.now().plusDays(3),37.5,127.0,null,"쌀 공동구매",1,4,LocalDateTime.now().plusDays(2)));
+   inbound.schedule(p);var j=em.find(DemoInboundJob.class,p.getId());j.screened=true;j.dueAt=LocalDateTime.now().minusSeconds(1);return p.getId();
+  });
+  inbound.prepare(post);
+  Long bot=tx(()->em.find(DemoInboundJob.class,post).requestId);
+  trades.accept(bot,f.user);
+  Long actual=trades.createRequest(post,f.other).requestId();trades.accept(actual,f.user);
+  trades.closeGroupBuyRecruitment(post,f.user);
+  Long chat=chats.findRoomIdByTradeRequestId(bot);
+  chats.sendMessage(f.other,chat,"실제 참가자 대화 보존");
+  trades.complete(bot,f.user);
+  tx(()->{em.find(DemoInboundJob.class,post).dueAt=LocalDateTime.now().minusSeconds(1);return null;});inbound.prepare(post);
+  tx(()->{em.find(DemoInboundJob.class,post).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  inbound.respond(inbound.prepare(post));
+  trades.complete(actual,f.other);trades.complete(actual,f.user);
+  reviews.createReview(actual,f.other,new ReviewCreateRequest(4,"실제 후기 보존"));
+  assertEquals(1,simulation.resetMine(f.user));
+  assertEquals(FreshnessCalculator.update(50,4),tx(()->users.findById(f.user).orElseThrow().getFreshnessScore()));
+  assertEquals(TradeRequestStatus.COMPLETED,tx(()->em.find(TradeRequest.class,actual).getStatus()));
+  assertEquals(2,tx(()->posts.findById(post).orElseThrow().getCurrentParticipantCount()));
+  assertFalse(tx(()->posts.findById(post).orElseThrow().isOpen()));
+  assertTrue(chats.getRooms(f.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(chat)));
+  assertTrue(chats.getMessages(f.user,chat).stream().anyMatch(m->m.content().equals("실제 참가자 대화 보존")));
+  assertTrue(chats.getMessages(f.other,chat).stream().anyMatch(m->m.content().equals("실제 참가자 대화 보존")));
+ }
+ @Test void inboundResetStopsQueuedScreening(){
+  var f=fixture(PostType.SHARE);
+  Long post=tx(()->{
+   var p=posts.save(Post.create(users.findById(f.user).orElseThrow(),PostType.SHARE,"양파 나눔","양파","2개",0,"역",0.0,
+     LocalDate.now().plusDays(2),37.5,127.0,null,"양파",null,null,null));
+   inbound.schedule(p);em.find(DemoInboundJob.class,p.getId()).dueAt=LocalDateTime.now().minusSeconds(1);return p.getId();
+  });
+  var screening=inbound.queueScreening(post);assertNotNull(screening);
+  assertEquals(1,simulation.resetMine(f.user));inbound.screenAndFinish(screening);
+  assertNull(inbound.prepare(post));assertNull(tx(()->em.find(DemoInboundJob.class,post).requestId));
+  assertTrue(tx(()->posts.findById(post).orElseThrow().isOpen()));assertEquals(0,simulation.resetMine(f.user));
  }
  @Test void inboundDoesNotScheduleWhenDemoModeIsOff(){
   var fixture=fixture(PostType.SHARE);

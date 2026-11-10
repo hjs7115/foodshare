@@ -52,7 +52,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
   const [resettingDemo, setResettingDemo] = useState(false);
   const resetMySimulation = async () => {
     if (!demoMode?.canReset || resettingDemo) return;
-    if (!(await showConfirm('내 AI 시연 거래·채팅·평가를 초기화하고 시연 평가로 바뀐 신선도를 되돌립니다. 실제 거래와 다른 사람의 체험 기록은 유지됩니다.', '내 시뮬레이션 초기화', '초기화'))) return;
+    if (!(await showConfirm('내가 요청한 거래와 AI에게 요청받은 거래 모두 초기화합니다. 공동구매도 포함하며, AI 후기와 신선도 변경을 되돌립니다. 직접 작성한 글과 실제 거래·참가자가 있는 공동구매 대화는 유지됩니다.', '내 시뮬레이션 초기화', '초기화'))) return;
     setResettingDemo(true);
     try {
       await apiRequest(API_BASE_URL + '/api/demo-mode/reset-mine', {method: 'POST'});

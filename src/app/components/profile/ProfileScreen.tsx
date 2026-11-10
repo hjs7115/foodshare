@@ -81,6 +81,12 @@ export default function ProfileScreen({
     }
   }, [openTransactionHistorySignal]);
 
+  useEffect(() => {
+    const refreshed = () => { void loadUserInfo(); void loadUnreadNotifications(); };
+    window.addEventListener('trade-updated', refreshed);
+    return () => window.removeEventListener('trade-updated', refreshed);
+  }, []);
+
   const getNotificationItems = (response: any): any[] => {
     const candidates = [
       response?.notifications,

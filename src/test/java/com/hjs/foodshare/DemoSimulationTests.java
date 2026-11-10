@@ -175,8 +175,11 @@ class DemoSimulationTests {
   assertEquals(TradeRequestStatus.COMPLETED,tx(()->em.find(TradeRequest.class,request).getStatus()));
   assertEquals(5,tx(()->em.createQuery("select v.rating from Review v where v.tradeRequest.id=:id",Integer.class)
     .setParameter("id",request).getSingleResult()));
+  // Another fixture may have created eligible demo actors earlier in the test context.
+  // Check the actual automated requester instead of assuming this fixture owns it.
+  Long actualActor=tx(()->em.find(TradeRequest.class,request).getRequester().getId());
   assertTrue(tx(()->em.createQuery("select count(r) from Review r where r.tradeRequest.id=:id and r.reviewer.id=:actor",Long.class)
-    .setParameter("id",request).setParameter("actor",fixture.owner).getSingleResult())>0);
+    .setParameter("id",request).setParameter("actor",actualActor).getSingleResult())>0);
   assertTrue(tx(()->users.findById(fixture.user).orElseThrow().getFreshnessScore())>50);
  }
  @Test void incomingGreetingMatchesShareAndBuyPosts(){

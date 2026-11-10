@@ -53,6 +53,7 @@ public class DemoInboundSimulationService {
                 || demo.isTemplate(post.getId())) return;
         // Preserve the user's ordinary post even when this account has a demo cooldown.
         if (!safety.allowPost(post.getWriter().getId())) return;
+        if (DemoSafetySignals.unmistakableHarassment(post.getTitle() + " " + post.getContent())) return;
         if (em.find(DemoInboundJob.class, post.getId()) == null)
             em.persist(new DemoInboundJob(post.getId(), post.getWriter().getId()));
     }
@@ -63,6 +64,54 @@ public class DemoInboundSimulationService {
             return em.createQuery("select j.postId from DemoInboundJob j where j.finished=false and j.dueAt<=:now order by j.dueAt", Long.class)
                     .setParameter("now", LocalDateTime.now())
                     .setMaxResults(40).getResultList();
+        });
+    }
+
+    public record Screening(Long postId, String title, String ingredient, String content, String imageUrl) {}
+
+    /**
+     * Reserve an unscreened post for a brief, fail-open check.
+     * Image analysis occurs outside the transaction and cannot restrict accounts.
+     */
+    public Screening queueScreening(Long postId) {
+        return tx.execute(status -> {
+            if (!demo.enabled()) return null;
+            DemoInboundJob job = em.find(DemoInboundJob.class, postId, LockModeType.PESSIMISTIC_WRITE);
+            if (job == null || job.finished || job.screened || job.requestId != null
+                    || job.dueAt.isAfter(LocalDateTime.now())) return null;
+            Post post = em.find(Post.class, postId);
+            if (post == null || post.isDeleted()) { job.finished = true; return null; }
+            job.dueAt = LocalDateTime.now().plusSeconds(30);
+            return new Screening(postId, post.getTitle(), post.getIngredientName(),
+                    post.getContent(), post.getImageUrl());
+        });
+    }
+
+    public void screenAndFinish(Screening candidate) {
+        if (candidate == null) return;
+        var verdict = ai.screenPost(candidate.title(), candidate.ingredient(),
+                candidate.content(), candidate.imageUrl());
+        boolean definitelyOffTopic = verdict != null && verdict.clearlyUnrelated()
+                && DemoSafetySignals.clearOffTopicText(candidate.title(), candidate.content(),
+                        candidate.ingredient());
+        tx.executeWithoutResult(status -> {
+            DemoInboundJob job = em.find(DemoInboundJob.class, candidate.postId(), LockModeType.PESSIMISTIC_WRITE);
+            if (job == null || job.finished || job.requestId != null || job.screened) return;
+            Post post = em.find(Post.class, job.postId);
+            if (post == null || post.isDeleted()) { job.finished = true; return; }
+            if (!java.util.Objects.equals(post.getTitle(), candidate.title())
+                    || !java.util.Objects.equals(post.getContent(), candidate.content())
+                    || !java.util.Objects.equals(post.getImageUrl(), candidate.imageUrl())) {
+                job.dueAt = LocalDateTime.now().plusSeconds(2);
+                return;
+            }
+            job.screened = true;
+            if (definitelyOffTopic) {
+                job.skippedForUnrelatedContent = true;
+                job.finished = true;
+            } else {
+                job.dueAt = LocalDateTime.now();
+            }
         });
     }
 
@@ -95,11 +144,12 @@ public class DemoInboundSimulationService {
             job.finished = true;
             return null;
         }
+        if (!safety.canParticipate(job.writerId)) {
+            job.dueAt = LocalDateTime.now().plusMinutes(5);
+            return null;
+        }
         if (job.requestId == null) {
-            if (!safety.canParticipate(job.writerId)) {
-                job.finished = true;
-                return null;
-            }
+            if (!job.screened) return null;
             if (!post.isOpen() || post.getEffectiveExpirationDate().isBefore(LocalDate.now())) {
                 job.finished = true;
                 return null;
@@ -208,12 +258,13 @@ public class DemoInboundSimulationService {
     public void respond(Prompt prompt) {
         if (prompt.review()) {
             var draft = ai.review(prompt.conversation());
-            if (draft == null) draft = new DemoChatAi.ReviewDraft(4, "대화가 원활해서 편하게 거래를 진행할 수 있었어요.");
+            if (draft == null) draft = new DemoChatAi.ReviewDraft(5, "대화가 편안하게 진행돼서 좋았어요. 감사합니다!");
             final var review = draft;
             tx.executeWithoutResult(status -> {
                 if (!demo.enabled()) return;
                 DemoInboundJob job = em.find(DemoInboundJob.class, prompt.postId(), LockModeType.PESSIMISTIC_WRITE);
-                if (job == null || job.finished || !prompt.requestId().equals(job.requestId)) return;
+                if (job == null || job.finished || !prompt.requestId().equals(job.requestId)
+                        || !safety.canParticipate(job.writerId)) return;
                 TradeRequest request = em.find(TradeRequest.class, job.requestId);
                 if (request == null || request.getStatus() != TradeRequestStatus.COMPLETED) return;
                 Long actor = request.getRequester().getId();
@@ -234,7 +285,8 @@ public class DemoInboundSimulationService {
         tx.executeWithoutResult(status -> {
             if (!demo.enabled()) return;
             DemoInboundJob job = em.find(DemoInboundJob.class, prompt.postId(), LockModeType.PESSIMISTIC_WRITE);
-            if (job == null || job.finished || !prompt.requestId().equals(job.requestId)) return;
+            if (job == null || job.finished || !prompt.requestId().equals(job.requestId)
+                        || !safety.canParticipate(job.writerId)) return;
             if (prompt.greeting() ? job.greeted : (!job.greeted || job.repliedThrough >= prompt.through()))
                 return;
             TradeRequest request = em.find(TradeRequest.class, job.requestId);

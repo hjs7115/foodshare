@@ -39,6 +39,10 @@ public class DemoInboundWorker {
                 try {
                     pool.execute(() -> {
                         try {
+                            // Post photo/text screening is best-effort and never blocks account access.
+                            // It must happen before the automated request, outside any DB transaction.
+                            DemoInboundSimulationService.Screening candidate = simulation.queueScreening(id);
+                            if (candidate != null) simulation.screenAndFinish(candidate);
                             DemoInboundSimulationService.Prompt prompt = simulation.prepare(id);
                             if (prompt != null) simulation.respond(prompt);
                         } catch (Exception exception) {

@@ -28,6 +28,7 @@ public class DemoSimulationService {
  private final ReviewService reviews;
  private final ChatWebSocketHandler live;
  private final DemoChatAi ai;
+ @org.springframework.beans.factory.annotation.Autowired private DemoSafetyService safety;
  private final TransactionTemplate tx;
  public DemoSimulationService(DemoVisibility demo,TradeRequestService trades,ChatService chats,ReviewService reviews,ChatWebSocketHandler live,DemoChatAi ai,PlatformTransactionManager manager){
   this.demo=demo;this.trades=trades;this.chats=chats;this.reviews=reviews;this.live=live;this.ai=ai;this.tx=new TransactionTemplate(manager);
@@ -54,11 +55,11 @@ public class DemoSimulationService {
   // The external AI call is deliberately outside the transaction and any DB lock.
   if(prompt.review()){
    var draft=ai.review(prompt.text());
-   if(draft==null)draft=new DemoChatAi.ReviewDraft(4,"대화가 원활해서 편하게 거래를 진행할 수 있었어요.");
+   if(draft==null)draft=new DemoChatAi.ReviewDraft(5,"편하게 이야기 나눌 수 있어서 좋았어요. 감사합니다!");
    final var review=draft;
    tx.executeWithoutResult(status -> {
     var r=lock(id);var s=session(id);
-    if(r==null||s==null||s.reset||s.finished||!demo.enabled()||r.getStatus()!=TradeRequestStatus.COMPLETED)return;
+    if(r==null||s==null||s.reset||s.finished||!demo.enabled()||r.getStatus()!=TradeRequestStatus.COMPLETED||!safety.canParticipate(s.userId))return;
     Long actor=r.getPost().getWriter().getId();
     if(em.createQuery("select count(v) from Review v where v.tradeRequest.id=:id and v.reviewer.id=:actor",Long.class)
          .setParameter("id",id).setParameter("actor",actor).getSingleResult()==0)
@@ -71,13 +72,14 @@ public class DemoSimulationService {
   String answer=ai.reply(prompt.text());
   tx.executeWithoutResult(status -> {
    var r=lock(id);var s=session(id);
-   if(r==null||s==null||s.reset||s.finished||!demo.enabled()||r.getStatus()!=TradeRequestStatus.ACCEPTED||s.repliedThrough>=prompt.through())return;
+   if(r==null||s==null||s.reset||s.finished||!demo.enabled()||r.getStatus()!=TradeRequestStatus.ACCEPTED||s.repliedThrough>=prompt.through()||!safety.canParticipate(s.userId))return;
    send(s,r,answer,"demo-reply-"+prompt.through());s.repliedThrough=prompt.through();s.replyCount++;s.dueAt=LocalDateTime.now().plusSeconds(2);
   });
  }
  private Prompt prepare(Long id){
   var r=lock(id);var s=session(id);
   if(r==null||s==null||s.reset||s.finished||!demo.enabled()||s.dueAt.isAfter(LocalDateTime.now()))return null;
+  if(!safety.canParticipate(s.userId)){s.dueAt=LocalDateTime.now().plusMinutes(10);return null;}
   if(r.getStatus()==TradeRequestStatus.CANCELLED||r.getStatus()==TradeRequestStatus.REJECTED){s.finished=true;return null;}
   if(r.getStatus()==TradeRequestStatus.PENDING){
    trades.accept(id,r.getPost().getWriter().getId());

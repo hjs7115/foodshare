@@ -32,8 +32,8 @@ public class DemoSafetyService {
     public boolean canParticipate(Long userId) {
         if(userId==null)return false;
         DemoParticipationControl state=em.find(DemoParticipationControl.class,userId);
-        return state==null || state.restrictedUntil==null
-                || !state.restrictedUntil.isAfter(LocalDateTime.now());
+        return state==null || (!state.permanentlyRestricted && (state.restrictedUntil==null
+                || !state.restrictedUntil.isAfter(LocalDateTime.now())));
     }
 
     /** Post submission succeeds normally, but automated demo requests are omitted if restricted. */
@@ -42,6 +42,12 @@ public class DemoSafetyService {
     }
 
     public void require(Long userId,Activity activity) {
+        if(userId!=null) {
+            DemoParticipationControl state=em.find(DemoParticipationControl.class,userId);
+            if(state!=null && state.permanentlyRestricted)
+                throw new BusinessException(HttpStatus.FORBIDDEN,
+                    "명백한 부적절한 메시지가 반복되어 이 계정의 AI 체험이 제한되었습니다. 해제는 운영자에게 문의해주세요.");
+        }
         if(record(userId,activity)!=Decision.ALLOW)
             throw new BusinessException(HttpStatus.TOO_MANY_REQUESTS,
                     "시연 이용이 잠시 제한되었습니다. 반복 요청이 매우 많아 일시 중지했어요. 잠시 후 자동으로 해제됩니다.");
@@ -56,7 +62,7 @@ public class DemoSafetyService {
                 state=new DemoParticipationControl(userId,now);
                 em.persist(state);
             }
-            if(state.restrictedUntil!=null && state.restrictedUntil.isAfter(now))
+            if(state.permanentlyRestricted || (state.restrictedUntil!=null && state.restrictedUntil.isAfter(now)))
                 return Decision.RESTRICTED;
             if(state.windowStart.isBefore(now.minusMinutes(10)))
                 state.resetWindow(now);
@@ -81,6 +87,37 @@ public class DemoSafetyService {
             state.resetWindow(now);
             return Decision.RESTRICTED;
         });
+    }
+
+    /**
+     * Reject unmistakably abusive/sexual solicitations before they are stored as
+     * chat messages, so the AI never replies to them.
+     * Three separate qualifying messages in 24 hours permanently disable only
+     * this account's AI demonstration; managers can manually restore access.
+     */
+    public void checkChatMessage(Long userId, String message) {
+        if (userId == null || !DemoSafetySignals.unmistakableHarassment(message)) return;
+        int strikes = tx.execute(status -> {
+            LocalDateTime now = LocalDateTime.now();
+            DemoParticipationControl state = em.find(DemoParticipationControl.class,userId,LockModeType.PESSIMISTIC_WRITE);
+            if (state == null) {
+                state = new DemoParticipationControl(userId,now);
+                em.persist(state);
+            }
+            if (state.permanentlyRestricted) return 3;
+            if (state.abuseWindowStart == null || state.abuseWindowStart.isBefore(now.minusHours(24))) {
+                state.abuseWindowStart=now;
+                state.explicitAbuseSignals=0;
+            }
+            state.explicitAbuseSignals++;
+            if (state.explicitAbuseSignals >= 3) state.permanentlyRestricted=true;
+            return state.explicitAbuseSignals;
+        });
+        if (strikes >= 3)
+            throw new BusinessException(HttpStatus.FORBIDDEN,
+                "명백한 부적절한 메시지가 반복되어 이 계정의 AI 체험이 제한되었습니다. 해제는 운영자에게 문의해주세요.");
+        throw new BusinessException(HttpStatus.BAD_REQUEST,
+                "AI 거래 채팅에서는 욕설이나 성적인 요구를 보낼 수 없습니다. 메시지는 전송되지 않았습니다. ("+strikes+"/3)");
     }
 
     /** Manual operator correction; account and ordinary trade data are not touched. */

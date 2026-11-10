@@ -126,6 +126,11 @@ class DemoSimulationTests {
   });
   assertNotNull(tx(()->em.find(DemoInboundJob.class,original)));
   tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  var screening=inbound.queueScreening(original);
+  assertNotNull(screening);
+  assertEquals("당근 판매합니다",screening.content());
+  // Null (model unavailable) means ALLOW; no speculative content ban.
+  inbound.screenAndFinish(screening);
   assertNull(inbound.prepare(original));
   Long request=tx(()->em.find(DemoInboundJob.class,original).requestId);
   assertNotNull(request);
@@ -165,10 +170,10 @@ class DemoSimulationTests {
   assertNotNull(reviewPrompt);
   assertTrue(reviewPrompt.review());
   assertTrue(reviewPrompt.conversation().contains("내일 오후 괜찮으세요?"));
-  when(ai.review(anyString())).thenReturn(new DemoChatAi.ReviewDraft(4,"시간 이야기가 편했어요. 감사합니다!"));
+  when(ai.review(anyString())).thenReturn(new DemoChatAi.ReviewDraft(5,"시간 이야기가 편했어요. 감사합니다!"));
   inbound.respond(reviewPrompt);
   assertEquals(TradeRequestStatus.COMPLETED,tx(()->em.find(TradeRequest.class,request).getStatus()));
-  assertEquals(4,tx(()->em.createQuery("select v.rating from Review v where v.tradeRequest.id=:id",Integer.class)
+  assertEquals(5,tx(()->em.createQuery("select v.rating from Review v where v.tradeRequest.id=:id",Integer.class)
     .setParameter("id",request).getSingleResult()));
   assertTrue(tx(()->em.createQuery("select count(r) from Review r where r.tradeRequest.id=:id and r.reviewer.id=:actor",Long.class)
     .setParameter("id",request).setParameter("actor",fixture.owner).getSingleResult())>0);
@@ -184,6 +189,9 @@ class DemoSimulationTests {
     inbound.schedule(p);return p.getId();
    });
    tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+   var screening=inbound.queueScreening(postId);
+   assertNotNull(screening);
+   inbound.screenAndFinish(screening);
    inbound.prepare(postId);
    Long requestId=tx(()->em.find(DemoInboundJob.class,postId).requestId);
    assertNotNull(requestId);
@@ -275,6 +283,40 @@ class DemoSimulationTests {
   assertFalse(safety.canParticipate(f.user));
   assertTrue(safety.canParticipate(f.other)); // Other accounts still work.
   safety.clear(f.user); // Administrator can undo an accidental restriction.
+  assertTrue(safety.canParticipate(f.user));
+ }
+ @Test void repeatedClearHarassmentPermanentlyBlocksOnlyDemoUntilManualRestoration(){
+  var f=fixture(PostType.SHARE);
+  Long person=f.user;
+  for(int n=1;n<=3;n++){
+   assertThrows(com.hjs.foodshare.global.exception.BusinessException.class,
+       ()->safety.checkChatMessage(person,"야 병신아"));
+   if(n<3)assertTrue(safety.canParticipate(person));
+  }
+  assertFalse(safety.canParticipate(person));
+  assertTrue(safety.canParticipate(f.other));
+  assertThrows(com.hjs.foodshare.global.exception.BusinessException.class,
+       ()->safety.require(person,DemoSafetyService.Activity.MESSAGE));
+  safety.clear(person);
+  assertTrue(safety.canParticipate(person));
+ }
+ @Test void uncertainPhotoOrOffTopicTextDoesNotBlockAnAccount(){
+  var f=fixture(PostType.SHARE);
+  Long post=tx(()->{
+   var p=posts.save(Post.create(users.findById(f.user).orElseThrow(),PostType.SALE,
+        "중고 노트북 판매","노트북","1대",3000,"학교 앞",0.0,
+        LocalDate.now().plusDays(3),37.5,127.0,null,"노트북 판매",null,null,null));
+   inbound.schedule(p);
+   return p.getId();
+  });
+  tx(()->{em.find(DemoInboundJob.class,post).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  when(ai.screenPost(anyString(),anyString(),anyString(),isNull()))
+      .thenReturn(new DemoChatAi.PostCheck(true));
+  var screening=inbound.queueScreening(post);
+  assertNotNull(screening);
+  inbound.screenAndFinish(screening);
+  assertTrue(tx(()->em.find(DemoInboundJob.class,post).skippedForUnrelatedContent));
+  assertNull(tx(()->em.find(DemoInboundJob.class,post).requestId));
   assertTrue(safety.canParticipate(f.user));
  }
  @Test void withdrawnRequestsAreNotAutoAcceptedAndHiddenModeStopsNewRequests(){

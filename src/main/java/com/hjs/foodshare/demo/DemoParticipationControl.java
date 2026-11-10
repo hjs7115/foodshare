@@ -14,6 +14,9 @@ public class DemoParticipationControl {
     public int messages;
     public int violations;
     public LocalDateTime lastViolation;
+    public int explicitAbuseSignals;
+    public LocalDateTime abuseWindowStart;
+    public boolean permanentlyRestricted;
     public LocalDateTime restrictedUntil;
 
     protected DemoParticipationControl() {}

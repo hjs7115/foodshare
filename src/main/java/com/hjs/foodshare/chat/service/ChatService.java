@@ -182,8 +182,10 @@ public class ChatService {
             throw new BusinessException(HttpStatus.BAD_REQUEST,"메시지는 1~1000자로 입력해주세요.");
         if(clientId!=null){var previous=chatMessageRepository.findByChatRoomIdAndSenderIdAndClientMessageId(roomId,userId,clientId);if(previous.isPresent()){if(!previous.get().getContent().equals(text))throw new BusinessException(HttpStatus.CONFLICT,"같은 전송 식별자로 다른 메시지를 보낼 수 없습니다.");return ChatMessageResponse.from(previous.get(),userId);}}
         Long tradeId=room.getTradeRequest()==null?null:room.getTradeRequest().getId();
-        if(!automated && demo.enabled() && demo.isSimulation(tradeId))
+        if(!automated && demo.enabled() && demo.isSimulation(tradeId)) {
             demoSafety.require(userId,com.hjs.foodshare.demo.DemoSafetyService.Activity.MESSAGE);
+            demoSafety.checkChatMessage(userId,text);
+        }
         var message=ChatMessage.user(room,sender,text);message.setClientMessageId(clientId);
         chatMessageRepository.saveAndFlush(message);notifyUnreadMembers(room,sender,text,message.getId());
         return ChatMessageResponse.from(message,userId,true).withUnreadCount((int)chatRoomMemberRepository.findAllByChatRoom(room).stream().filter(ChatRoomMember::isActive).filter(m->!m.getUser().getId().equals(userId)&&!blocks.blockedEitherWay(userId,m.getUser().getId())).count());

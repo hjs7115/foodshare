@@ -14,6 +14,8 @@ public class DemoInboundJob {
     public Long requestId;
     public LocalDateTime acceptedAt;
     public boolean greeted;
+    public boolean screened;
+    public boolean skippedForUnrelatedContent;
     public boolean finished;
     public int attempts;
     public long repliedThrough;

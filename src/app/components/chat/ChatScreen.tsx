@@ -109,7 +109,7 @@ export default function ChatScreen({
   }, []);
 
   useEffect(() => {
-    loadRooms(activeFilter);
+    loadRooms(activeFilter, false);
     loadUnreadNotifications();
   }, [activeFilter]);
 
@@ -176,7 +176,7 @@ export default function ChatScreen({
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      loadRooms(activeFilter);
+      if (document.visibilityState === 'visible') void loadRooms(activeFilter);
     }, 10000);
     const handleFocus = () => loadRooms(activeFilter);
 
@@ -337,9 +337,13 @@ export default function ChatScreen({
     };
   };
 
-  const loadRooms = async (filter: ChatFilter) => {
+  const roomRefreshInFlight = useRef(false);
+
+  const loadRooms = async (filter: ChatFilter, background = true) => {
+    if (background && roomRefreshInFlight.current) return;
+    roomRefreshInFlight.current = true;
     const version = ++roomsRequestVersionRef.current;
-    setIsLoading(true);
+    if (!background) setIsLoading(true);
     try {
       const roomFilter = filter === 'UNREAD' && activeRoomIdRef.current !== null ? 'ALL' : filter;
       const response = await apiRequest(`${API_ENDPOINTS.chatRooms}?filter=${roomFilter}`, { method: 'GET' });
@@ -353,9 +357,12 @@ export default function ChatScreen({
       onChatUnreadChange?.(normalizedRooms.reduce((sum, room) => sum + room.unreadCount, 0));
     } catch (error) {
       console.warn('채팅방 목록 조회 실패', error);
-      if (roomsRequestVersionRef.current === version) setRooms([]);
+      // Keep the last successful list on a transient refresh failure.
     } finally {
-      if (roomsRequestVersionRef.current === version) setIsLoading(false);
+      if (roomsRequestVersionRef.current === version) {
+        roomRefreshInFlight.current = false;
+        setIsLoading(false);
+      }
     }
   };
 
@@ -819,10 +826,10 @@ export default function ChatScreen({
           </div>
         ) : (
         <div className="bg-gradient-to-r from-[#ccfbf1] to-[#14b8a6] border-b-2 border-[#14b8a6] px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex flex-1 items-center gap-2 min-w-0">
             <button
               onClick={closeSelectedRoom}
-              className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]"
+              className="w-10 h-10 shrink-0 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]"
               aria-label="뒤로가기"
             >
               <ArrowLeft size={22} className="text-[#1a202c]" />
@@ -836,29 +843,29 @@ export default function ChatScreen({
             </button>
             <div className="min-w-0">
               <h1 className="text-lg text-[#1a202c] truncate" style={{ fontWeight: 900 }}>
-                {selectedRoom.roomName || selectedRoom.partnerNickname}
+                {selectedRoom.groupRoom ? getParticipantSummary(selectedRoom) : selectedRoom.roomName || selectedRoom.partnerNickname}
                 {selectedRoom.groupRoom && selectedRoom.participantCount ? ` ${selectedRoom.participantCount}` : ''}
               </h1>
               <p className="text-xs text-[#0f766e] truncate">
-                {selectedRoom.readOnly ? '거래 취소 · 읽기 전용' : selectedRoom.groupRoom ? getParticipantSummary(selectedRoom) : selectedRoom.postTitle}
+                {selectedRoom.readOnly ? '거래 취소 · 읽기 전용' : selectedRoom.postTitle}
               </p>
               {selectedRoom.simulation && <p className="text-[11px] font-medium text-[#475569]" role="status">거래 연습 · 자동 응답 상대</p>}
             </div>
           </div>
-          <div className="flex items-center gap-3 text-[#1a202c]">
+          <div className="ml-2 flex shrink-0 items-center gap-2 text-[#1a202c]">
             <button
                 onClick={() => {
                   setIsSearchingMessages(true);
                   setActiveSearchMatchIndex(searchMatches.length > 0 ? searchMatches.length - 1 : 0);
                 }}
-              className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]"
+              className="w-10 h-10 shrink-0 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]"
               aria-label="채팅 검색"
             >
               <Search size={20} />
             </button>
             <button
               onClick={() => setShowRoomMenu(true)}
-              className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]"
+              className="w-10 h-10 shrink-0 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]"
               aria-label="채팅 메뉴"
             >
               <MoreVertical size={20} />
@@ -1042,7 +1049,7 @@ export default function ChatScreen({
     <div className="bg-[#f7fafc] size-full flex flex-col">
       <div className="bg-gradient-to-r from-[#ccfbf1] to-[#14b8a6] border-b-2 border-[#14b8a6] px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]">
+          <div className="w-10 h-10 shrink-0 rounded-full bg-white flex items-center justify-center shadow-sm border border-[#e2e8f0]">
             <MessageCircle size={22} className="text-[#14b8a6]" />
           </div>
           <div className="min-w-0">
@@ -1125,20 +1132,18 @@ export default function ChatScreen({
                     <ChatProfileAvatar
                       src={room.partnerProfileImage}
                       alt={room.partnerNickname}
-                      className="h-14 w-14"
+                      className="h-14 w-14 shrink-0"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="truncate text-base text-[#1a202c]" style={{ fontWeight: 900 }}>
-                            {room.roomName || room.partnerNickname}
+                            {room.groupRoom ? getParticipantSummary(room) : room.roomName || room.partnerNickname}
                             {room.groupRoom && room.participantCount ? ` ${room.participantCount}` : ''}
                           </span>
                           {room.pinned && <Pin size={15} className="shrink-0 fill-[#a0aec0] text-[#a0aec0]" />}
                           {room.muted && <BellOff size={15} className="shrink-0 text-[#a0aec0]" />}
-                          <span className={`rounded-full px-2 py-0.5 text-[11px] ${isGroup ? 'bg-[#fef3c7] text-[#92400e]' : 'bg-[#ecfccb] text-[#65a30d]'}`}>
-                            {isGroup ? '공동구매' : '시장'}
-                          </span>
+
                         </div>
                         <span className="flex shrink-0 items-center gap-2">
                           <span className="text-xs text-[#a0aec0]">{formatTime(room.lastMessageAt)}</span>
@@ -1168,9 +1173,14 @@ export default function ChatScreen({
                           </span>}
                         </span>
                       </div>
-                      <p className="truncate text-xs text-[#718096]">
-                        {room.readOnly ? '거래 취소 · 읽기 전용' : room.groupRoom ? getParticipantSummary(room) : room.postTitle}
-                      </p>
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <p className="min-w-0 flex-1 truncate text-xs text-[#718096]">
+                          {room.readOnly ? '거래 취소 · 읽기 전용' : room.postTitle}
+                        </p>
+                        <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] ${isGroup ? 'bg-[#fef3c7] text-[#92400e]' : 'bg-[#ecfccb] text-[#65a30d]'}`}>
+                          {isGroup ? '공동구매' : '시장'}
+                        </span>
+                      </div>
                       <div className="mt-2 flex items-center justify-between gap-3">
                         <p className="truncate text-sm text-[#4a5568]">{room.lastMessage === '채팅방이 개설되었습니다.' || !room.lastMessage ? '대화를 시작해보세요.' : room.lastMessage}</p>
                         {room.unreadCount > 0 && (
@@ -1423,7 +1433,7 @@ function getParticipantSummary(room: ChatRoom) {
     .map((participant) => participant.nickname)
     .filter(Boolean);
   if (names.length === 0) {
-    return room.postTitle;
+    return room.partnerNickname || '참여자';
   }
   return names.join(', ');
 }

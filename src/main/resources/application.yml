@@ -54,5 +54,7 @@ app:
   ai:
     openai-api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_MODEL:gpt-4o-mini}
+  maps:
+    kakao-rest-api-key: ${KAKAO_REST_API_KEY:}
   support:
     inbox-email: ${SUPPORT_INBOX_EMAIL:${MAIL_FROM:${MAIL_USERNAME:}}}

@@ -42,6 +42,7 @@ class DemoSimulationTests {
  @Autowired DemoVisibility demo;
  @MockitoBean FcmPushService push;
  @MockitoBean DemoChatAi ai;
+ @MockitoBean DemoMeetupService meetup;
  <T>T tx(Supplier<T> f){return new TransactionTemplate(manager).execute(s->f.get());}
  User user(){String key=UUID.randomUUID().toString();return users.save(User.create("테스트",key.substring(0,12),key+"@demo.invalid","unused",key.substring(0,20),"서울"));}
  record Fixture(Long owner,Long user,Long other,Long post){}
@@ -102,6 +103,61 @@ class DemoSimulationTests {
   assertTrue(tx(()->em.find(DemoSession.class,a).reset));assertFalse(tx(()->em.find(DemoSession.class,b).reset));
   assertEquals(TradeRequestStatus.ACCEPTED,trades.getMyRequestForPost(f.other,f.post).getFirst().status());
   assertEquals(0L,tx(()->em.createQuery("select count(m) from ChatMessage m where m.chatRoom.id=:room and m.content='늦은 응답'",Long.class).setParameter("room",room(a)).getSingleResult()));
+ }
+ @Test void aiSuggestsVerifiedMeetingPlaceNearHumanRequester(){
+  var f=fixture(PostType.SALE);
+  tx(()->{users.findById(f.user).orElseThrow().updateLocation("충북 충주시",36.99,127.90);return null;});
+  var requestId=request(f,f.user);
+  due(requestId);simulation.advance(requestId);
+  Long chat=room(requestId);
+  assertNotNull(chat);
+  when(meetup.suggest(anyString(),any(DemoMeetupService.Point.class)))
+      .thenReturn("GS25 충주점 앞에서 만나실래요? 찾기 쉬울 것 같아요.");
+  chats.sendMessage(f.user,chat,"어디서 보실래요?");
+  due(requestId);simulation.advance(requestId);
+  assertTrue(chats.getMessages(f.user,chat).stream()
+      .anyMatch(m->m.content().contains("GS25 충주점 앞에서 만나실래요?")));
+  var point=org.mockito.ArgumentCaptor.forClass(DemoMeetupService.Point.class);
+  verify(meetup).suggest(anyString(),point.capture());
+  assertEquals(36.99,point.getValue().latitude(),0.00001);
+  assertEquals(127.90,point.getValue().longitude(),0.00001);
+  verify(ai,never()).reply(anyString());
+ }
+ @Test void inboundAiSuggestsVerifiedMeetingPlaceNearHumanAuthor(){
+  var f=fixture(PostType.SHARE);
+  Long postId=tx(()->{
+   var owner=users.findById(f.user).orElseThrow();
+   owner.updateLocation("충북 충주시",36.97,127.91);
+   var p=posts.save(Post.create(owner,PostType.SALE,"당근 나눠요","당근","1봉",1000,"학교 앞",0.0,
+       LocalDate.now().plusDays(3),37.5,127.0,null,"당근",null,null,null));
+   inbound.schedule(p);
+   var job=em.find(DemoInboundJob.class,p.getId());
+   job.screened=true;job.dueAt=LocalDateTime.now().minusSeconds(1);
+   return p.getId();
+  });
+  assertNull(inbound.prepare(postId));
+  Long requestId=tx(()->em.find(DemoInboundJob.class,postId).requestId);
+  assertNotNull(requestId);
+  trades.accept(requestId,f.user);
+  Long chat=chats.findRoomIdByTradeRequestId(requestId);
+  tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  inbound.prepare(postId);
+  tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  when(ai.firstMessage(anyString(),isNull(),anyString())).thenReturn("안녕하세요! 당근 받을 수 있을까요?");
+  var greeting=inbound.prepare(postId);
+  assertNotNull(greeting);inbound.respond(greeting);
+  chats.sendMessage(f.user,chat,"어디서 보실래요?");
+  when(meetup.suggest(anyString(),any(DemoMeetupService.Point.class)))
+      .thenReturn("CU 충주점 앞에서 만나실래요? 찾기 쉬울 것 같아요.");
+  tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
+  var prompt=inbound.prepare(postId);
+  assertNotNull(prompt);inbound.respond(prompt);
+  assertTrue(chats.getMessages(f.user,chat).stream()
+      .anyMatch(m->m.content().contains("CU 충주점 앞에서 만나실래요?")));
+  var point=org.mockito.ArgumentCaptor.forClass(DemoMeetupService.Point.class);
+  verify(meetup).suggest(anyString(),point.capture());
+  assertEquals(36.97,point.getValue().latitude(),0.00001);
+  assertEquals(127.91,point.getValue().longitude(),0.00001);
  }
  @Test void demoMarketLatestKeepsPurchaseRequestsBelowSharingPosts(){
   var f=fixture(PostType.SHARE);

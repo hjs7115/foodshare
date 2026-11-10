@@ -28,6 +28,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class DemoInboundSimulationService {
     @PersistenceContext private EntityManager em;
     @org.springframework.beans.factory.annotation.Autowired private DemoSafetyService safety;
+    @org.springframework.beans.factory.annotation.Autowired private DemoMeetupService meetup;
     private final DemoVisibility demo;
     private final TradeRequestService trades;
     private final ChatService chats;
@@ -116,7 +117,8 @@ public class DemoInboundSimulationService {
     }
 
     public record Prompt(Long postId, Long requestId, long through, String conversation,
-            String imageUrl, boolean greeting, String fallback, boolean review) {}
+            String imageUrl, boolean greeting, String fallback, boolean review,
+            DemoMeetupService.Point point) {}
 
     /** A failed transaction must be retried using a fresh transaction, not a rollback-only one. */
     public void deferFailure(Long postId) {
@@ -200,7 +202,7 @@ public class DemoInboundSimulationService {
             Long room = chats.findRoomIdByTradeRequestId(request.getId());
             job.dueAt = LocalDateTime.now().plusSeconds(30);
             return new Prompt(job.postId, job.requestId, 0L,
-                    DemoReviewContext.from(em, request, room, actor), null, false, null, true);
+                    DemoReviewContext.from(em, request, room, actor), null, false, null, true, null);
         }
         if (request.getStatus() != TradeRequestStatus.ACCEPTED) {
             job.finished = true;
@@ -221,7 +223,7 @@ public class DemoInboundSimulationService {
             // A bounded lease prevents overlapping preparation across workers.
             job.dueAt = LocalDateTime.now().plusSeconds(25);
             return new Prompt(job.postId, job.requestId, 0L, greetingContext(post),
-                    post.getImageUrl(), true, greeting(post), false);
+                    post.getImageUrl(), true, greeting(post), false, null);
         }
         List<ChatMessage> history = em.createQuery(
                 "select m from ChatMessage m left join fetch m.sender where m.chatRoom.id=:room and m.systemMessage=false order by m.id desc",
@@ -252,7 +254,8 @@ public class DemoInboundSimulationService {
         for (ChatMessage msg : ordered)
             text.append(msg.getSender().getId().equals(job.writerId) ? "게시글 작성자: " : "거래 요청자: ")
                     .append(msg.getContent()).append('\n');
-        return new Prompt(job.postId, job.requestId, latest, text.toString(), null, false, null, false);
+        return new Prompt(job.postId, job.requestId, latest, text.toString(), null, false, null, false,
+                DemoMeetupService.nearHuman(post.getWriter(), post));
     }
 
     public void respond(Prompt prompt) {
@@ -276,9 +279,10 @@ public class DemoInboundSimulationService {
             });
             return;
         }
+        String meetupAnswer = prompt.greeting() ? null : meetup.suggest(prompt.conversation(), prompt.point());
         String answer = prompt.greeting()
                 ? ai.firstMessage(prompt.conversation(), prompt.imageUrl(), prompt.fallback())
-                : ai.reply(prompt.conversation());
+                : meetupAnswer != null ? meetupAnswer : ai.reply(prompt.conversation());
         if (answer == null || answer.isBlank())
             answer = prompt.greeting() ? prompt.fallback() : "네, 좋아요! 편하신 쪽으로 정해요.";
         final String message = answer;

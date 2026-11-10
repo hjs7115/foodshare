@@ -29,6 +29,7 @@ public class DemoSimulationService {
  private final ChatWebSocketHandler live;
  private final DemoChatAi ai;
  @org.springframework.beans.factory.annotation.Autowired private DemoSafetyService safety;
+ @org.springframework.beans.factory.annotation.Autowired private DemoMeetupService meetup;
  private final TransactionTemplate tx;
  public DemoSimulationService(DemoVisibility demo,TradeRequestService trades,ChatService chats,ReviewService reviews,ChatWebSocketHandler live,DemoChatAi ai,PlatformTransactionManager manager){
   this.demo=demo;this.trades=trades;this.chats=chats;this.reviews=reviews;this.live=live;this.ai=ai;this.tx=new TransactionTemplate(manager);
@@ -44,7 +45,7 @@ public class DemoSimulationService {
   Long actor=r.getPost().getWriter().getId();
   TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization(){@Override public void afterCommit(){live.publishSavedMessage(actor,saved);}});
  }
- record Prompt(Long requestId,long through,String text,boolean review){}
+ record Prompt(Long requestId,long through,String text,boolean review,DemoMeetupService.Point point){}
  public void advance(Long id){
   Prompt prompt=prepareNext(id);
   if(prompt!=null)respond(prompt);
@@ -69,7 +70,8 @@ public class DemoSimulationService {
    });
    return;
   }
-  String answer=ai.reply(prompt.text());
+  String meetingSuggestion=meetup.suggest(prompt.text(),prompt.point());
+  String answer=meetingSuggestion!=null?meetingSuggestion:ai.reply(prompt.text());
   tx.executeWithoutResult(status -> {
    var r=lock(id);var s=session(id);
    if(r==null||s==null||s.reset||s.finished||!demo.enabled()||r.getStatus()!=TradeRequestStatus.ACCEPTED||s.repliedThrough>=prompt.through()||!safety.canParticipate(s.userId))return;
@@ -95,7 +97,7 @@ public class DemoSimulationService {
        .setParameter("id",id).setParameter("actor",actor).getSingleResult();
    if(existing>0){s.finished=true;return null;}
    s.dueAt=LocalDateTime.now().plusSeconds(30);
-   return new Prompt(id,0L,DemoReviewContext.from(em,r,s.roomId,actor),true);
+   return new Prompt(id,0L,DemoReviewContext.from(em,r,s.roomId,actor),true,null);
   }
   s.dueAt=LocalDateTime.now().plusSeconds(2);
   if(r.getStatus()!=TradeRequestStatus.ACCEPTED||s.roomId==null)return null;
@@ -108,7 +110,7 @@ public class DemoSimulationService {
   StringBuilder context=new StringBuilder("역할: 당신은 게시글 작성자(나눔 제공자 또는 판매자)이며, 상대는 거래 요청자입니다. 상대의 문의에 답하세요.\n거래 상품: ").append(r.getPost().getTitle()).append(" / 수량: ").append(r.getPost().getQuantity()).append(" / 가격: ").append(r.getPost().getPrice()).append(" / 거래 종류: ").append(r.getPost().getPostType()).append(" / 장소: ").append(r.getPost().getTradeLocation()).append("\n최근 대화:\n");
   var ordered=new ArrayList<>(history);Collections.reverse(ordered);
   ordered.forEach(m->context.append(m.getSender().getId().equals(s.userId)?"요청자: ":"게시글 작성자: ").append(m.getContent()).append('\n'));
-  return new Prompt(id,latest,context.toString(),false);
+  return new Prompt(id,latest,context.toString(),false,DemoMeetupService.nearHuman(r.getRequester(),r.getPost()));
  }
  public int resetMine(Long userId){return tx.execute(status -> {
   if(em.find(User.class,userId)==null)throw new BusinessException(HttpStatus.NOT_FOUND,"계정을 찾을 수 없습니다.");

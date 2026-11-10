@@ -637,7 +637,7 @@ class DemoSimulationTests {
   assertEquals(0L,tx(()->em.createQuery("select count(m) from ChatMessage m where m.chatRoom.id=:room and m.content='금지된 늦은 답변'",Long.class).setParameter("room",chat).getSingleResult()));
  }
 
- @Test void administratorResetsAllOwnersIncludingTwoBotsButPreservesRealTradesAndPosts(){
+ @Test void administratorResetsAllOwnersAndParticipantPostsButPreservesRealTrades(){
   var f=fixture(PostType.GROUP_BUY);
   Long admin=tx(()->{
    var existing=em.createQuery("select u.id from User u where u.nickname='새파란'",Long.class).getResultList();
@@ -655,10 +655,44 @@ class DemoSimulationTests {
   assertTrue(simulation.resetAll(admin)>=4);
   assertTrue(tx(()->em.find(DemoSession.class,first).reset));assertTrue(tx(()->em.find(DemoSession.class,second).reset));
   assertTrue(tx(()->em.find(DemoGroupCompanion.class,owned).reset));assertTrue(tx(()->Boolean.TRUE.equals(em.find(DemoInboundJob.class,queued).reset)));
-  assertFalse(tx(()->posts.findById(owned).orElseThrow().isDeleted()));assertFalse(tx(()->posts.findById(queued).orElseThrow().isDeleted()));
+  assertTrue(tx(()->posts.findById(owned).orElseThrow().isDeleted()));assertTrue(tx(()->posts.findById(queued).orElseThrow().isDeleted()));
+  assertFalse(tx(()->posts.findById(f.post).orElseThrow().isDeleted()));assertFalse(tx(()->posts.findById(realPost).orElseThrow().isDeleted()));
   assertEquals(TradeRequestStatus.COMPLETED,tx(()->em.find(TradeRequest.class,actual).getStatus()));
   assertEquals(FreshnessCalculator.update(50,4),tx(()->users.findById(f.user).orElseThrow().getFreshnessScore()));
   assertEquals(0,simulation.resetAll(admin));assertNotNull(request(f,f.user));assertNotNull(request(f,f.other));
+ }
+
+ @Test void globalResetHidesTrackedPostsButRetainsActualAcceptedTradeAndChat(){
+  var f=fixture(PostType.SHARE);
+  Long admin=tx(()->{var ids=em.createQuery("select u.id from User u where u.nickname='새파란'",Long.class).getResultList();if(!ids.isEmpty())return ids.getFirst();var u=user();em.createQuery("update User u set u.nickname='새파란' where u.id=:id").setParameter("id",u.getId()).executeUpdate();em.persist(new DemoManager(u.getId()));return u.getId();});
+  Long post=tx(()->{var p=posts.save(Post.create(users.findById(f.user).orElseThrow(),PostType.SHARE,"내 두부","두부","1개",0,"역",0.0,LocalDate.now().plusDays(2),37.5,127.0,null,"나눔",null,null,null));inbound.schedule(p);return p.getId();});
+  Long group=ownGroup(f,4);Long groupTrade=trades.createRequest(group,f.other).requestId();trades.accept(groupTrade,f.user);assertNull(chats.findRoomIdByTradeRequestId(groupTrade));
+  Long actual=trades.createRequest(post,f.other).requestId();trades.accept(actual,f.user);Long chat=chats.findRoomIdByTradeRequestId(actual);
+  chats.sendMessage(f.other,chat,"실제 대화 남기기");
+  simulation.resetAll(admin);
+  assertTrue(tx(()->posts.findById(post).orElseThrow().isDeleted()));
+  assertEquals(TradeRequestStatus.ACCEPTED,tx(()->em.find(TradeRequest.class,actual).getStatus()));
+  assertTrue(chats.getMessages(f.other,chat).stream().anyMatch(m->m.content().equals("실제 대화 남기기")));
+  assertTrue(tx(()->posts.findById(group).orElseThrow().isDeleted()));assertNotNull(chats.findRoomIdByTradeRequestId(groupTrade));
+  trades.complete(groupTrade,f.other);trades.complete(groupTrade,f.user);
+  trades.complete(actual,f.other);trades.complete(actual,f.user);
+  assertEquals(TradeRequestStatus.COMPLETED,tx(()->em.find(TradeRequest.class,actual).getStatus()));
+ }
+
+ @Test void globalResetIncludesPostsWithoutAiAndEndsPendingRequests(){
+  var f=fixture(PostType.SHARE);
+  Long admin=tx(()->{var ids=em.createQuery("select u.id from User u where u.nickname='새파란'",Long.class).getResultList();if(!ids.isEmpty())return ids.getFirst();var u=user();em.createQuery("update User u set u.nickname='새파란' where u.id=:id").setParameter("id",u.getId()).executeUpdate();em.persist(new DemoManager(u.getId()));return u.getId();});
+  tx(()->{var control=new DemoParticipationControl(f.user,LocalDateTime.now());control.permanentlyRestricted=true;em.persist(control);return null;});
+  Long post=tx(()->{
+   var p=posts.save(Post.create(users.findById(f.user).orElseThrow(),PostType.SALE,"내 양파","양파","1개",1000,"역",0.0,LocalDate.now().plusDays(2),37.5,127.0,null,"판매",null,null,null));inbound.schedule(p);return p.getId();
+  });
+  assertTrue(tx(()->em.find(DemoInboundJob.class,post).finished));
+  Long request=trades.createRequest(post,f.other).requestId();
+  simulation.resetAll(admin);
+  assertTrue(tx(()->posts.findById(post).orElseThrow().isDeleted()));
+  assertEquals(TradeRequestStatus.REJECTED,tx(()->em.find(TradeRequest.class,request).getStatus()));
+  assertTrue(tx(()->em.find(DemoParticipationControl.class,f.user).permanentlyRestricted));
+  assertFalse(tx(()->posts.findById(f.post).orElseThrow().isDeleted()));
  }
 
 }

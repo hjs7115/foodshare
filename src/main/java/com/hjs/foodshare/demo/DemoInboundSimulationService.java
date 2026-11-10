@@ -52,11 +52,13 @@ public class DemoInboundSimulationService {
     public void schedule(Post post) {
         if (!demo.enabled() || post == null || !post.isOpen()
                 || demo.isTemplate(post.getId())) return;
-        // Preserve the user's ordinary post even when this account has a demo cooldown.
-        if (!safety.allowPost(post.getWriter().getId())) return;
-        if (DemoSafetySignals.unmistakableHarassment(post.getTitle() + " " + post.getContent())) return;
-        if (em.find(DemoInboundJob.class, post.getId()) == null)
-            em.persist(new DemoInboundJob(post.getId(), post.getWriter().getId()));
+        // Track every post created in demo mode, including posts that receive no AI request.
+        if (em.find(DemoInboundJob.class, post.getId()) != null) return;
+        var job=new DemoInboundJob(post.getId(),post.getWriter().getId());
+        em.persist(job);
+        if (!safety.allowPost(post.getWriter().getId())
+                || DemoSafetySignals.unmistakableHarassment(post.getTitle()+" "+post.getContent()))
+            job.finished=true;
     }
 
     public List<Long> due() {

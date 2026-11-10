@@ -72,7 +72,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
   const [resettingDemo, setResettingDemo] = useState(false);
   const resetAllSimulations = async () => {
     if (!demoMode?.canReset || resettingDemo) return;
-    if (!(await showConfirm('모든 참가자의 시장·공동구매 AI 체험 기록을 초기화합니다. 진행 중인 AI 거래도 종료되며, 양방향 거래와 AI 두 명의 후기·신선도 변화를 되돌립니다. 직접 작성한 게시글과 실제 사용자끼리의 거래·공동구매 대화는 유지됩니다. 전체 초기화를 진행할까요?', '전체 AI 시뮬레이션 초기화', '초기화'))) return;
+    if (!(await showConfirm('모든 참가자의 시장·공동구매 AI 체험 기록을 초기화합니다. 진행 중인 AI 거래도 종료되며, 양방향 거래와 AI 두 명의 후기·신선도 변화를 되돌립니다. 시연 중 참여자가 작성한 게시글도 삭제 처리하고 대기 요청을 종료합니다. 기존 시연 원본 글과 실제 사용자 간 확정된 거래·후기·대화 기록은 보존됩니다. 전체 초기화를 진행할까요?', '전체 AI 시뮬레이션 초기화', '초기화'))) return;
     setResettingDemo(true);
     try {
       await apiRequest(API_BASE_URL + '/api/demo-mode/reset-all', {method: 'POST'});
@@ -208,7 +208,7 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
             aria-label="전체 AI 시뮬레이션 초기화"
             className="mt-5 w-full rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4 text-left disabled:opacity-50">
             <p className="text-sm leading-6 text-[#1e3a8a]">
-              게시글, 댓글, 거래 내역, 관심 목록은 서버에 저장됩니다. AI 시연 기록을 다시 시작하려면 여기를 눌러 모든 참가자의 AI 시뮬레이션을 초기화하세요. 실제 거래 기록은 유지됩니다.
+              게시글, 댓글, 거래 내역, 관심 목록은 서버에 저장됩니다. AI 시연 기록을 다시 시작하려면 여기를 눌러 모든 참가자의 AI 기록과 시연 중 작성한 게시글을 초기화하세요. 기존 시연 원본 글과 실제 거래 기록은 유지됩니다.
             </p>
           </button>
         ) : (

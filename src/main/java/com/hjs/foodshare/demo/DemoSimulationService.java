@@ -31,6 +31,7 @@ public class DemoSimulationService {
  @org.springframework.beans.factory.annotation.Autowired private DemoSafetyService safety;
  @org.springframework.beans.factory.annotation.Autowired private DemoMeetupService meetup;
  @org.springframework.beans.factory.annotation.Autowired private DemoGroupCompanionService companion;
+ @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.notification.service.NotificationService notifications;
  private final TransactionTemplate tx;
  public DemoSimulationService(DemoVisibility demo,TradeRequestService trades,ChatService chats,ReviewService reviews,ChatWebSocketHandler live,DemoChatAi ai,PlatformTransactionManager manager){
   this.demo=demo;this.trades=trades;this.chats=chats;this.reviews=reviews;this.live=live;this.ai=ai;this.tx=new TransactionTemplate(manager);
@@ -125,12 +126,34 @@ public class DemoSimulationService {
   demo.requireResetPermission(adminId);
   // Serialize administrator-wide resets without altering the global ON/OFF setting.
   em.find(DemoState.class,1L,LockModeType.PESSIMISTIC_WRITE);
+  // Include earlier reset jobs: their participant-written posts used to be preserved.
+  var createdPosts=em.createQuery("select j.postId from DemoInboundJob j order by j.postId",Long.class).getResultList();
   var owners=new TreeSet<Long>();
   owners.addAll(em.createQuery("select distinct s.userId from DemoSession s where s.reset=false",Long.class).getResultList());
   owners.addAll(em.createQuery("select distinct j.writerId from DemoInboundJob j where coalesce(j.reset,false)=false",Long.class).getResultList());
   owners.addAll(em.createQuery("select distinct j.humanId from DemoGroupCompanion j where j.reset=false",Long.class).getResultList());
   int count=0;
   for(Long owner:owners)count+=resetMine(owner);
+  for(Long postId:createdPosts){
+   var post=em.find(Post.class,postId,LockModeType.PESSIMISTIC_WRITE);
+   if(post==null||post.isDeleted()||demo.isTemplate(postId))continue;
+   // Soft deletion keeps actual transactions, reviews and shared chats available.
+   var pending=em.createQuery("select t from TradeRequest t where t.post.id=:post and t.status=com.hjs.foodshare.trade.domain.TradeRequestStatus.PENDING",TradeRequest.class)
+     .setParameter("post",postId).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
+   for(var request:pending){
+    request.reject();
+    notifications.createNotification(request.getRequester().getId(),"TRADE_CANCELLED","거래 요청 종료","시연 초기화로 게시글이 삭제되어 요청이 종료되었습니다.","TRADE_REQUEST",request.getId());
+   }
+   if(post.getPostType()==com.hjs.foodshare.post.domain.PostType.GROUP_BUY){
+    var accepted=em.createQuery("select t from TradeRequest t where t.post.id=:post and t.status=com.hjs.foodshare.trade.domain.TradeRequestStatus.ACCEPTED",TradeRequest.class).setParameter("post",postId).getResultList();
+    if(!accepted.isEmpty() && chats.findRoomIdByTradeRequestId(accepted.getFirst().getId())==null){
+     var room=chats.openGroupRoomForTradeRequests(accepted);
+     var members=new HashSet<Long>();members.add(post.getWriter().getId());accepted.forEach(t->members.add(t.getRequester().getId()));
+     for(Long member:members)notifications.createNotification(member,"CHAT_ROOM_OPENED","공동구매 모집 종료","시연 초기화로 모집이 종료되었습니다. 이미 수락된 참여자와의 거래는 채팅에서 계속할 수 있습니다.","CHAT_ROOM",room.getId());
+    }
+   }
+   post.delete();count++;
+  }
   return count;
  });}
  public int resetMine(Long userId){return tx.execute(status -> {

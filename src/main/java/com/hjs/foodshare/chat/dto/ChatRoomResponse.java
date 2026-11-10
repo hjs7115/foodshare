@@ -35,7 +35,7 @@ public record ChatRoomResponse(
     }
     public ChatRoomResponse withSimulation(boolean enabled) {
         if (!enabled) return this;
-        String naturalName = partnerNickname == null ? "이웃" : partnerNickname.replaceAll("(?i)(?:시연|데모)", "").trim();
+        String naturalName = partnerNickname == null ? "이웃" : partnerNickname.replaceAll("(?i)(?:시연|데모)", "").replaceAll("^[\\s·•.]+|[\\s·•.]+$", "").trim();
         if (naturalName.isBlank()) naturalName = "이웃" + partnerId;
         String displayName = roomName != null && roomName.equals(partnerNickname) ? naturalName : roomName;
         return new ChatRoomResponse(chatRoomId,tradeRequestId,postId,postTitle,postType,displayName,partnerId,naturalName,partnerProfileImage,groupRoom,participantCount,participants,lastMessage,lastMessageAt,unreadCount,readOnly,pinned,muted,createdAt,updatedAt,true);

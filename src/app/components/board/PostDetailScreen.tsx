@@ -3,6 +3,7 @@ import { showToast, showConfirm, showPrompt } from '../../utils/feedback';
 import { X, Heart, MessageCircle, Send, User, Leaf, MoreVertical, Edit2, Trash2, Flag, Ban, Sparkles } from 'lucide-react';
 import { API_ENDPOINTS, apiRequest, resolveImageUrl, createReport, blockUser, type ReportTargetType } from '../../api/config';
 import BackendImage from '../common/BackendImage';
+import { ChatParticipantProfile } from '../chat/ChatScreen';
 import { getStoredUserInfo } from '../../auth/session';
 
 interface Post {
@@ -99,6 +100,7 @@ interface PostDetailScreenProps {
 
 export default function PostDetailScreen({ postId, onClose }: PostDetailScreenProps) {
   const [post, setPost] = useState<Post | null>(null);
+  const [showAuthorProfile, setShowAuthorProfile] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
@@ -837,7 +839,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
 
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden">
+              <button type="button" onClick={() => postAuthorId != null && setShowAuthorProfile(true)} disabled={postAuthorId == null} aria-label="작성자 활동 통계 보기" className="w-8 h-8 rounded-full bg-[#e2e8f0] flex items-center justify-center overflow-hidden disabled:cursor-default">
                 {postAuthorImage ? (
                   <BackendImage
                     src={postAuthorImage}
@@ -848,7 +850,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
                 ) : (
                   <User size={16} className="text-[#718096]" />
                 )}
-              </div>
+              </button>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-[#2d3748]" style={{ fontWeight: 500 }}>
                   {postAuthor}
@@ -1161,6 +1163,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
           </button>
         )}
       </div>
+      {showAuthorProfile && postAuthorId != null && <ChatParticipantProfile postId={postId} userId={postAuthorId} onClose={() => setShowAuthorProfile(false)} />}
     </div>
   );
 }

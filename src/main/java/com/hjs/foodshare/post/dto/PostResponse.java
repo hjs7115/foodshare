@@ -219,7 +219,7 @@ public record PostResponse(
 
     private static String demoNickname(String nickname, Long writerId) {
         if (nickname == null) return "이웃";
-        String cleaned = nickname.replaceAll("(?i)\\[?(?:AI\\s*)?(?:시연|데모)\\]?", "").trim();
+        String cleaned = nickname.replaceAll("(?i)\\[?(?:AI\\s*)?(?:시연|데모)\\]?", "").replaceAll("^[\\s·•.]+|[\\s·•.]+$", "").trim();
         return cleaned.isBlank() ? "이웃" + writerId : cleaned;
     }
     private static String demoTitle(String title) {

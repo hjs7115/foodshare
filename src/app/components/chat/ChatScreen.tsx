@@ -514,7 +514,9 @@ export default function ChatScreen({
   };
 
   const handleSelectChatLocation = (address: string, lat: number, lng: number) => {
-    const mapUrl = `https://map.kakao.com/link/map/${encodeURIComponent(address)},${lat},${lng}`;
+    const mapUrl = Number.isFinite(lat) && Number.isFinite(lng)
+      ? `https://map.kakao.com/link/map/${encodeURIComponent(address)},${lat},${lng}`
+      : `https://map.kakao.com/link/search/${encodeURIComponent(address)}`;
     sendChatContent(`[지도]\n${address}\n${mapUrl}`);
   };
 
@@ -1548,16 +1550,16 @@ function AttachmentMenuButton({
   );
 }
 
-function ChatParticipantProfile({roomId,userId,onClose}:{roomId:number;userId:number;onClose:()=>void}) {
+export function ChatParticipantProfile({roomId,userId,onClose,postId}:{roomId?:number;userId:number;onClose:()=>void;postId?:number}) {
  const [profile,setProfile]=useState<any>(null);
  const [error,setError]=useState(false);
  useEffect(()=>{
   let active=true;setProfile(null);setError(false);
-  apiRequest(`${API_ENDPOINTS.chatRooms}/${roomId}/participants/${userId}/profile`,{method:'GET'})
+  apiRequest(postId != null ? `${API_ENDPOINTS.posts}/${postId}/writer-profile` : `${API_ENDPOINTS.chatRooms}/${roomId}/participants/${userId}/profile`,{method:'GET'})
    .then(response=>{if(active)setProfile(response.data ?? response)})
    .catch(()=>{if(active)setError(true)});
   return ()=>{active=false};
- },[roomId,userId]);
+ },[roomId,userId,postId]);
  useEffect(()=>{const handle=(event:KeyboardEvent)=>{if(event.key==='Escape')onClose()};window.addEventListener('keydown',handle);return ()=>window.removeEventListener('keydown',handle)},[onClose]);
  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 px-4" onClick={onClose}>
   <div role="dialog" aria-modal="true" aria-label="프로필 보기" className="w-full max-w-sm rounded-3xl border border-[#e2e8f0] bg-white p-5 shadow-2xl" onClick={event=>event.stopPropagation()}>
@@ -1570,9 +1572,9 @@ function ChatParticipantProfile({roomId,userId,onClose}:{roomId:number;userId:nu
    </div>
    {profile&&Number(getStoredUserInfo<any>()?.userId??getStoredUserInfo<any>()?.id)!==userId&&<div className="mb-3 flex gap-3">
     <button className="text-sm text-red-700" onClick={async()=>{if(!await showConfirm(`${profile.nickname}님을 차단할까요?`,'사용자 차단','차단'))return;try{await blockUser(userId);window.dispatchEvent(new Event('moderation-changed'));showToast('사용자를 차단했습니다.');onClose();}catch(e:any){showToast(e.message);}}}>이 사용자 차단</button>
-    <button className="text-sm" onClick={async()=>{const reason=await showPrompt('신고 사유를 입력해주세요.','사용자 신고');if(!reason?.trim())return;try{await createReport({targetType:'USER',targetId:userId,reason:reason.trim(),description:`채팅방 ${roomId}`});showToast('신고가 접수되었습니다.');}catch(e:any){showToast(e.message);}}}>사용자 신고</button>
+    <button className="text-sm" onClick={async()=>{const reason=await showPrompt('신고 사유를 입력해주세요.','사용자 신고');if(!reason?.trim())return;try{await createReport({targetType:'USER',targetId:userId,reason:reason.trim(),description:postId != null ? `게시글 ${postId}` : `채팅방 ${roomId}`});showToast('신고가 접수되었습니다.');}catch(e:any){showToast(e.message);}}}>사용자 신고</button>
    </div>}
-   {profile && <div className="rounded-2xl border border-[#ccfbf1] bg-[#f0fdfa] p-4"><h3 className="mb-3 text-xs font-semibold text-[#0f766e]">활동 통계</h3><div className="grid grid-cols-3 gap-3">
+   {profile && <div className="rounded-2xl border border-[#ccfbf1] bg-[#f0fdfa] p-4"><h3 className="mb-3 text-xs font-semibold text-[#0f766e]">활동 통계{profile.sampleActivity ? ' · 예시' : ''}</h3><div className="grid grid-cols-3 gap-3">
     {[[profile.shareCount,'나눔 완료'],[profile.saleCount,'판매 완료'],[profile.groupBuyCount,'공구 참여']].map(([value,label])=><div key={label} className="text-center"><p className="mb-1 text-2xl font-bold text-[#2d3748]">{value}</p><p className="text-xs text-[#718096]">{label}</p></div>)}
    </div></div>}
   </div>

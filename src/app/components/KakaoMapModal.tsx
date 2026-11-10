@@ -279,6 +279,13 @@ export default function KakaoMapModal({
     );
   };
 
+  const handleAddressOnlySelect = () => {
+    const address = manualAddress.trim() || searchKeyword.trim();
+    if (!address) { showToast('공유할 장소나 주소를 입력해주세요.'); return; }
+    onSelectAddress(address, Number.NaN, Number.NaN);
+    onClose();
+  };
+
   const handleFallbackSelect = () => {
     const address = manualAddress.trim();
     if (!address) {
@@ -323,7 +330,7 @@ export default function KakaoMapModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/50 p-2 sm:p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black/50 p-2 sm:p-4">
       <div className="flex h-[calc(100dvh-1rem)] max-h-[820px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[calc(100dvh-2rem)] sm:rounded-3xl">
         <div className="flex shrink-0 items-center justify-between border-b border-[#e2e8f0] p-4 sm:p-6">
           <h2 className="text-xl text-[#2d3748] sm:text-2xl" style={{ fontWeight: 600 }}>
@@ -384,7 +391,7 @@ export default function KakaoMapModal({
 
               <div className="rounded-2xl border border-[#fed7d7] bg-white p-4">
                 <p className="mb-3 text-sm text-[#2d3748]" style={{ fontWeight: 600 }}>
-                  지도 없이 현재 위치로 저장
+                  지도 없이 주소 공유
                 </p>
                 <input
                   value={manualAddress}
@@ -400,6 +407,7 @@ export default function KakaoMapModal({
                 >
                   {isUsingFallbackLocation ? '현재 위치 확인 중...' : '입력한 주소와 현재 위치로 저장'}
                 </button>
+                <button type="button" onClick={handleAddressOnlySelect} className="mt-3 w-full rounded-2xl border border-teal-300 bg-white px-4 py-3 text-sm font-semibold text-teal-800">위치 권한 없이 주소 링크 공유</button>
               </div>
             </div>
           ) : !isKakaoLoaded ? (
@@ -411,6 +419,15 @@ export default function KakaoMapModal({
           )}
         </div>
 
+        <div className="shrink-0 border-t border-[#e2e8f0] px-4 py-3 sm:px-6">
+          <div className="flex gap-2">
+            <input value={manualAddress} onChange={e => setManualAddress(e.target.value)}
+              placeholder="위치 권한 없이 공유할 주소 또는 장소명"
+              className="min-w-0 flex-1 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-sm" />
+            <button type="button" onClick={handleAddressOnlySelect}
+              className="shrink-0 rounded-xl border border-teal-300 px-3 py-2 text-sm font-semibold text-teal-800">주소 공유</button>
+          </div>
+        </div>
         {selectedAddress && (
           <div className="shrink-0 border-t border-[#e2e8f0] bg-[#f7fafc] px-4 py-3 sm:px-6 sm:py-4">
             <p className="mb-1 text-sm text-[#718096]">선택한 주소</p>

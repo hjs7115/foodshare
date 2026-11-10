@@ -18,6 +18,11 @@ public class DemoVisibility {
   return ids;
  }
  public boolean isTemplate(Long id){return em.find(DemoPost.class,id)!=null;}
+ public boolean isDemoWriter(Long userId) {
+  if(userId==null || !enabled())return false;
+  return !em.createQuery("select d.postId from DemoPost d, Post p where p.id=d.postId and p.writer.id=:user",Long.class)
+    .setParameter("user",userId).setMaxResults(1).getResultList().isEmpty();
+ }
  public boolean isPrivatePost(Long postId){
   return !em.createQuery("select s.requestId from DemoSession s where s.privatePostId=:post",Long.class)
     .setParameter("post",postId).setMaxResults(1).getResultList().isEmpty();

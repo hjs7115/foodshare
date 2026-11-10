@@ -29,6 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class PostController {
 
     private final PostService postService;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.hjs.foodshare.chat.service.ChatService chatService;
 
     public PostController(PostService postService) {
         this.postService = postService;
@@ -100,6 +102,15 @@ public class PostController {
     ) {
         Long currentUserId = authUser == null ? null : authUser.userId();
         return ResponseEntity.ok(ApiResponse.ok("Post found.", postService.getPost(postId, currentUserId)));
+    }
+
+    @GetMapping("/{postId}/writer-profile")
+    public ResponseEntity<ApiResponse<com.hjs.foodshare.chat.service.ChatService.ParticipantProfile>> getWriterProfile(
+            @PathVariable Long postId, @AuthenticationPrincipal AuthUser authUser) {
+        Long viewer = authUser == null ? null : authUser.userId();
+        var visiblePost = postService.getPost(postId, viewer);
+        return ResponseEntity.ok(ApiResponse.ok("Post writer profile found.",
+                chatService.getPostAuthorProfile(visiblePost.writerId())));
     }
 
     @PutMapping("/{postId}")

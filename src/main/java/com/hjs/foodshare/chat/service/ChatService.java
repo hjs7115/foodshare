@@ -364,20 +364,50 @@ public class ChatService {
                 .flatMap(request -> chatRoomRepository.findGroupRoomByPostId(request.getPost().getId()));
     }
 
-    public record ParticipantProfile(Long userId, String nickname, String profileImage, double freshness, String freshnessLabel, long shareCount, long saleCount, long groupBuyCount) {}
+    public record ParticipantProfile(
+            Long userId, String nickname, String profileImage, double freshness,
+            String freshnessLabel, long shareCount, long saleCount, long groupBuyCount,
+            boolean sampleActivity) {}
 
     public ParticipantProfile getParticipantProfile(Long viewerId, Long roomId, Long targetId) {
         ChatRoom room = getParticipantRoom(viewerId, roomId);
-        // Permit existing room members, including past message authors, but no unrelated user lookup.
         boolean member = chatRoomMemberRepository.findByChatRoomIdAndUserId(roomId, targetId).isPresent()
                 || room.getWriter().getId().equals(targetId) || room.getRequester().getId().equals(targetId);
         if (!member) throw new BusinessException(HttpStatus.NOT_FOUND, "Participant not found.");
-        User user = userRepository.findById(targetId).orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
-        return new ParticipantProfile(user.getId(), user.getNickname(), user.getProfileImage(), user.getFreshnessScore(),
-                com.hjs.foodshare.user.domain.FreshnessGrade.fromScore(user.getFreshnessScore()).getLabel(),
-                tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(targetId, PostType.SHARE, TradeRequestStatus.COMPLETED),
-                tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(targetId, PostType.SALE, TradeRequestStatus.COMPLETED),
-                tradeRequestRepository.countDistinctPostsByRequesterOrWriterAndPostTypeAndStatus(targetId, PostType.GROUP_BUY, TradeRequestStatus.COMPLETED));
+        return profileOf(targetId);
+    }
+
+    /** Call only after the post service has checked post visibility and blocking. */
+    public ParticipantProfile getPostAuthorProfile(Long writerId) {
+        return profileOf(writerId);
+    }
+
+    private ParticipantProfile profileOf(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(HttpStatus.NOT_FOUND, "User not found."));
+        double freshness = user.getFreshnessScore();
+        long shares = tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(
+                userId, PostType.SHARE, TradeRequestStatus.COMPLETED);
+        long sales = tradeRequestRepository.countByPostWriterIdAndPostTypeAndStatus(
+                userId, PostType.SALE, TradeRequestStatus.COMPLETED);
+        long groups = tradeRequestRepository.countDistinctPostsByRequesterOrWriterAndPostTypeAndStatus(
+                userId, PostType.GROUP_BUY, TradeRequestStatus.COMPLETED);
+        boolean sample = demo.isDemoWriter(userId);
+        if (sample) {
+            // Presentation-only sample activity, never persisted as genuine trade history.
+            long base = Math.max(1L, Math.round(Math.max(0, freshness - 40) / 4.0));
+            shares = Math.max(shares, base + Math.floorMod(userId, 4));
+            sales = Math.max(sales, Math.max(1, base / 2) + Math.floorMod(userId, 3));
+            groups = Math.max(groups, Math.max(1, base / 4) + Math.floorMod(userId, 2));
+        }
+        String nickname = user.getNickname();
+        if (sample) {
+            nickname = nickname.replaceAll("(?i)(?:\\s*[·•.]+\\s*|(?:시연|데모))", " ").trim();
+            if (nickname.isBlank()) nickname = "이웃" + userId;
+        }
+        return new ParticipantProfile(userId, nickname, user.getProfileImage(), freshness,
+                com.hjs.foodshare.user.domain.FreshnessGrade.fromScore(freshness).getLabel(),
+                shares, sales, groups, sample);
     }
 
     @Transactional

@@ -313,7 +313,7 @@ public class PostService {
 
     private PostResponse toResponse(Post post, Long currentUserId) {
         Long postId = post.getId();
-        return PostResponse.from(
+        PostResponse response = PostResponse.from(
                 post,
                 currentUserId,
                 commentRepository.countByPostId(postId),
@@ -321,5 +321,8 @@ public class PostService {
                 reviewRepository.averageRatingByTargetUserId(post.getWriter().getId()),
                 currentUserId != null && favoriteRepository.existsByPostIdAndUserId(postId, currentUserId)
         );
+        return demo.enabled() && (demo.isTemplate(postId) || demo.isPrivatePost(postId))
+                ? response.withDemoPresentation()
+                : response;
     }
 }

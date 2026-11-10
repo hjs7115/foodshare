@@ -35,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChatService {
 
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.demo.DemoVisibility demo;
     @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.moderation.repository.UserBlockRepository blocks;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
@@ -67,7 +68,9 @@ public class ChatService {
                     ChatRoom room = chatRoomRepository.save(ChatRoom.create(tradeRequest));
                     addMemberIfAbsent(room, tradeRequest.getPost().getWriter(), 0);
                     addMemberIfAbsent(room, tradeRequest.getRequester(), 1);
-                    chatMessageRepository.save(ChatMessage.system(room, "채팅방이 개설되었습니다."));
+                    if (!(demo.enabled() && demo.isSimulation(tradeRequest.getId()))) {
+                        chatMessageRepository.save(ChatMessage.system(room, "채팅방이 개설되었습니다."));
+                    }
                     return room;
                 });
     }
@@ -429,7 +432,8 @@ public class ChatService {
                 access.historyWindow() == null ? participantCount(room) : 0,
                 access.historyWindow() == null ? participants(room) : List.of(),
                 access.historyWindow() == null ? room.getUpdatedAt() : access.historyWindow().until()
-        ).withRoomName(chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(),userId).map(ChatRoomMember::getPersonalName).orElse(null));
+        ).withRoomName(chatRoomMemberRepository.findByChatRoomIdAndUserId(room.getId(),userId).map(ChatRoomMember::getPersonalName).orElse(null))
+         .withSimulation(demo.enabled() && demo.isSimulation(room.getTradeRequest().getId()));
     }
 
     private ChatMessage lastVisibleMessage(Long roomId, Long userId, RoomAccess access) {

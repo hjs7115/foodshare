@@ -66,15 +66,15 @@ public class DemoSimulationService {
   if(r.getStatus()==TradeRequestStatus.PENDING){
    trades.accept(id,r.getPost().getWriter().getId());
    s.roomId=chats.findRoomIdByTradeRequestId(id);
-   send(s,r,"안녕하세요! 저는 이 게시글의 AI 시연 상대예요. 실제 결제나 물품 전달 없이 약속·채팅·완료·평가를 체험할 수 있어요. 원하시는 수령 시간이나 궁금한 점을 말씀해주세요.","demo-welcome-"+id);
+   // The participant starts the conversation; do not send an unsolicited greeting.
   }
   if(r.getStatus()==TradeRequestStatus.ACCEPTED && r.getRequesterConfirmedAt()!=null){
    trades.complete(id,r.getPost().getWriter().getId());
   }
   if(r.getStatus()==TradeRequestStatus.COMPLETED){
    if(em.createQuery("select count(v) from Review v where v.tradeRequest.id=:id and v.reviewer.id=:actor",Long.class).setParameter("id",id).setParameter("actor",r.getPost().getWriter().getId()).getSingleResult()==0)
-    reviews.createReview(id,r.getPost().getWriter().getId(),new ReviewCreateRequest(5,"[AI 시연 평가] 거래 체험을 완료해주셔서 감사합니다."));
-   send(s,r,"시연 거래가 완료됐어요! 시연 평가를 남겼으니 거래 내역과 내 정보의 신선도를 확인해보세요. 설정 아래 파란 안내문에서 내 시뮬레이션을 초기화할 수 있어요.","demo-complete-"+id);
+    reviews.createReview(id,r.getPost().getWriter().getId(),new ReviewCreateRequest(5,"빠르고 친절하게 거래했어요. 감사합니다!"));
+   send(s,r,"감사합니다! 좋은 하루 보내세요 :)","demo-complete-"+id);
    s.finished=true;return null;
   }
   s.dueAt=LocalDateTime.now().plusSeconds(2);
@@ -83,11 +83,11 @@ public class DemoSimulationService {
   long latest=history.stream().filter(m->m.getSender()!=null&&m.getSender().getId().equals(s.userId)).mapToLong(ChatMessage::getId).max().orElse(0);
   if(latest<=s.repliedThrough)return null;
   long daily=em.createQuery("select coalesce(sum(d.replyCount),0) from DemoSession d, TradeRequest t where d.requestId=t.id and d.userId=:user and t.createdAt>=:today",Long.class).setParameter("user",s.userId).setParameter("today",java.time.LocalDate.now().atStartOfDay()).getSingleResult();
-  if(s.replyCount>=30 || daily>=100){send(s,r,"AI 대화 체험 한도(거래당 30회·하루 100회)에 도달했어요. 거래 완료 버튼으로 완료·평가를 체험하거나 설정에서 초기화해주세요.","demo-limit-"+latest);s.repliedThrough=latest;return null;}
+  if(s.replyCount>=30 || daily>=100){send(s,r,"오늘은 메시지를 더 보내기 어려울 것 같아요. 거래 완료는 화면에서 진행해주세요.","demo-limit-"+latest);s.repliedThrough=latest;return null;}
   chats.markAsRead(r.getPost().getWriter().getId(),s.roomId);
-  StringBuilder context=new StringBuilder("시연 상품: ").append(r.getPost().getTitle()).append(" / 수량: ").append(r.getPost().getQuantity()).append(" / 가격: ").append(r.getPost().getPrice()).append(" / 거래 종류: ").append(r.getPost().getPostType()).append(" / 장소: ").append(r.getPost().getTradeLocation()).append("\n최근 대화:\n");
+  StringBuilder context=new StringBuilder("거래 상품: ").append(r.getPost().getTitle()).append(" / 수량: ").append(r.getPost().getQuantity()).append(" / 가격: ").append(r.getPost().getPrice()).append(" / 거래 종류: ").append(r.getPost().getPostType()).append(" / 장소: ").append(r.getPost().getTradeLocation()).append("\n최근 대화:\n");
   var ordered=new ArrayList<>(history);Collections.reverse(ordered);
-  ordered.forEach(m->context.append(m.getSender().getId().equals(s.userId)?"체험자: ":"AI 상대: ").append(m.getContent()).append('\n'));
+  ordered.forEach(m->context.append(m.getSender().getId().equals(s.userId)?"요청자: ":"게시글 작성자: ").append(m.getContent()).append('\n'));
   return new Prompt(id,latest,context.toString());
  }
  public int resetMine(Long userId){return tx.execute(status -> {

@@ -18,6 +18,10 @@ public class DemoVisibility {
   return ids;
  }
  public boolean isTemplate(Long id){return em.find(DemoPost.class,id)!=null;}
+ public boolean isPrivatePost(Long postId){
+  return !em.createQuery("select s.requestId from DemoSession s where s.privatePostId=:post",Long.class)
+    .setParameter("post",postId).setMaxResults(1).getResultList().isEmpty();
+ }
  public boolean isSimulation(Long id){return em.find(DemoSession.class,id)!=null;}
  public void rememberScore(com.hjs.foodshare.user.domain.User target,Long requestId){
   if(!isSimulation(requestId)||em.find(DemoScore.class,target.getId())!=null)return;
@@ -34,7 +38,7 @@ public class DemoVisibility {
     .setParameter("user",userId).setParameter("post",source.getId()).getSingleResult()>0)
    throw new BusinessException(HttpStatus.CONFLICT,"이미 체험한 글입니다. 설정에서 시뮬레이션을 초기화하면 다시 체험할 수 있어요.");
   boolean group=source.getPostType()==com.hjs.foodshare.post.domain.PostType.GROUP_BUY;
-  var copy=com.hjs.foodshare.post.domain.Post.create(source.getWriter(),source.getPostType(),"[시연] "+source.getTitle().substring(0,Math.min(90,source.getTitle().length())),source.getIngredientName(),source.getQuantity(),source.getPrice(),source.getTradeLocation(),source.getDistanceKm(),java.time.LocalDate.now().plusDays(1),source.getLatitude(),source.getLongitude(),source.getImageUrl(),"AI 거래 시뮬레이션 · 실제 결제나 물품 전달은 없습니다.\n"+source.getContent(),group?1:null,group?2:null,group?java.time.LocalDateTime.now().plusDays(1):null);
+  var copy=com.hjs.foodshare.post.domain.Post.create(source.getWriter(),source.getPostType(),source.getTitle().substring(0,Math.min(100,source.getTitle().length())),source.getIngredientName(),source.getQuantity(),source.getPrice(),source.getTradeLocation(),source.getDistanceKm(),java.time.LocalDate.now().plusDays(1),source.getLatitude(),source.getLongitude(),source.getImageUrl(),source.getContent(),group?1:null,group?2:null,group?java.time.LocalDateTime.now().plusDays(1):null);
   copy.setPriceNegotiable(source.isPriceNegotiable());em.persist(copy);return copy;
  }
  public void register(com.hjs.foodshare.trade.domain.TradeRequest request,Long sourceId){

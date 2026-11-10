@@ -164,6 +164,72 @@ public record PostResponse(
                 aiAnalysis
         );
     }
+    public PostResponse withDemoPresentation() {
+        return new PostResponse(
+                postId,
+                writerId,
+                demoNickname(writerNickname, writerId),
+                demoNickname(authorNickname, writerId),
+                writerProfileImage,
+                rating,
+                freshness,
+                freshnessLevel,
+                freshnessIcon,
+                freshnessLabel,
+                postType,
+                status,
+                demoTitle(title),
+                ingredientName,
+                quantity,
+                price,
+                priceText,
+                tradeLocation,
+                neighborhood,
+                distanceKm,
+                latitude,
+                longitude,
+                expirationDate,
+                daysUntilExpiration,
+                expirationText,
+                imageUrl,
+                demoContent(content),
+                commentCount,
+                favoriteCount,
+                favorite,
+                isFavorite,
+                isMine,
+                editable,
+                currentParticipantCount,
+                targetParticipantCount,
+                deadlineDate,
+                daysUntilDeadline,
+                deadlineText,
+                createdAt,
+                freshDemoAnalysis(aiAnalysis)
+        );
+    }
+
+    private static IngredientAnalysisResponse freshDemoAnalysis(IngredientAnalysisResponse analysis) {
+        if (analysis == null || analysis.analyzedAt() == null || analysis.consumptionEstimate() == null) return null;
+        // Never present an old image analysis as if it were a fresh food-safety assessment.
+        int days = Math.max(0, analysis.consumptionEstimate().daysMax());
+        var expires = analysis.analyzedAt().plusDays(days);
+        return expires.isBefore(java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"))) ? null : analysis;
+    }
+
+    private static String demoNickname(String nickname, Long writerId) {
+        if (nickname == null) return "이웃";
+        String cleaned = nickname.replaceAll("(?i)\\[?(?:AI\\s*)?(?:시연|데모)\\]?", "").trim();
+        return cleaned.isBlank() ? "이웃" + writerId : cleaned;
+    }
+    private static String demoTitle(String title) {
+        if (title == null) return "";
+        return title.replaceFirst("^\\s*(?:(?:\\[(?:AI\\s*)?(?:시연|데모)\\])|(?:졸업작품\\s*시연용))[\\s:：-]*", "").trim();
+    }
+    private static String demoContent(String content) {
+        if (content == null) return "";
+        return content.replaceAll("(?m)^.*(?:졸업작품\\s*시연용|발표용\\s*가상\\s*데이터|실제\\s*거래\\s*불가|AI\\s*거래\\s*시뮬레이션).*(?:\\R|$)", "").strip();
+    }
 
     private static String toPriceText(Integer price) {
         if (price == null || price == 0) {

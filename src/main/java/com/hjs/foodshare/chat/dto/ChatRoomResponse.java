@@ -27,10 +27,18 @@ public record ChatRoomResponse(
         boolean pinned,
         boolean muted,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        boolean simulation
 ) {
     public ChatRoomResponse withRoomName(String name){
-        return name==null||name.isBlank()?this:new ChatRoomResponse(chatRoomId,tradeRequestId,postId,postTitle,postType,name,partnerId,partnerNickname,partnerProfileImage,groupRoom,participantCount,participants,lastMessage,lastMessageAt,unreadCount,readOnly,pinned,muted,createdAt,updatedAt);
+        return name==null||name.isBlank()?this:new ChatRoomResponse(chatRoomId,tradeRequestId,postId,postTitle,postType,name,partnerId,partnerNickname,partnerProfileImage,groupRoom,participantCount,participants,lastMessage,lastMessageAt,unreadCount,readOnly,pinned,muted,createdAt,updatedAt,simulation);
+    }
+    public ChatRoomResponse withSimulation(boolean enabled) {
+        if (!enabled) return this;
+        String naturalName = partnerNickname == null ? "이웃" : partnerNickname.replaceAll("(?i)(?:시연|데모)", "").trim();
+        if (naturalName.isBlank()) naturalName = "이웃" + partnerId;
+        String displayName = roomName != null && roomName.equals(partnerNickname) ? naturalName : roomName;
+        return new ChatRoomResponse(chatRoomId,tradeRequestId,postId,postTitle,postType,displayName,partnerId,naturalName,partnerProfileImage,groupRoom,participantCount,participants,lastMessage,lastMessageAt,unreadCount,readOnly,pinned,muted,createdAt,updatedAt,true);
     }
     public static ChatRoomResponse from(ChatRoom room, Long currentUserId, ChatMessage lastMessage) {
         User partner = room.getWriter().getId().equals(currentUserId) ? room.getRequester() : room.getWriter();
@@ -85,7 +93,8 @@ public record ChatRoomResponse(
                 pinned,
                 muted,
                 room.getCreatedAt(),
-                updatedAt
+                updatedAt,
+                false
         );
     }
 }

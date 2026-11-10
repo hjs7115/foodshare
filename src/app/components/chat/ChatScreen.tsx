@@ -28,6 +28,7 @@ interface ChatRoom {
   lastMessageAt?: string;
   unreadCount: number;
   readOnly?: boolean;
+  simulation?: boolean;
   pinned?: boolean;
   muted?: boolean;
 }
@@ -221,6 +222,7 @@ export default function ChatScreen({
     lastMessageAt: room.lastMessageAt ?? room.updatedAt ?? room.createdAt,
     unreadCount: Number(room.unreadCount ?? 0),
     readOnly: room.readOnly === true,
+    simulation: room.simulation === true,
     pinned: Boolean(room.pinned ?? room.isPinned),
     muted: Boolean(room.muted ?? room.isMuted),
   });
@@ -250,7 +252,9 @@ export default function ChatScreen({
     return {
       messageId: rawId ?? getNextTempMessageId(),
       senderId,
-      senderNickname: message.senderNickname ?? message.sender?.nickname,
+      senderNickname: room?.simulation && !mine
+        ? (String(message.senderNickname ?? message.sender?.nickname ?? '이웃').replace(/시연|데모/gi, '').trim() || '이웃')
+        : (message.senderNickname ?? message.sender?.nickname),
       senderProfileImage: message.senderProfileImage ?? message.sender?.profileImage,
       content: message.content ?? message.message ?? '',
       mine,
@@ -833,6 +837,7 @@ export default function ChatScreen({
               <p className="text-xs text-[#0f766e] truncate">
                 {selectedRoom.readOnly ? '거래 취소 · 읽기 전용' : selectedRoom.groupRoom ? getParticipantSummary(selectedRoom) : selectedRoom.postTitle}
               </p>
+              {selectedRoom.simulation && <p className="text-[11px] font-medium text-[#475569]" role="status">거래 연습 · 자동 응답 상대</p>}
             </div>
           </div>
           <div className="flex items-center gap-3 text-[#1a202c]">
@@ -869,7 +874,7 @@ export default function ChatScreen({
               <MessageCircle size={32} className="mx-auto mb-3 text-[#14b8a6]" />
               <p className="text-sm text-[#2d3748]" style={{ fontWeight: 800 }}>아직 메시지가 없습니다.</p>
             </div>
-          ) : messages.map((message) => {
+          ) : messages.filter(message => !(selectedRoom.simulation && message.systemMessage && message.content === '채팅방이 개설되었습니다.')).map((message) => {
             const isSearchHit = searchMatchIds.has(message.messageId);
             const isActiveSearchHit = activeSearchMessageId === message.messageId;
             const searchHighlightClass = isActiveSearchHit

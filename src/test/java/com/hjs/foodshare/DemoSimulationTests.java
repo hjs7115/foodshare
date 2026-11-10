@@ -4,6 +4,8 @@ import com.hjs.foodshare.chat.service.ChatService;
 import com.hjs.foodshare.notification.service.FcmPushService;
 import com.hjs.foodshare.post.domain.*;
 import com.hjs.foodshare.post.repository.PostRepository;
+import com.hjs.foodshare.post.repository.PostPageQuery;
+import com.hjs.foodshare.post.dto.PostSort;
 import com.hjs.foodshare.review.dto.ReviewCreateRequest;
 import com.hjs.foodshare.review.service.*;
 import com.hjs.foodshare.trade.domain.*;
@@ -30,6 +32,7 @@ class DemoSimulationTests {
  @Autowired PlatformTransactionManager manager;
  @Autowired UserRepository users;
  @Autowired PostRepository posts;
+ @Autowired PostPageQuery pages;
  @Autowired TradeRequestService trades;
  @Autowired ChatService chats;
  @Autowired ReviewService reviews;
@@ -53,6 +56,8 @@ class DemoSimulationTests {
   simulation.advance(a);assertNull(room(a));
   due(a);due(b);simulation.advance(a);simulation.advance(b);
   assertNotNull(room(a));assertNotEquals(room(a),room(b));
+  assertTrue(chats.getMessages(f.user,room(a)).stream().noneMatch(m->!m.systemMessage()));
+  assertTrue(chats.getRooms(f.user,"ALL").stream().anyMatch(r->r.chatRoomId().equals(room(a)) && r.simulation()));
   assertTrue(tx(()->posts.findById(f.post).orElseThrow().isOpen()));
   assertEquals(TradeRequestStatus.ACCEPTED,trades.getMyRequestForPost(f.user,f.post).getFirst().status());
   assertThrows(Exception.class,()->request(f,f.user));
@@ -92,6 +97,18 @@ class DemoSimulationTests {
   assertTrue(tx(()->em.find(DemoSession.class,a).reset));assertFalse(tx(()->em.find(DemoSession.class,b).reset));
   assertEquals(TradeRequestStatus.ACCEPTED,trades.getMyRequestForPost(f.other,f.post).getFirst().status());
   assertEquals(0L,tx(()->em.createQuery("select count(m) from ChatMessage m where m.chatRoom.id=:room and m.content='늦은 응답'",Long.class).setParameter("room",room(a)).getSingleResult()));
+ }
+ @Test void demoMarketLatestKeepsPurchaseRequestsBelowSharingPosts(){
+  var f=fixture(PostType.SHARE);
+  var buyer=tx(()->users.findById(f.other).orElseThrow());
+  tx(()->{posts.save(Post.create(buyer,PostType.BUY,"두부 구해요","두부","1개",1000,"역 앞",0.0,LocalDate.now().plusDays(3),37.5,127.0,null,"구합니다",null,null,null));return null;});
+  var result=pages.search(null,null,null,null,null,false,PostSort.LATEST,null,true,0,100).posts();
+  int firstBuy=-1,lastShare=-1;
+  for(int i=0;i<result.size();i++){
+   if(result.get(i).getPostType()==PostType.BUY && firstBuy<0)firstBuy=i;
+   if(result.get(i).getPostType()==PostType.SHARE)lastShare=i;
+  }
+  assertTrue(firstBuy>=0 && lastShare>=0 && lastShare<firstBuy);
  }
  @Test void withdrawnRequestsAreNotAutoAcceptedAndHiddenModeStopsNewRequests(){
   var f=fixture(PostType.SHARE);var a=request(f,f.user);trades.withdrawTradeRequest(a,f.user);due(a);simulation.advance(a);assertNull(room(a));

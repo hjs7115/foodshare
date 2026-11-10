@@ -20,6 +20,7 @@ public class PostPageQuery {
         var expiration = "(case when p.postType=com.hjs.foodshare.post.domain.PostType.BUY and p.deadlineDate is not null"
                 + " then cast(p.deadlineDate as LocalDate) else p.expirationDate end)";
         var where = new StringBuilder(" where p.deleted=false and coalesce(p.writer.suspended,false)=false and p.writer.withdrawnAt is null and p.status=com.hjs.foodshare.post.domain.PostStatus.OPEN and p.openFridgeValidUntil is null");
+        where.append(" and not exists(select s.requestId from DemoSession s where s.privatePostId=p.id)");
         where.append(" and ").append(expiration).append(">=:today");
         where.append(" and (p.deadlineDate is null or p.deadlineDate>:now)");
         where.append(" and (not exists (select d.postId from DemoPost d where d.postId=p.id) or exists (select ds.id from DemoState ds where ds.id=1 and ds.enabled=true))");

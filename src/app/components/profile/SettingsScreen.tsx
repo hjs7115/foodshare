@@ -48,6 +48,19 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
     } catch(error: any) {showToast(error?.message || '시연 모드를 변경하지 못했습니다.');}
     finally {setChangingDemo(false);}
   };
+  const [resettingDemo, setResettingDemo] = useState(false);
+  const resetMySimulation = async () => {
+    if (resettingDemo) return;
+    if (!(await showConfirm('내 AI 시연 거래·채팅·평가를 초기화하고 시연 평가로 바뀐 신선도를 되돌립니다. 실제 거래와 다른 사람의 체험 기록은 유지됩니다.', '내 시뮬레이션 초기화', '초기화'))) return;
+    setResettingDemo(true);
+    try {
+      await apiRequest(API_BASE_URL + '/api/demo-mode/reset-mine', {method: 'POST'});
+      showToast('내 시뮬레이션을 초기화했습니다.');
+      window.dispatchEvent(new Event('demo-mode-changed'));
+      window.dispatchEvent(new Event('trade-updated'));
+    } catch (error: any) {showToast(error?.message || '초기화하지 못했습니다. 다시 시도해주세요.');}
+    finally {setResettingDemo(false);}
+  };
   const [currentView, setCurrentView] = useState<SettingsView>('main');
   useNestedBack(currentView !== 'main', () => setCurrentView('main'));
   const storedEmail = getStoredUserInfo<{ email?: string }>()?.email || '';
@@ -168,11 +181,11 @@ export default function SettingsScreen({ onClose }: { onClose: () => void }) {
           </section>
         ))}
 
-        <div className="mt-5 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4">
+        <button type="button" onClick={resetMySimulation} disabled={resettingDemo} aria-label="내 시뮬레이션 초기화" className="mt-5 w-full rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] p-4 text-left disabled:opacity-50">
           <p className="text-sm leading-6 text-[#1e3a8a]">
-            게시글, 댓글, 거래 내역, 관심 목록은 서버에 저장됩니다. 이 화면의 기기 저장 데이터 삭제는 현재 브라우저에 남은 로그인과 화면 설정만 정리합니다.
+            게시글, 댓글, 거래 내역, 관심 목록은 서버에 저장됩니다. AI 시연 기록을 다시 시작하려면 여기를 눌러 내 시뮬레이션을 초기화하세요. 실제 거래 기록은 유지됩니다.
           </p>
-        </div>
+        </button>
 
         <div className="mt-5 text-center text-xs text-[#94a3b8]">
           {demoMode?.canManage ? <button type="button" onClick={toggleDemoMode} disabled={changingDemo} className="px-4 py-2 disabled:opacity-50">반띵 1.0.0</button> : '반띵 1.0.0'}

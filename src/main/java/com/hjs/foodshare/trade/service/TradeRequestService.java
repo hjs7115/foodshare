@@ -50,7 +50,11 @@ public class TradeRequestService {
 
     @Transactional
     public TradeRequestResponse createRequest(Long postId, Long requesterId) {
+        Long originalPostId = postId;
         Post post = getActivePost(postId);
+        validateRequestablePost(post);
+        post = demo.prepare(post, requesterId);
+        postId = post.getId();
         entityManager.flush();
         entityManager.refresh(post, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         validateRequestablePost(post);
@@ -68,6 +72,7 @@ public class TradeRequestService {
         if (post.isOpenFridgePost()) validateFridgeDistance(requester, post.getWriter());
 
         TradeRequest savedRequest = tradeRequestRepository.save(TradeRequest.create(post, requester));
+        demo.register(savedRequest, originalPostId);
         if (post.getWriter().isNotificationTradeRequest()) {
             notificationService.createNotification(
                     post.getWriter().getId(),
@@ -98,6 +103,7 @@ public class TradeRequestService {
     }
 
     public List<TradeRequestResponse> getMyRequestForPost(Long id,Long postId){
+        postId = demo.requestPost(id, postId);
         return tradeRequestRepository.findFirstByPostIdAndRequesterIdAndStatusInOrderByIdDesc(postId,id,List.of(TradeRequestStatus.PENDING,TradeRequestStatus.ACCEPTED,TradeRequestStatus.COMPLETED)).map(this::toResponse).stream().toList();
     }
     public List<TradeRequestResponse> getMyRequests(Long id){return responses(tradeRequestRepository.findAllByRequesterIdOrderByCreatedAtDesc(id).stream().filter(r->!r.isHistoryHiddenFor(id)).toList());}

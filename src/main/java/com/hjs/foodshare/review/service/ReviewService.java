@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class ReviewService {
+    @org.springframework.beans.factory.annotation.Autowired private com.hjs.foodshare.demo.DemoVisibility demo;
 
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
     private final ReviewRepository reviewRepository;
@@ -71,6 +72,7 @@ public class ReviewService {
         }
 
         em.refresh(targetUser,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        demo.rememberScore(targetUser, tradeRequestId);
         Review review = Review.create(tradeRequest, reviewer, targetUser, request.rating(), request.content());
         targetUser.updateFreshnessScore(
                 FreshnessCalculator.update(targetUser.getFreshnessScore(), request.rating())

@@ -594,7 +594,8 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
     try {
       const response = await apiRequest(API_ENDPOINTS.posts+`/${postId}/my-request`, { method: 'GET' });
       const existingRequest = extractTradeRequests(response)
-        .filter((request) => request.postId === postId && !['REJECTED','CANCELLED'].includes(request.status))
+        .filter((request) => !['REJECTED','CANCELLED'].includes(request.status))
+        .map((request) => ({ ...request, postId }))
         .sort((a, b) => b.requestId - a.requestId)[0];
 
       setMyTradeRequest(existingRequest && ['PENDING','ACCEPTED','COMPLETED'].includes(existingRequest.status) ? existingRequest : null);
@@ -663,7 +664,7 @@ export default function PostDetailScreen({ postId, onClose }: PostDetailScreenPr
       if (nextStatus === 'ACCEPTED' && tradeRequest?.chatRoomId) {
         showToast('채팅방이 개설되었습니다.');
       } else {
-        showToast(`${typeLabel} 요청이 전송되었습니다.\n게시글 작성자가 확인 후 연락드릴 예정입니다.`);
+        showToast(Number(tradeRequest?.postId) !== postId ? 'AI 시연 요청을 보냈어요. 약 10초 뒤 자동 수락되고 채팅방이 열립니다. 채팅 탭에서 확인해주세요.' : `${typeLabel} 요청이 전송되었습니다.\n게시글 작성자가 확인 후 연락드릴 예정입니다.`);
       }
     } catch (error: any) {
       if (error.message === '이미 이 게시글에 거래 요청을 보냈습니다.') {

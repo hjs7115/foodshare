@@ -98,6 +98,14 @@ export default function App() {
   const [profileTradeHistorySignal, setProfileTradeHistorySignal] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [chatToast, setChatToast] = useState<ChatToast | null>(null);
+
+  // Central timeout for every top-of-screen notification, including polled alerts.
+  // Some polling paths have no local timer, so relying on each source leaves a stuck popup.
+  useEffect(() => {
+    if (!chatToast) return;
+    const timer = window.setTimeout(() => setChatToast(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [chatToast]);
   const notificationUnreadCountRef = useRef<number | null>(null);
   const appHistoryRef = useRef<{ route: AppRoute | null; index: number; suppressRoutePush: boolean }>({
     route: null,
@@ -343,7 +351,7 @@ export default function App() {
   useEffect(() => {
     if (currentScreen !== 'main') return;
     let unsubscribe: (() => void) | undefined;
-    let toastTimer: number | undefined;
+
     let active = true;
     listenForegroundMessages((payload) => {
       const data = payload.data || {};
@@ -352,11 +360,11 @@ export default function App() {
         content: data.body || payload.notification?.body || '새 알림이 도착했습니다.',
         clickAction: data.clickAction || '/?screen=notifications',
       });
-      window.clearTimeout(toastTimer);
-      toastTimer = window.setTimeout(() => setChatToast(null), 4500);
+
+
     }).then((stop) => { if (active) unsubscribe = stop; else stop(); }).catch((error) => console.warn('포그라운드 FCM 수신을 시작하지 못했습니다.', error));
     return () => {
-      window.clearTimeout(toastTimer);
+
       active = false;
       unsubscribe?.();
     };
@@ -365,7 +373,7 @@ export default function App() {
   useEffect(() => {
     if (currentScreen !== 'main') return;
 
-    let toastTimer: number | undefined;
+
     const handleServiceWorkerMessage = (event: MessageEvent) => {
       if (event.data?.type !== 'FOODSHARE_PUSH_RECEIVED') return;
       const payload = event.data.payload || {};
@@ -376,14 +384,14 @@ export default function App() {
         content: payload.body || '새 알림이 도착했습니다.',
         clickAction: payload.clickAction || '/?screen=notifications',
       });
-      window.clearTimeout(toastTimer);
-      toastTimer = window.setTimeout(() => setChatToast(null), 4500);
+
+
     };
 
     navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
 
     return () => {
-      window.clearTimeout(toastTimer);
+
       navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
     };
   }, [currentScreen, authVersion]);
@@ -395,7 +403,7 @@ export default function App() {
     if (!token) return;
 
     const socket = new WebSocket(`${WS_BASE_URL}/ws/chat?token=${encodeURIComponent(token)}`);
-    let toastTimer: number | undefined;
+
 
     socket.onmessage = (event) => {
       try {
@@ -417,8 +425,8 @@ export default function App() {
 
         setChatUnreadCount((count) => count + 1);
         setChatToast(toast);
-        window.clearTimeout(toastTimer);
-        toastTimer = window.setTimeout(() => setChatToast(null), 4500);
+  
+  
 
       } catch (error) {
         console.warn('채팅 알림 처리 실패', error);
@@ -430,7 +438,7 @@ export default function App() {
     };
 
     return () => {
-      window.clearTimeout(toastTimer);
+
       socket.close();
     };
   }, [currentScreen, mainView, authVersion]);

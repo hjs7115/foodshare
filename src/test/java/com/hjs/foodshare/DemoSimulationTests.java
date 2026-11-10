@@ -135,8 +135,17 @@ class DemoSimulationTests {
   assertNotNull(tx(()->em.find(DemoInboundJob.class,original).acceptedAt));
   assertFalse(tx(()->em.find(DemoInboundJob.class,original).greeted));
   tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
-  inbound.prepare(original);
-  assertTrue(chats.getMessages(fixture.user,chat).stream().anyMatch(m->m.content().contains("구매하고 싶어서")));
+  when(ai.firstMessage(anyString(),isNull(),anyString()))
+      .thenReturn("안녕하세요, 당근 아직 판매 중일까요? 구매하고 싶어요.");
+  var first=inbound.prepare(original);
+  assertNotNull(first);
+  assertTrue(first.greeting());
+  assertTrue(first.conversation().contains("당근 판매합니다"));
+  assertTrue(first.conversation().contains("유형:") || first.conversation().contains("게시글 유형:"));
+  assertFalse(tx(()->em.find(DemoInboundJob.class,original).greeted));
+  inbound.respond(first);
+  verify(ai).firstMessage(anyString(),isNull(),anyString());
+  assertTrue(chats.getMessages(fixture.user,chat).stream().anyMatch(m->m.content().contains("당근 아직 판매 중일까요")));
   when(ai.reply(anyString())).thenReturn("내일 오후면 괜찮아요!");
   chats.sendMessage(fixture.user,chat,"내일 오후 괜찮으세요?");
   tx(()->{em.find(DemoInboundJob.class,original).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
@@ -171,10 +180,13 @@ class DemoSimulationTests {
    tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
    inbound.prepare(postId);
    tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
-   inbound.prepare(postId);
+   var greetingPrompt=inbound.prepare(postId);
+   assertNotNull(greetingPrompt);
+   assertTrue(greetingPrompt.greeting());
+   inbound.respond(greetingPrompt);
    Long chat=chats.findRoomIdByTradeRequestId(requestId);
    String greeting=chats.getMessages(f.user,chat).stream().filter(m->!m.systemMessage()).map(m->m.content()).findFirst().orElse("");
-   assertTrue(greeting.contains(type==PostType.SHARE?"받아보고 싶어서요":"아직 찾고 계신가요"),greeting);
+   assertTrue(greeting.contains(type==PostType.SHARE?"받고 싶어서요":"아직 찾고 계신가요"),greeting);
   }
  }
  @Test void inboundDoesNotScheduleWhenDemoModeIsOff(){

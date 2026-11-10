@@ -63,7 +63,8 @@ public class DemoInboundSimulationService {
         });
     }
 
-    public record Prompt(Long postId, Long requestId, long through, String conversation) {}
+    public record Prompt(Long postId, Long requestId, long through, String conversation,
+            String imageUrl, boolean greeting, String fallback) {}
 
     /** A failed transaction must be retried using a fresh transaction, not a rollback-only one. */
     public void deferFailure(Long postId) {
@@ -157,10 +158,11 @@ public class DemoInboundSimulationService {
             return null;
         }
         if (!job.greeted) {
-            send(request, roomId, greeting(post), "inbound-greeting-" + job.postId);
-            job.greeted = true;
-            job.dueAt = LocalDateTime.now().plusSeconds(2);
-            return null;
+            // Prepare the greeting under a lock, but never wait for OpenAI within a DB transaction.
+            // A bounded lease prevents overlapping preparation across workers.
+            job.dueAt = LocalDateTime.now().plusSeconds(25);
+            return new Prompt(job.postId, job.requestId, 0L, greetingContext(post),
+                    post.getImageUrl(), true, greeting(post));
         }
         List<ChatMessage> history = em.createQuery(
                 "select m from ChatMessage m left join fetch m.sender where m.chatRoom.id=:room and m.systemMessage=false order by m.id desc",
@@ -191,23 +193,34 @@ public class DemoInboundSimulationService {
         for (ChatMessage msg : ordered)
             text.append(msg.getSender().getId().equals(job.writerId) ? "게시글 작성자: " : "거래 요청자: ")
                     .append(msg.getContent()).append('\n');
-        return new Prompt(job.postId, job.requestId, latest, text.toString());
+        return new Prompt(job.postId, job.requestId, latest, text.toString(), null, false, null);
     }
 
     public void respond(Prompt prompt) {
-        String answer = ai.reply(prompt.conversation());
+        String answer = prompt.greeting()
+                ? ai.firstMessage(prompt.conversation(), prompt.imageUrl(), prompt.fallback())
+                : ai.reply(prompt.conversation());
+        if (answer == null || answer.isBlank())
+            answer = prompt.greeting() ? prompt.fallback() : "네, 좋아요! 편하신 쪽으로 정해요.";
+        final String message = answer;
         tx.executeWithoutResult(status -> {
             if (!demo.enabled()) return;
             DemoInboundJob job = em.find(DemoInboundJob.class, prompt.postId(), LockModeType.PESSIMISTIC_WRITE);
-            if (job == null || job.finished || !job.greeted || !prompt.requestId().equals(job.requestId)
-                    || job.repliedThrough >= prompt.through()) return;
+            if (job == null || job.finished || !prompt.requestId().equals(job.requestId)) return;
+            if (prompt.greeting() ? job.greeted : (!job.greeted || job.repliedThrough >= prompt.through()))
+                return;
             TradeRequest request = em.find(TradeRequest.class, job.requestId);
             if (request == null || request.getStatus() != TradeRequestStatus.ACCEPTED) return;
             Long room = chats.findRoomIdByTradeRequestId(job.requestId);
             if (room == null) return;
-            send(request, room, answer, "inbound-reply-" + prompt.through());
-            job.repliedThrough = prompt.through();
-            job.replyCount++;
+            send(request, room, message, prompt.greeting()
+                    ? "inbound-greeting-" + prompt.postId()
+                    : "inbound-reply-" + prompt.through());
+            if (prompt.greeting()) job.greeted = true;
+            else {
+                job.repliedThrough = prompt.through();
+                job.replyCount++;
+            }
             job.dueAt = LocalDateTime.now().plusSeconds(2);
         });
     }
@@ -220,12 +233,34 @@ public class DemoInboundSimulationService {
         });
     }
 
+    private String greetingContext(Post post) {
+        String role = switch (post.getPostType()) {
+            case SHARE -> "작성자가 나눔하는 물건을 받고 싶은 이웃";
+            case SALE -> "작성자가 판매하는 물건을 구매하고 싶은 이웃";
+            case BUY -> "작성자가 찾는 물품을 제공할 가능성이 있는 이웃";
+            default -> "게시글을 보고 연락하는 이웃";
+        };
+        return "역할: " + role
+                + "\n게시글 유형: " + post.getPostType()
+                + "\n품목: " + post.getIngredientName()
+                + "\n제목: " + post.getTitle()
+                + "\n게시글 상세 설명: " + post.getContent()
+                + "\n수량: " + post.getQuantity()
+                + "\n가격: " + post.getPrice()
+                + "\n거래 장소: " + post.getTradeLocation()
+                + "\n메시지는 제목을 그대로 반복하지 말고, 핵심 품목을 자연스럽게 짧게 불러주세요."
+                + "\n사진이 첨부되면 참고하되 확인되지 않는 사실을 만들지 마세요.";
+    }
+
     private String greeting(Post post) {
-        String title = post.getTitle();
+        String item = post.getIngredientName();
+        if (item == null || item.isBlank()) item = "올리신 물건";
+        item = item.strip();
+        if (item.length() > 24) item = item.substring(0, 24);
         return switch (post.getPostType()) {
-            case SHARE -> "안녕하세요! 올리신 " + title + " 아직 나눔 가능할까요? 받아보고 싶어서요.";
-            case SALE -> "안녕하세요! " + title + " 아직 판매 중일까요? 구매하고 싶어서 연락드렸어요.";
-            case BUY -> "안녕하세요! " + title + " 구하신다는 글 보고 연락드렸어요. 아직 찾고 계신가요?";
+            case SHARE -> "안녕하세요! " + item + " 아직 나눔 가능할까요? 받고 싶어서요.";
+            case SALE -> "안녕하세요! " + item + " 아직 판매 중일까요? 구매하고 싶어요.";
+            case BUY -> "안녕하세요! " + item + " 구하신다는 글 보고 왔는데, 아직 찾고 계신가요?";
             default -> "안녕하세요! 게시글 보고 연락드렸어요.";
         };
     }

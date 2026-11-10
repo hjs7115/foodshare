@@ -317,6 +317,7 @@ class DemoSimulationTests {
   });
   tx(()->{em.find(DemoInboundJob.class,postId).dueAt=LocalDateTime.now().minusSeconds(1);return null;});
   inbound.screenAndFinish(inbound.queueScreening(postId));
+  inboundDue(postId); // Avoid database timestamp rounding at the scheduler due boundary.
   inbound.prepare(postId);
   Long requestId=tx(()->em.find(DemoInboundJob.class,postId).requestId);
   assertNotNull(requestId);
@@ -453,6 +454,8 @@ class DemoSimulationTests {
   var f=fixture(PostType.SHARE);
   Long ordinary=f.user;
   Long named1=tx(()->{
+    var existing=em.createQuery("select u.id from User u where u.nickname='새파란'",Long.class).getResultList();
+    if(!existing.isEmpty())return existing.getFirst();
     String key=UUID.randomUUID().toString();
     var account=users.save(User.create("테스트","새파란",key+"@demo.invalid","unused",key.substring(0,20),"서울"));
     em.persist(new DemoManager(account.getId()));return account.getId();
@@ -632,6 +635,30 @@ class DemoSimulationTests {
   tx(()->{em.find(DemoState.class,1L).setEnabled(false);return null;});companion.respond(pending);
   tx(()->{em.find(DemoState.class,1L).setEnabled(true);var bot=em.find(TradeRequest.class,pending.requestId()).getRequester();em.persist(com.hjs.foodshare.moderation.domain.UserBlock.create(em.find(User.class,f.user),bot));return null;});companion.respond(pending);
   assertEquals(0L,tx(()->em.createQuery("select count(m) from ChatMessage m where m.chatRoom.id=:room and m.content='금지된 늦은 답변'",Long.class).setParameter("room",chat).getSingleResult()));
+ }
+
+ @Test void administratorResetsAllOwnersIncludingTwoBotsButPreservesRealTradesAndPosts(){
+  var f=fixture(PostType.GROUP_BUY);
+  Long admin=tx(()->{
+   var existing=em.createQuery("select u.id from User u where u.nickname='새파란'",Long.class).getResultList();
+   if(!existing.isEmpty())return existing.getFirst();
+   var u=user();em.createQuery("update User u set u.nickname='새파란' where u.id=:id").setParameter("id",u.getId()).executeUpdate();em.persist(new DemoManager(u.getId()));return u.getId();
+  });
+  Long first=request(f,f.user),second=request(f,f.other);due(first);simulation.advance(first);due(second);simulation.advance(second);
+  trades.complete(first,f.user);due(first);simulation.advance(first);
+  Long owned=ownGroup(f,3);inbound.prepare(owned);companionDue(owned);companion.prepare(owned);
+  Long queued=tx(()->{var p=posts.save(Post.create(users.findById(f.other).orElseThrow(),PostType.SHARE,"내 양파","양파","1개",0,"역",0.0,LocalDate.now().plusDays(2),37.5,127.0,null,"내가 작성한 글",null,null,null));inbound.schedule(p);return p.getId();});
+  Long realPost=tx(()->posts.save(Post.create(users.findById(f.other).orElseThrow(),PostType.SHARE,"실제 거래","양파","1개",0,"역",0.0,LocalDate.now().plusDays(2),37.5,127.0,null,"실제",null,null,null)).getId());
+  Long actual=trades.createRequest(realPost,f.user).requestId();trades.accept(actual,f.other);trades.complete(actual,f.user);trades.complete(actual,f.other);reviews.createReview(actual,f.other,new ReviewCreateRequest(4,"실제 후기"));
+  assertThrows(Exception.class,()->simulation.resetAll(f.user));
+  assertFalse(tx(()->em.find(DemoSession.class,first).reset));
+  assertTrue(simulation.resetAll(admin)>=4);
+  assertTrue(tx(()->em.find(DemoSession.class,first).reset));assertTrue(tx(()->em.find(DemoSession.class,second).reset));
+  assertTrue(tx(()->em.find(DemoGroupCompanion.class,owned).reset));assertTrue(tx(()->Boolean.TRUE.equals(em.find(DemoInboundJob.class,queued).reset)));
+  assertFalse(tx(()->posts.findById(owned).orElseThrow().isDeleted()));assertFalse(tx(()->posts.findById(queued).orElseThrow().isDeleted()));
+  assertEquals(TradeRequestStatus.COMPLETED,tx(()->em.find(TradeRequest.class,actual).getStatus()));
+  assertEquals(FreshnessCalculator.update(50,4),tx(()->users.findById(f.user).orElseThrow().getFreshnessScore()));
+  assertEquals(0,simulation.resetAll(admin));assertNotNull(request(f,f.user));assertNotNull(request(f,f.other));
  }
 
 }

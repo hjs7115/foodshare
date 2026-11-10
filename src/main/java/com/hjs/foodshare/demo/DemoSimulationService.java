@@ -120,6 +120,19 @@ public class DemoSimulationService {
   ordered.forEach(m->context.append(m.getSender().getId().equals(s.userId)?"요청자: ":m.getSender().getId().equals(r.getPost().getWriter().getId())?"게시글 작성자(나): ":"다른 공동구매 참가자: ").append(m.getContent()).append('\n'));
   return new Prompt(id,latest,context.toString(),false,DemoMeetupService.nearHuman(r.getRequester(),r.getPost()));
  }
+ /** Reset the participant set captured by this transaction; newly started experiences are separate. */
+ public int resetAll(Long adminId){return tx.execute(status -> {
+  demo.requireResetPermission(adminId);
+  // Serialize administrator-wide resets without altering the global ON/OFF setting.
+  em.find(DemoState.class,1L,LockModeType.PESSIMISTIC_WRITE);
+  var owners=new TreeSet<Long>();
+  owners.addAll(em.createQuery("select distinct s.userId from DemoSession s where s.reset=false",Long.class).getResultList());
+  owners.addAll(em.createQuery("select distinct j.writerId from DemoInboundJob j where coalesce(j.reset,false)=false",Long.class).getResultList());
+  owners.addAll(em.createQuery("select distinct j.humanId from DemoGroupCompanion j where j.reset=false",Long.class).getResultList());
+  int count=0;
+  for(Long owner:owners)count+=resetMine(owner);
+  return count;
+ });}
  public int resetMine(Long userId){return tx.execute(status -> {
   if(em.find(User.class,userId)==null)throw new BusinessException(HttpStatus.NOT_FOUND,"계정을 찾을 수 없습니다.");
   // Inbound workers lock their job before the post/trade. Use the same ordering,

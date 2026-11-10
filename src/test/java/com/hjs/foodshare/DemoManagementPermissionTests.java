@@ -9,11 +9,13 @@ import static org.mockito.Mockito.*;
 class DemoManagementPermissionTests {
  @Test void ordinaryAccountCannotListOrRestoreRestrictedAccounts(){
   var visibility=mock(DemoVisibility.class);var safety=mock(DemoSafetyService.class);
-  var controller=new DemoController(visibility,mock(DemoSimulationService.class),safety);
+  var simulation=mock(DemoSimulationService.class);
+  var controller=new DemoController(visibility,simulation,safety);
   doThrow(new BusinessException(HttpStatus.FORBIDDEN,"관리자만 가능합니다.")).when(visibility).requireResetPermission(7L);
   var auth=new AuthUser(7L,"test@example.com","테스트");
   assertThrows(BusinessException.class,()->controller.restricted(auth));
   assertThrows(BusinessException.class,()->controller.restore(auth,8L));
-  verifyNoInteractions(safety);
+  assertThrows(BusinessException.class,()->controller.resetAll(auth));
+  verifyNoInteractions(safety,simulation);
  }
 }
